@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ozamigos Share</title>
+    <link rel="stylesheet" href="inicio.css" />
+  </head>
+  <body>
+    <main>
+      <form id="formulario">
+        <div class="logo">
+          <img src="build/icone.png" alt="" width="48" height="48" />
+          <span>Ozamigos <strong>Share</strong></span>
+        </div>
+        <p class="subtitulo">Qual é o endereço do servidor do seu grupo? Quem fez o deploy no Render sabe (algo como https://ozamigos-share-app.onrender.com).</p>
+        <label>
+          <span>Endereço do servidor</span>
+          <input id="endereco" type="url" placeholder="https://..." required autofocus spellcheck="false" />
+        </label>
+        <p id="erro" class="erro" role="alert" hidden></p>
+        <button type="submit" id="conectar">Conectar</button>
+        <p class="ajuda">O app guarda o endereço; para trocar depois, use o ícone de servidor na sala ou o menu (tecla Alt).</p>
+      </form>
+    </main>
+    <script src="inicio.js"></script>
+  </body>
+</html>

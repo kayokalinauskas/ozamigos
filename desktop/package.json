@@ -1,0 +1,64 @@
+{
+  "name": "ozamigos-share",
+  "productName": "Ozamigos Share",
+  "version": "1.0.0",
+  "description": "Transmita seu jogo para os amigos, direto de um PC para o outro.",
+  "author": "Ozamigos",
+  "license": "MIT",
+  "main": "main.js",
+  "ozamigos": {
+    "servidor": ""
+  },
+  "scripts": {
+    "start": "electron .",
+    "icone": "node build/gerar-icone.js",
+    "instalador": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "dev.ozamigos.share",
+    "productName": "Ozamigos Share",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "inicio.html",
+      "inicio.js",
+      "inicio.css",
+      "build/icone.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icone.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "Ozamigos-Share-Instalador-${version}.${ext}",
+      "shortcutName": "Ozamigos Share"
+    },
+    "portable": {
+      "artifactName": "Ozamigos-Share-Portatil-${version}.${ext}"
+    }
+  }
+}

@@ -2,3 +2,6 @@ target/
 .idea/
 .vscode/
 *.iml
+**/node_modules/
+desktop/
+src/main/resources/static/

@@ -1,0 +1,680 @@
+// O núcleo do app, sem nada de interface: sinalização com o servidor Java, conexões WebRTC
+// e estatísticas. Os componentes React só leem o estado (via useCliente) e chamam as ações.
+
+import { lembrado, lembrar } from './armazenamento';
+import { QUALIDADES, QUALIDADE_PADRAO, ehQualidade, type Qualidade } from './qualidade';
+import { tocar } from './sons';
+
+// STUN: um servidor público que diz ao navegador qual é o seu endereço visto da internet.
+const SERVIDORES_ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+export const LIMITE_POR_SALA = 5;
+
+export type Pessoa = { id: string; nome: string };
+
+export type Aviso = {
+  id: number;
+  texto: string;
+  tipo: 'info' | 'erro';
+  acao?: { rotulo: string; executar: () => void };
+};
+
+/** Uma linha de medição por conexão, atualizada a cada segundo. */
+export type Metrica = {
+  canal: Canal;
+  id: string;
+  fps: number;
+  largura: number | null;
+  altura: number | null;
+  mbps: number;
+  codec: string;
+  captura: number | null; // fps que o navegador consegue copiar da tela (só envio)
+  codificador: string | null;
+  limite: string | null; // qualityLimitationReason (só envio; o Firefox não informa)
+  rede: string | null; // host, srflx, prflx ou relay
+  idaEVolta: number | null; // ms
+  banda: number | null; // Mbps estimados de upload (só envio)
+  congelamentos: number; // só recebimento
+  perdidos: number; // só recebimento
+  congelouAgora: boolean; // houve congelamento nos últimos segundos
+};
+
+export type Estado = {
+  fase: 'entrada' | 'entrando' | 'sala';
+  erro: string;
+  sala: string;
+  meuId: string | null;
+  meuNome: string;
+  pessoas: Pessoa[]; // as outras pessoas, na ordem em que entraram
+  transmitindo: string[]; // quem está transmitindo agora (inclusive eu)
+  plateias: Record<string, string[]>; // quem transmite -> quem assiste
+  assistindo: string[]; // quem eu escolhi assistir (continua valendo se a pessoa parar e voltar)
+  videos: Record<string, MediaStream>; // o que chega de cada pessoa que eu assisto
+  minhaTela: MediaStream | null;
+  qualidade: Qualidade;
+  metricas: Record<string, Metrica>; // `${canal}:${id}` -> medição
+  avisos: Aviso[];
+  conexaoPerdida: boolean;
+};
+
+type Canal = 'envio' | 'recebimento';
+type Conexao = { pc: RTCPeerConnection; pendentes: RTCIceCandidateInit[]; canal: Canal; id: string };
+type Fonte = 'aplicativo' | 'tela' | 'escolher';
+
+type Mensagem = Record<string, any> & { tipo: string };
+
+const chave = (canal: Canal, id: string) => `${canal}:${id}`;
+
+export function codigoValido(codigo: string): boolean {
+  return /^[A-Za-z0-9]{6,20}$/.test(codigo);
+}
+
+export function novoCodigo(): string {
+  const letras = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const aleatorios = crypto.getRandomValues(new Uint8Array(10));
+  return Array.from(aleatorios, (n) => letras[n % letras.length]).join('');
+}
+
+/** Aceita o código puro ou um link inteiro com ?sala=... (o que o amigo mandou no chat). */
+export function codigoDe(texto: string): string {
+  const limpo = texto.trim();
+  try {
+    const daUrl = new URL(limpo).searchParams.get('sala');
+    if (daUrl) return daUrl;
+  } catch {
+    // não é um link: é o próprio código
+  }
+  return limpo;
+}
+
+export function linkDaSala(codigo: string): string {
+  return `${location.origin}${location.pathname}?sala=${codigo}`;
+}
+
+class Cliente {
+  private estado: Estado;
+  private readonly ouvintes = new Set<() => void>();
+  private ws: WebSocket | null = null;
+  private readonly conexoes = new Map<string, Conexao>();
+  private recusado = false;
+  private proximoAviso = 1;
+  private readonly anteriores = new Map<string, { bytes: number; momento: number }>();
+  private readonly historicoDeCongelamentos = new Map<string, number[]>();
+
+  constructor() {
+    const daUrl = new URLSearchParams(location.search).get('sala');
+    const sala = daUrl && codigoValido(daUrl) ? daUrl : novoCodigo();
+    const qualidade = lembrado('ozamigos-qualidade');
+    this.estado = {
+      fase: 'entrada',
+      erro: '',
+      sala,
+      meuId: null,
+      meuNome: lembrado('ozamigos-nome'),
+      pessoas: [],
+      transmitindo: [],
+      plateias: {},
+      assistindo: [],
+      videos: {},
+      minhaTela: null,
+      qualidade: ehQualidade(qualidade) ? qualidade : QUALIDADE_PADRAO,
+      metricas: {},
+      avisos: [],
+      conexaoPerdida: false,
+    };
+    this.trocarSala(sala);
+    // Um "estou aqui" a cada 30 s: sem isso, proxies e hospedagens gratuitas fecham a conexão parada.
+    setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN && this.estado.meuId) this.enviar({ tipo: 'ping' });
+    }, 30_000);
+    setInterval(() => void this.medir(), 1000);
+  }
+
+  // ===== Estado para o React =====
+
+  inscrever = (ouvinte: () => void) => {
+    this.ouvintes.add(ouvinte);
+    return () => this.ouvintes.delete(ouvinte);
+  };
+
+  ler = () => this.estado;
+
+  private mudar(parcial: Partial<Estado>) {
+    this.estado = { ...this.estado, ...parcial };
+    this.ouvintes.forEach((ouvinte) => ouvinte());
+  }
+
+  nomeDe(id: string): string {
+    if (id === this.estado.meuId) return 'Você';
+    return this.estado.pessoas.find((p) => p.id === id)?.nome ?? 'Amigo';
+  }
+
+  // ===== Avisos (os "toasts" do canto da tela) =====
+
+  avisar(texto: string, tipo: Aviso['tipo'] = 'info', acao?: Aviso['acao']) {
+    const aviso: Aviso = { id: this.proximoAviso++, texto, tipo, acao };
+    this.mudar({ avisos: [...this.estado.avisos, aviso].slice(-4) });
+    setTimeout(() => this.dispensar(aviso.id), acao ? 10_000 : 5_000);
+  }
+
+  dispensar(id: number) {
+    this.mudar({ avisos: this.estado.avisos.filter((a) => a.id !== id) });
+  }
+
+  /** Notificação do Windows, só quando a janela não está em foco (senão o aviso na tela basta). */
+  private notificar(titulo: string, corpo: string) {
+    if (document.hasFocus() || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    try {
+      new Notification(titulo, { body: corpo, silent: true });
+    } catch {
+      // sem notificações: o aviso na tela continua lá
+    }
+  }
+
+  // ===== Entrada =====
+
+  trocarSala(codigo: string) {
+    if (!codigoValido(codigo)) return;
+    history.replaceState(null, '', `?sala=${codigo}`);
+    this.mudar({ sala: codigo });
+  }
+
+  entrar(nome: string, senha: string) {
+    if (this.estado.fase !== 'entrada') return; // dois cliques abririam duas conexões (uma "pessoa fantasma")
+    this.recusado = false;
+    this.mudar({ fase: 'entrando', erro: '', meuNome: nome.trim() || 'Amigo' });
+    const protocolo = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${protocolo}://${location.host}/sinal`);
+    this.ws = ws;
+    ws.onopen = () => this.enviar({ tipo: 'entrar', sala: this.estado.sala, senha, nome });
+    ws.onclose = () => {
+      if (this.recusado) return;
+      if (this.estado.fase === 'sala') {
+        this.mudar({ conexaoPerdida: true });
+      } else {
+        this.mudar({ fase: 'entrada', erro: 'Não foi possível falar com o servidor. Se ele estava dormindo, espere 1 minuto e tente de novo.' });
+      }
+    };
+    // As mensagens são tratadas uma de cada vez, na ordem em que chegaram.
+    let fila = Promise.resolve();
+    ws.onmessage = (evento) => {
+      const msg = JSON.parse(evento.data) as Mensagem;
+      fila = fila.then(() => this.tratar(msg, nome, senha)).catch((erro) => console.error('Erro ao tratar', msg, erro));
+    };
+  }
+
+  sair() {
+    this.recusado = true;
+    this.pararDeTransmitir(false);
+    this.conexoes.forEach(({ pc }) => pc.close());
+    this.ws?.close();
+    location.reload(); // volta para a entrada, com a mesma sala no link
+  }
+
+  private enviar(msg: Mensagem) {
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
+  }
+
+  private async tratar(msg: Mensagem, nome: string, senha: string) {
+    const e = this.estado;
+    switch (msg.tipo) {
+      case 'bem-vindo': {
+        lembrar('ozamigos-nome', nome);
+        lembrar('ozamigos-senha', senha);
+        this.mudar({
+          fase: 'sala',
+          meuId: msg.id,
+          pessoas: msg.outros,
+          transmitindo: msg.compartilhando,
+          plateias: msg.plateias ?? {},
+        });
+        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+          void Notification.requestPermission().catch(() => undefined);
+        }
+        break;
+      }
+      case 'entrou':
+        this.mudar({ pessoas: [...e.pessoas, { id: msg.id, nome: msg.nome }] });
+        this.avisar(`${msg.nome} entrou na sala`);
+        this.notificar('Ozamigos Share', `${msg.nome} entrou na sala`);
+        tocar('entrou');
+        break;
+      case 'saiu': {
+        const nomeQueSaiu = this.nomeDe(msg.id);
+        this.fecharConexao('envio', msg.id);
+        this.fecharConexao('recebimento', msg.id);
+        const plateias = { ...e.plateias };
+        delete plateias[msg.id];
+        this.mudar({
+          pessoas: this.estado.pessoas.filter((p) => p.id !== msg.id),
+          transmitindo: e.transmitindo.filter((id) => id !== msg.id),
+          assistindo: e.assistindo.filter((id) => id !== msg.id),
+          plateias,
+        });
+        this.avisar(`${nomeQueSaiu} saiu da sala`);
+        tocar('saiu');
+        break;
+      }
+      case 'pode-compartilhar':
+        if (!e.minhaTela || !e.meuId) break; // parei antes de o servidor responder
+        this.mudar({
+          transmitindo: [...e.transmitindo, e.meuId],
+          plateias: { ...e.plateias, [e.meuId]: [] },
+        });
+        break;
+      case 'compartilhando': {
+        this.mudar({
+          transmitindo: [...e.transmitindo.filter((id) => id !== msg.id), msg.id],
+          plateias: { ...e.plateias, [msg.id]: [] },
+        });
+        const nomeDeQuem = this.nomeDe(msg.id);
+        tocar('aoVivo');
+        if (e.assistindo.includes(msg.id)) {
+          // Eu já assistia essa pessoa antes de ela parar: volto a assistir sozinho.
+          this.enviar({ tipo: 'assistir', para: msg.id });
+          this.avisar(`${nomeDeQuem} voltou a transmitir`);
+        } else {
+          this.avisar(`${nomeDeQuem} começou a transmitir`, 'info', {
+            rotulo: 'Assistir',
+            executar: () => this.assistir(msg.id),
+          });
+        }
+        this.notificar('Ozamigos Share', `${nomeDeQuem} começou a transmitir`);
+        break;
+      }
+      case 'parou': {
+        this.fecharConexao('recebimento', msg.id);
+        const plateias = { ...e.plateias };
+        delete plateias[msg.id];
+        this.mudar({ transmitindo: e.transmitindo.filter((id) => id !== msg.id), plateias });
+        break;
+      }
+      case 'plateia':
+        this.mudar({ plateias: { ...e.plateias, [msg.id]: msg.ids } });
+        break;
+      case 'assistir':
+        // Alguém clicou em "Assistir" na minha transmissão: abro uma conexão só para essa pessoa.
+        if (e.minhaTela) await this.enviarOferta(msg.de);
+        break;
+      case 'deixar':
+        this.fecharConexao('envio', msg.de);
+        break;
+      case 'oferta':
+        await this.receberOferta(msg.de, msg.sdp);
+        break;
+      case 'resposta':
+        await this.receberResposta(msg.de, msg.sdp);
+        break;
+      case 'candidato':
+        // O canal vem do ponto de vista de quem mandou: o "envio" dele é o meu "recebimento".
+        await this.receberCandidato(msg.de, msg.canal === 'envio' ? 'recebimento' : 'envio', msg.candidato);
+        break;
+      case 'erro':
+        this.tratarErro(msg.motivo);
+        break;
+    }
+  }
+
+  private tratarErro(motivo: string) {
+    const textos: Record<string, string> = {
+      'senha-errada': 'Senha errada. Confira com quem mandou o link.',
+      'sala-cheia': `A sala está cheia (máximo de ${LIMITE_POR_SALA} pessoas).`,
+      'codigo-invalido': 'Código de sala inválido: use de 6 a 20 letras e números.',
+    };
+    const texto = textos[motivo] ?? `Erro: ${motivo}`;
+    if (motivo in textos) {
+      this.recusado = true;
+      if (motivo === 'senha-errada') lembrar('ozamigos-senha', ''); // a senha pode ter mudado
+      this.mudar({ fase: 'entrada', erro: texto });
+    } else {
+      this.avisar(texto, 'erro');
+    }
+  }
+
+  // ===== Assistir =====
+
+  assistir(id: string) {
+    if (this.estado.assistindo.includes(id)) return;
+    this.mudar({ assistindo: [...this.estado.assistindo, id] });
+    this.enviar({ tipo: 'assistir', para: id });
+  }
+
+  deixarDeAssistir(id: string) {
+    this.mudar({ assistindo: this.estado.assistindo.filter((outro) => outro !== id) });
+    this.fecharConexao('recebimento', id);
+    this.enviar({ tipo: 'deixar', para: id });
+  }
+
+  // ===== Transmitir a minha tela =====
+
+  /**
+   * Abre o seletor e começa (ou troca) a transmissão. Precisa ser chamado direto no clique:
+   * o navegador exige um gesto da pessoa. No app para Windows, o seletor é o do Ozamigos.
+   */
+  async transmitir(fonte: Fonte) {
+    const tela = await this.capturar(fonte);
+    if (!tela) return;
+    if (this.estado.minhaTela) {
+      await this.trocarFonte(tela);
+    } else {
+      this.usarTela(tela);
+      await this.aplicarQualidade();
+      this.enviar({ tipo: 'comecei' });
+    }
+  }
+
+  private async capturar(fonte: Fonte): Promise<MediaStream | null> {
+    const { fps } = QUALIDADES[this.estado.qualidade];
+    const superficie = fonte === 'aplicativo' ? 'window' : fonte === 'tela' ? 'monitor' : undefined;
+    try {
+      return await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          ...(superficie ? { displaySurface: superficie } : {}), // abre o seletor já na aba certa
+          width: { max: 1920 },
+          height: { max: 1080 },
+          frameRate: { ideal: fps, max: fps },
+        },
+        audio: true, // áudio, se a pessoa marcar a opção
+        // Opções que só o Chrome e o Edge conhecem (os outros ignoram):
+        ...{
+          monitorTypeSurfaces: fonte === 'aplicativo' ? 'exclude' : 'include',
+          selfBrowserSurface: 'exclude', // não oferecer a própria aba do Ozamigos Share
+          systemAudio: 'include',
+        },
+      } as DisplayMediaStreamOptions);
+    } catch {
+      return null; // a pessoa cancelou o seletor
+    }
+  }
+
+  private usarTela(tela: MediaStream) {
+    const [video] = tela.getVideoTracks();
+    video.contentHint = 'motion'; // jogo: priorizar movimento fluido em vez de nitidez de texto
+    video.onended = () => this.pararDeTransmitir(true); // botão "Parar compartilhamento" do navegador
+    this.mudar({ minhaTela: tela });
+  }
+
+  // Troca o que está sendo transmitido sem refazer as conexões:
+  // replaceTrack põe a trilha nova no lugar da antiga, dentro da conexão que já existe.
+  private async trocarFonte(nova: MediaStream) {
+    const antiga = this.estado.minhaTela!;
+    this.usarTela(nova);
+    const [video] = nova.getVideoTracks();
+    const [audio] = nova.getAudioTracks();
+    for (const { pc, canal } of this.conexoes.values()) {
+      if (canal !== 'envio') continue;
+      for (const transceptor of pc.getTransceivers()) {
+        const tipo = transceptor.receiver.track.kind;
+        await transceptor.sender.replaceTrack(tipo === 'video' ? video : (audio ?? null));
+      }
+    }
+    antiga.getVideoTracks()[0].onended = null; // parar a antiga não pode encerrar a transmissão
+    antiga.getTracks().forEach((trilha) => trilha.stop());
+    await this.aplicarQualidade(); // a fonte nova pode ter outro tamanho
+  }
+
+  pararDeTransmitir(avisarServidor: boolean) {
+    const { minhaTela, meuId } = this.estado;
+    if (!minhaTela) return;
+    minhaTela.getTracks().forEach((trilha) => trilha.stop());
+    for (const { canal, id } of [...this.conexoes.values()]) {
+      if (canal === 'envio') this.fecharConexao(canal, id);
+    }
+    const plateias = { ...this.estado.plateias };
+    if (meuId) delete plateias[meuId];
+    this.mudar({
+      minhaTela: null,
+      transmitindo: this.estado.transmitindo.filter((id) => id !== meuId),
+      plateias,
+    });
+    if (avisarServidor) this.enviar({ tipo: 'parei' });
+  }
+
+  descreverFonte(): string {
+    const tela = this.estado.minhaTela;
+    if (!tela) return '';
+    const { displaySurface } = tela.getVideoTracks()[0].getSettings() as MediaTrackSettings & { displaySurface?: string };
+    const nomes: Record<string, string> = { window: 'Um aplicativo', monitor: 'A tela inteira', browser: 'Uma aba' };
+    const audio = tela.getAudioTracks().length > 0 ? 'com som' : 'sem som';
+    return `${nomes[displaySurface ?? ''] ?? 'Sua tela'}, ${audio}`;
+  }
+
+  // ===== Qualidade =====
+
+  async mudarQualidade(qualidade: Qualidade) {
+    lembrar('ozamigos-qualidade', qualidade);
+    this.mudar({ qualidade });
+    await this.aplicarQualidade();
+  }
+
+  // Os parâmetros do codificador para a qualidade escolhida. A escala é calculada pela altura
+  // real da captura: uma tela 1080p em "720p" é reduzida 1,5 vez; uma captura já pequena não é reduzida.
+  private codificacao(): RTCRtpEncodingParameters {
+    const qualidade = QUALIDADES[this.estado.qualidade];
+    const alturaCapturada = this.estado.minhaTela?.getVideoTracks()[0].getSettings().height ?? 1080;
+    return {
+      maxBitrate: qualidade.bitrate,
+      maxFramerate: qualidade.fps,
+      scaleResolutionDownBy: Math.max(1, alturaCapturada / qualidade.altura),
+    };
+  }
+
+  private async aplicarQualidade() {
+    const qualidade = QUALIDADES[this.estado.qualidade];
+    // A captura acompanha o fps escolhido: a 30 fps, o navegador copia a tela metade das vezes.
+    const [trilha] = this.estado.minhaTela?.getVideoTracks() ?? [];
+    if (trilha) {
+      try {
+        await trilha.applyConstraints({
+          width: { max: 1920 },
+          height: { max: 1080 },
+          frameRate: { ideal: qualidade.fps, max: qualidade.fps },
+        });
+      } catch (erro) {
+        console.warn('Não foi possível mudar o fps da captura', erro);
+      }
+    }
+    for (const { pc, canal } of this.conexoes.values()) {
+      if (canal !== 'envio') continue;
+      const remetente = pc.getSenders().find((s) => s.track?.kind === 'video');
+      if (!remetente) continue;
+      const parametros = remetente.getParameters() as RTCRtpSendParameters & { degradationPreference?: RTCDegradationPreference };
+      if (!parametros.encodings?.length) continue; // ainda negociando: a oferta já sai com a qualidade nova
+      Object.assign(parametros.encodings[0], this.codificacao());
+      parametros.degradationPreference = qualidade.preferencia;
+      try {
+        await remetente.setParameters(parametros);
+      } catch (erro) {
+        console.warn('Não foi possível mudar a qualidade', erro);
+      }
+    }
+  }
+
+  // ===== Conexões WebRTC =====
+
+  private novaConexao(canal: Canal, idRemoto: string): Conexao {
+    const pc = new RTCPeerConnection({ iceServers: SERVIDORES_ICE });
+    const conexao: Conexao = { pc, pendentes: [], canal, id: idRemoto };
+    this.conexoes.set(chave(canal, idRemoto), conexao);
+
+    // Cada caminho de rede descoberto (candidato ICE) vai para o outro lado pelo servidor,
+    // dizendo de qual das duas conexões ele é.
+    pc.onicecandidate = (evento) => {
+      if (evento.candidate) this.enviar({ tipo: 'candidato', para: idRemoto, canal, candidato: evento.candidate });
+    };
+    pc.onconnectionstatechange = () => {
+      console.log(`Conexão de ${canal} com ${idRemoto}: ${pc.connectionState}`);
+      if (pc.connectionState === 'failed') {
+        this.avisar(`Não foi possível conectar direto com ${this.nomeDe(idRemoto)}. Algumas redes exigem um servidor TURN.`, 'erro');
+      }
+    };
+    return conexao;
+  }
+
+  private fecharConexao(canal: Canal, idRemoto: string) {
+    const conexao = this.conexoes.get(chave(canal, idRemoto));
+    if (!conexao) return;
+    conexao.pc.close();
+    this.conexoes.delete(chave(canal, idRemoto));
+    const metricas = { ...this.estado.metricas };
+    delete metricas[chave(canal, idRemoto)];
+    const parcial: Partial<Estado> = { metricas };
+    if (canal === 'recebimento') {
+      const videos = { ...this.estado.videos };
+      delete videos[idRemoto];
+      parcial.videos = videos;
+    }
+    this.mudar(parcial);
+  }
+
+  // Lado de quem transmite: uma conexão de envio (e uma oferta) para cada pessoa que pediu para assistir.
+  private async enviarOferta(idEspectador: string) {
+    const tela = this.estado.minhaTela;
+    if (!tela) return;
+    this.fecharConexao('envio', idEspectador);
+    const { pc } = this.novaConexao('envio', idEspectador);
+    const [video] = tela.getVideoTracks();
+    const transceptor = pc.addTransceiver(video, {
+      direction: 'sendonly',
+      streams: [tela],
+      sendEncodings: [this.codificacao()],
+    });
+    preferirH264(transceptor);
+    // Sempre cria o canal de áudio, mesmo sem áudio agora: assim a troca de fonte não precisa renegociar.
+    const [audio] = tela.getAudioTracks();
+    pc.addTransceiver(audio ?? 'audio', { direction: 'sendonly', streams: [tela] });
+    await pc.setLocalDescription(await pc.createOffer());
+    this.enviar({ tipo: 'oferta', para: idEspectador, sdp: pc.localDescription });
+  }
+
+  private async receberResposta(idEspectador: string, sdp: RTCSessionDescriptionInit) {
+    const conexao = this.conexoes.get(chave('envio', idEspectador));
+    if (!conexao) return;
+    await conexao.pc.setRemoteDescription(sdp);
+    await this.aplicarCandidatosPendentes(conexao);
+    // Se a rede ou o PC apertarem, o que sacrificar depende da qualidade escolhida (veja QUALIDADES).
+    const remetente = conexao.pc.getSenders().find((s) => s.track?.kind === 'video');
+    if (!remetente) return;
+    const parametros = remetente.getParameters() as RTCRtpSendParameters & { degradationPreference?: RTCDegradationPreference };
+    parametros.degradationPreference = QUALIDADES[this.estado.qualidade].preferencia;
+    try {
+      await remetente.setParameters(parametros);
+    } catch (erro) {
+      console.warn('O navegador não aceitou degradationPreference', erro);
+    }
+  }
+
+  // Lado de quem assiste: responde à oferta e entrega o vídeo para a interface.
+  private async receberOferta(idTransmissor: string, sdp: RTCSessionDescriptionInit) {
+    if (!this.estado.assistindo.includes(idTransmissor)) return; // desisti de assistir no meio do caminho
+    this.fecharConexao('recebimento', idTransmissor);
+    const conexao = this.novaConexao('recebimento', idTransmissor);
+    conexao.pc.ontrack = (evento) => {
+      this.mudar({ videos: { ...this.estado.videos, [idTransmissor]: evento.streams[0] } });
+    };
+    await conexao.pc.setRemoteDescription(sdp);
+    await this.aplicarCandidatosPendentes(conexao);
+    await conexao.pc.setLocalDescription(await conexao.pc.createAnswer());
+    this.enviar({ tipo: 'resposta', para: idTransmissor, sdp: conexao.pc.localDescription });
+  }
+
+  // Um candidato pode chegar antes da oferta ou da resposta: guarda e aplica depois.
+  private async receberCandidato(idRemoto: string, canal: Canal, candidato: RTCIceCandidateInit) {
+    const conexao = this.conexoes.get(chave(canal, idRemoto));
+    if (!conexao) return;
+    if (conexao.pc.remoteDescription) {
+      await conexao.pc.addIceCandidate(candidato);
+    } else {
+      conexao.pendentes.push(candidato);
+    }
+  }
+
+  private async aplicarCandidatosPendentes(conexao: Conexao) {
+    for (const candidato of conexao.pendentes) await conexao.pc.addIceCandidate(candidato);
+    conexao.pendentes = [];
+  }
+
+  // ===== Estatísticas: os fps de verdade, e o porquê quando não chega lá =====
+
+  private mbpsDesde(chaveDoRelatorio: string, bytes: number, momento: number): number {
+    const anterior = this.anteriores.get(chaveDoRelatorio);
+    this.anteriores.set(chaveDoRelatorio, { bytes, momento });
+    return anterior ? ((bytes - anterior.bytes) * 8) / ((momento - anterior.momento) * 1000) : 0;
+  }
+
+  /** Congelou nos últimos 5 segundos? Guarda a contagem de cada segundo e compara com a de 5 s atrás. */
+  private congelouAgora(chaveDaConexao: string, congelamentos: number): boolean {
+    const historico = this.historicoDeCongelamentos.get(chaveDaConexao) ?? [];
+    historico.push(congelamentos);
+    if (historico.length > 6) historico.shift();
+    this.historicoDeCongelamentos.set(chaveDaConexao, historico);
+    return congelamentos > historico[0];
+  }
+
+  private async medir() {
+    if (this.conexoes.size === 0) {
+      if (Object.keys(this.estado.metricas).length > 0) this.mudar({ metricas: {} });
+      return;
+    }
+    const metricas: Record<string, Metrica> = {};
+    for (const [chaveDaConexao, { pc, id, canal }] of this.conexoes) {
+      let relatorio: Map<string, any>;
+      try {
+        relatorio = (await pc.getStats()) as unknown as Map<string, any>;
+      } catch {
+        continue; // a conexão fechou durante a medição
+      }
+      let rede: string | null = null;
+      let idaEVolta: number | null = null;
+      let banda: number | null = null;
+      relatorio.forEach((r) => {
+        // Chrome e Edge apontam o par de candidatos escolhido no relatório "transport"; o Firefox marca o par com selected.
+        let par = null;
+        if (r.type === 'transport' && r.selectedCandidatePairId) par = relatorio.get(r.selectedCandidatePairId);
+        if (r.type === 'candidate-pair' && r.selected) par = r;
+        if (!par) return;
+        rede = relatorio.get(par.remoteCandidateId)?.candidateType ?? null;
+        idaEVolta = par.currentRoundTripTime != null ? Math.round(par.currentRoundTripTime * 1000) : null;
+        if (canal === 'envio' && par.availableOutgoingBitrate) banda = par.availableOutgoingBitrate / 1e6;
+      });
+      relatorio.forEach((r) => {
+        if (r.kind !== 'video' || (r.type !== 'outbound-rtp' && r.type !== 'inbound-rtp')) return;
+        const enviando = r.type === 'outbound-rtp';
+        // O Firefox gera ids de relatório novos a cada consulta: o ssrc identifica o fluxo nos dois navegadores.
+        const mbps = this.mbpsDesde(`${chaveDaConexao}:${r.type}:${r.ssrc}`, enviando ? r.bytesSent : r.bytesReceived, r.timestamp);
+        const congelamentos = r.freezeCount ?? 0;
+        metricas[chaveDaConexao] = {
+          canal,
+          id,
+          fps: Math.round(r.framesPerSecond ?? 0),
+          largura: r.frameWidth ?? null,
+          altura: r.frameHeight ?? null,
+          mbps,
+          codec: relatorio.get(r.codecId)?.mimeType?.replace('video/', '') ?? '?',
+          // A captura vem antes do codificador: se ela já está baixa, o problema é o jogo/placa de vídeo, não a rede.
+          captura: enviando ? (relatorio.get(r.mediaSourceId)?.framesPerSecond ?? null) : null,
+          codificador: enviando ? (r.encoderImplementation ?? null) : null,
+          limite: enviando ? (r.qualityLimitationReason ?? null) : null,
+          rede,
+          idaEVolta,
+          banda,
+          congelamentos,
+          perdidos: r.framesDropped ?? 0,
+          congelouAgora: !enviando && this.congelouAgora(chaveDaConexao, congelamentos),
+        };
+      });
+    }
+    this.mudar({ metricas });
+  }
+}
+
+// H.264 é o codec que quase toda placa de vídeo codifica em hardware.
+function preferirH264(transceptor: RTCRtpTransceiver) {
+  if (!transceptor.setCodecPreferences) return;
+  const codecs = RTCRtpReceiver.getCapabilities('video')?.codecs ?? [];
+  const h264 = codecs.filter((c) => c.mimeType === 'video/H264');
+  if (h264.length === 0) return;
+  transceptor.setCodecPreferences([...h264, ...codecs.filter((c) => c.mimeType !== 'video/H264')]);
+}
+
+export const cliente = new Cliente();

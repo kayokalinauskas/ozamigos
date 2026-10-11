@@ -1,10 +1,20 @@
-# Etapa 1: compila o projeto com o JDK completo.
+# Etapa 1: monta a interface (React + TypeScript) com o Node.
+# O build grava em ../src/main/resources/static, a pasta que o Spring serve.
+FROM node:22-alpine AS interface
+WORKDIR /app/web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
+# Etapa 2: compila o servidor Java com o JDK completo, já com a interface dentro.
 FROM eclipse-temurin:25-jdk AS build
 WORKDIR /app
 COPY . .
+COPY --from=interface /app/src/main/resources/static src/main/resources/static
 RUN chmod +x mvnw && ./mvnw -q -DskipTests package
 
-# Etapa 2: só o necessário para rodar (JRE + o .jar), numa imagem menor.
+# Etapa 3: só o necessário para rodar (JRE + o .jar), numa imagem menor.
 FROM eclipse-temurin:25-jre
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar

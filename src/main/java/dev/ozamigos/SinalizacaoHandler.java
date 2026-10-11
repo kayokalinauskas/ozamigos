@@ -1,6 +1,7 @@
 package dev.ozamigos;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -64,6 +65,8 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
                     nomeLimpo(msg.path("nome").asString("")));
             case "comecei" -> comecei(sessao, id, sala);
             case "parei" -> parei(id, sala);
+            case "assistir" -> assistir(id, sala, msg.path("para").asString(""));
+            case "deixar" -> deixar(id, sala, msg.path("para").asString(""));
             case "oferta", "resposta", "candidato" -> repassar(sessao, id, sala, (ObjectNode) msg);
             case "ping" -> { } // só mantém a conexão viva
             default -> erro(sessao, "tipo-desconhecido");
@@ -103,6 +106,8 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         entrada.outros().forEach((outroId, outroNome) -> outros.addObject().put("id", outroId).put("nome", outroNome));
         ArrayNode compartilhando = boasVindas.putArray("compartilhando");
         entrada.compartilhando().forEach(compartilhando::add);
+        ObjectNode plateias = boasVindas.putObject("plateias");
+        entrada.plateias().forEach((quem, ids) -> ids.forEach(plateias.putArray(quem)::add));
         enviar(segura(sessao), boasVindas);
 
         ObjectNode entrou = json.createObjectNode().put("tipo", "entrou").put("id", id).put("nome", nome);
@@ -131,6 +136,33 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
     }
 
+    /** Quem quer assistir avisa quem transmite (que então manda a oferta) e a sala inteira vê a plateia nova. */
+    private void assistir(String id, String sala, String alvo) throws IOException {
+        List<String> plateia = salas.assistir(sala, id, alvo);
+        if (plateia == null) {
+            return; // alvo parou de transmitir, saiu, ou já estava assistindo
+        }
+        enviar(salas.sessao(sala, alvo), json.createObjectNode().put("tipo", "assistir").put("de", id));
+        avisarPlateia(sala, alvo, plateia);
+    }
+
+    private void deixar(String id, String sala, String alvo) throws IOException {
+        List<String> plateia = salas.deixarDeAssistir(sala, id, alvo);
+        if (plateia == null) {
+            return;
+        }
+        enviar(salas.sessao(sala, alvo), json.createObjectNode().put("tipo", "deixar").put("de", id));
+        avisarPlateia(sala, alvo, plateia);
+    }
+
+    private void avisarPlateia(String sala, String quem, List<String> plateia) throws IOException {
+        ObjectNode aviso = json.createObjectNode().put("tipo", "plateia").put("id", quem);
+        plateia.forEach(aviso.putArray("ids")::add);
+        for (WebSocketSession pessoa : salas.todos(sala)) {
+            enviar(pessoa, aviso);
+        }
+    }
+
     /** Oferta, resposta e candidato vão só para o destinatário, e só dentro da mesma sala. */
     private void repassar(WebSocketSession sessao, String id, String sala, ObjectNode msg) throws IOException {
         WebSocketSession destino = salas.sessao(sala, msg.path("para").asString(""));
@@ -156,6 +188,9 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         for (WebSocketSession restante : saida.restantes()) {
             enviar(restante, saiu);
         }
+        for (Map.Entry<String, List<String>> mudou : saida.plateiasQueMudaram().entrySet()) {
+            avisarPlateia(sala, mudou.getKey(), mudou.getValue());
+        }
     }
 
     /** O nome aparece para os outros: sem espaços nas pontas, até 20 caracteres, "Amigo" se vier vazio. */
@@ -176,7 +211,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     }
 
     private void enviar(WebSocketSession destino, JsonNode msg) throws IOException {
-        if (destino.isOpen()) {
+        if (destino != null && destino.isOpen()) {
             destino.sendMessage(new TextMessage(json.writeValueAsString(msg)));
         }
     }
