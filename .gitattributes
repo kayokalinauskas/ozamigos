@@ -1,0 +1,2 @@
+# O mvnw roda no Linux do Docker: precisa de quebras de linha LF.
+mvnw text eol=lf

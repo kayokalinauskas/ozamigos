@@ -1,0 +1,19 @@
+body { margin: 0; background: #111; color: #eee; font-family: system-ui, sans-serif; }
+main { max-width: 1800px; margin: 0 auto; padding: 16px; }
+button { padding: 8px 16px; font-size: 16px; cursor: pointer; }
+input, select { padding: 8px; font-size: 16px; }
+.rotulo-qualidade { min-width: 0; margin-left: 16px; }
+label { display: inline-block; min-width: 130px; }
+code { background: #222; padding: 2px 6px; }
+#aviso { color: #fc6; min-height: 1.4em; }
+.dica { color: #999; font-size: 14px; }
+#estatisticas { color: #8f8; font-size: 13px; white-space: pre-wrap; }
+
+/* Uma tela: ocupa a largura toda. Duas ou mais: lado a lado (empilham em telas estreitas). */
+#videos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr)); gap: 12px; }
+.bloco { margin: 0; background: #000; border: 1px solid #333; }
+.bloco video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+.bloco figcaption { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #1b1b1b; }
+.bloco figcaption span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bloco figcaption button { padding: 4px 10px; font-size: 14px; }
+.bloco.minha { border-color: #2a5; }
