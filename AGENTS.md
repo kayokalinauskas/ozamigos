@@ -157,6 +157,10 @@ As janelas que ninguém fotografa rodam a 4 quadros por segundo, e os amigos fic
 
 ## Armadilhas conhecidas
 
+- **Cache da interface:** o jar data todos os arquivos de 1980. Sem regra de cache, o navegador e o app guardavam o `index.html` por anos e mostravam a interface antiga depois de um deploy. Isso aconteceu na 1.1.1. Hoje há três proteções, **não remova nenhuma**:
+  - o servidor manda `Cache-Control: no-cache`, sem `Last-Modified`, para tudo; só `/assets/**`, que tem hash no nome, recebe cache de um ano (`CacheConfig` e `application.properties`);
+  - o app abre a página com `cache-control: no-cache` no pedido;
+  - na primeira abertura de cada versão, o app apaga o cache HTTP (`limparCacheSeAtualizou`, com a versão anotada em `versaoDoCache` no `configuracao.json`). O `localStorage` não é apagado.
 - O `.gitignore` da raiz ignora `build/`. A pasta `desktop/build/` (o ícone) é liberada com `!desktop/build/`. Arquivos novos nela continuam entrando.
 - `src/main/resources/static/` é gerada pelo build e ignorada pelo git. Se `localhost` der 404, falta rodar `npm run build` em `web`.
 - **Não rode `npx @electron/asar extract-file` dentro de `desktop/`:** ele grava `package.json` na pasta atual, por cima do arquivo real. Para inspecionar o `app.asar`, use `grep -a` ou extraia numa pasta temporária.

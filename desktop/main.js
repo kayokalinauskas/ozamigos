@@ -68,11 +68,26 @@ function enderecoValido(texto) {
   }
 }
 
+/**
+ * Na primeira abertura de cada versão, apaga o cache de páginas e arquivos (o que guardar a interface
+ * antiga). Nome, senha, volumes e o endereço do servidor ficam em outro lugar e continuam.
+ */
+async function limparCacheSeAtualizou() {
+  if (lerConfiguracao().versaoDoCache === app.getVersion()) return;
+  try {
+    await session.defaultSession.clearCache();
+  } catch (erro) {
+    console.error('Não foi possível limpar o cache', erro);
+  }
+  salvarConfiguracao({ versaoDoCache: app.getVersion() });
+}
+
 // ===== Janela =====
 
 function abrirServidorOuInicio(erro) {
   if (!erro && origemDoServidor()) {
-    janela.loadURL(`${origemDoServidor()}/`);
+    // Sempre pergunta ao servidor pela página: um deploy novo aparece na hora, nunca a cópia guardada.
+    janela.loadURL(`${origemDoServidor()}/`, { extraHeaders: 'pragma: no-cache\ncache-control: no-cache\n' });
   } else {
     janela.loadFile(path.join(__dirname, 'inicio.html'), { query: erro ? { erro } : {} });
   }
@@ -350,7 +365,8 @@ if (!app.requestSingleInstanceLock()) {
   app.setAppUserModelId('dev.ozamigos.share'); // necessário para as notificações do Windows
   nativeTheme.themeSource = 'dark';
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    await limparCacheSeAtualizou();
     configurarMenu();
     configurarSessao();
     criarJanela();
