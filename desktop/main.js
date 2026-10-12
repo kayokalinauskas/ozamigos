@@ -7,6 +7,10 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
+// O app se chamava "Ozamigos Share". Com o nome novo, o Electron guardaria tudo numa pasta nova
+// e cada um perderia o servidor, o nome, a senha e os volumes: por isso a pasta continua a antiga.
+app.setPath('userData', path.join(app.getPath('appData'), 'Ozamigos Share'));
+
 const SERVIDOR_PADRAO = process.env.OZAMIGOS_SERVIDOR || require('./package.json').ozamigos.servidor || '';
 const ARQUIVO_DE_CONFIGURACAO = path.join(app.getPath('userData'), 'configuracao.json');
 const PERMISSOES = new Set(['media', 'display-capture', 'notifications', 'fullscreen', 'clipboard-sanitized-write']);
@@ -86,7 +90,7 @@ function criarJanela() {
     show: false,
     backgroundColor: '#0b0d12',
     autoHideMenuBar: true, // o menu aparece com Alt
-    title: 'Ozamigos Share',
+    title: 'Ozamigos',
     icon: path.join(__dirname, 'build', 'icone.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

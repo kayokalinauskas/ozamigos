@@ -2,7 +2,7 @@
 
 <img src="desktop/build/icone.png" alt="" width="96" height="96" />
 
-# Ozamigos Share
+# Ozamigos
 
 **Transmita seu jogo para os amigos em até 1080p, direto de um PC para o outro.**
 
@@ -60,7 +60,7 @@ e som do PC sem o eco do Discord.
 
 **Só no app para Windows**
 - **Seletor próprio** de janelas e telas, com miniaturas e ícones.
-- **Som do PC sem eco:** captura o som de todos os programas, menos o **Discord** e o próprio **Ozamigos Share**. Os amigos não ouvem a própria voz nem o próprio jogo de volta. O áudio vai em estéreo.
+- **Som do PC sem eco:** captura o som de todos os programas, menos o **Discord** e o próprio **Ozamigos**. Os amigos não ouvem a própria voz nem o próprio jogo de volta. O áudio vai em estéreo.
 - **Sem engasgos atrás do jogo:** a janela não é freada pelo Windows quando fica escondida.
 - **Atualização automática da interface:** o app carrega a interface do servidor, então cada deploy chega a todos sem reinstalar.
 
@@ -68,11 +68,11 @@ e som do PC sem o eco do Discord.
 
 ## Instalação (para quem só vai usar)
 
-1. Baixe o `Ozamigos-Share-Instalador-x.y.z.exe` na [última versão](../../releases/latest).
+1. Baixe o `Ozamigos-Instalador-x.y.z.exe` na [última versão](../../releases/latest).
 2. Abra o arquivo. Se o Windows mostrar **"O Windows protegeu o computador"**, clique em **Mais informações** e depois em **Executar assim mesmo**. O instalador não tem assinatura digital paga.
 3. Entre com o seu nome e a **senha do grupo**, que quem administra o servidor passa para você.
 
-**Sem instalar:** use o `Ozamigos-Share-Portatil-x.y.z.exe`, que abre com dois cliques.
+**Sem instalar:** use o `Ozamigos-Portatil-x.y.z.exe`, que abre com dois cliques.
 
 **Pelo navegador:** abra o endereço do servidor no Chrome ou no Edge. Pelo navegador dá para assistir e transmitir, mas o som do PC vai inteiro, sem a exclusão do Discord.
 
@@ -259,7 +259,7 @@ git push origin v1.0.2
 **4. Pronto.** A marca `v1.0.2` dispara o workflow [`.github/workflows/release.yml`](.github/workflows/release.yml), que, numa máquina Windows do GitHub:
 - confere se a marca bate com a versão do `desktop/package.json`;
 - compila o auxiliar de som (.NET) e empacota o app (electron-builder);
-- cria a release com o `Ozamigos-Share-Instalador-1.0.2.exe` e o `Ozamigos-Share-Portatil-1.0.2.exe`.
+- cria a release com o `Ozamigos-Instalador-1.0.2.exe` e o `Ozamigos-Portatil-1.0.2.exe`.
 
 Acompanhe na aba **Actions** do repositório (leva de 5 a 10 minutos) ou com `gh run watch`.
 
@@ -271,7 +271,7 @@ cd desktop
 npm install
 npm run instalador
 ```
-Em `desktop\dist` saem o `Ozamigos-Share-Instalador-x.y.z.exe` (instala com atalhos e entra em "Adicionar ou remover programas") e o `Ozamigos-Share-Portatil-x.y.z.exe` (roda sem instalar). Para publicar à mão: `gh release create v1.0.2 desktop\dist\Ozamigos-Share-Instalador-1.0.2.exe desktop\dist\Ozamigos-Share-Portatil-1.0.2.exe --title "Ozamigos Share 1.0.2" --generate-notes`.
+Em `desktop\dist` saem o `Ozamigos-Instalador-x.y.z.exe` (instala com atalhos e entra em "Adicionar ou remover programas") e o `Ozamigos-Portatil-x.y.z.exe` (roda sem instalar). Para publicar à mão: `gh release create v1.0.2 desktop\dist\Ozamigos-Instalador-1.0.2.exe desktop\dist\Ozamigos-Portatil-1.0.2.exe --title "Ozamigos 1.0.2" --generate-notes`.
 
 **Para corrigir uma release errada:** apague a release e a marca (o código não é afetado) e crie de novo.
 ```powershell
@@ -306,7 +306,7 @@ gh release delete v1.0.1 --cleanup-tag --yes
 | Onde | O quê |
 |---|---|
 | `desktop/package.json` → `ozamigos.servidor` | Endereço do servidor que vem no instalador |
-| `%APPDATA%\Ozamigos Share\configuracao.json` | Endereço escolhido pela pessoa (tem prioridade) e posição da janela |
+| `%APPDATA%\Ozamigos Share\configuracao.json` | Endereço escolhido pela pessoa (tem prioridade) e posição da janela. A pasta mantém o nome antigo do app, para ninguém perder as configurações |
 | `desktop/main.js` → `SEM_SOM_DE` | Programas cujo som nunca vai na transmissão |
 | Variável `OZAMIGOS_SERVIDOR` | Força um endereço, útil em testes |
 

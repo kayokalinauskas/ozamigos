@@ -375,7 +375,7 @@ class Cliente {
           break;
         }
         this.avisar(`${msg.nome} entrou na sala`);
-        this.notificar('Ozamigos Share', `${msg.nome} entrou na sala`);
+        this.notificar('Ozamigos', `${msg.nome} entrou na sala`);
         tocar('entrou');
         break;
       }
@@ -422,7 +422,7 @@ class Cliente {
             executar: () => this.assistir(msg.id),
           });
         }
-        this.notificar('Ozamigos Share', `${nomeDeQuem} começou a transmitir`);
+        this.notificar('Ozamigos', `${nomeDeQuem} começou a transmitir`);
         break;
       }
       case 'parou': {
@@ -547,7 +547,7 @@ class Cliente {
         // Opções que só o Chrome e o Edge conhecem (os outros ignoram):
         ...{
           monitorTypeSurfaces: fonte === 'aplicativo' ? 'exclude' : 'include',
-          selfBrowserSurface: 'exclude', // não oferecer a própria aba do Ozamigos Share
+          selfBrowserSurface: 'exclude', // não oferecer a própria aba do Ozamigos
           systemAudio: 'include',
         },
       } as DisplayMediaStreamOptions);

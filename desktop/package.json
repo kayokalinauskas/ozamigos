@@ -1,6 +1,6 @@
 {
   "name": "ozamigos-share",
-  "productName": "Ozamigos Share",
+  "productName": "Ozamigos",
   "version": "1.0.2",
   "description": "Transmita seu jogo para os amigos, direto de um PC para o outro.",
   "author": "Ozamigos",
@@ -21,7 +21,7 @@
   },
   "build": {
     "appId": "dev.ozamigos.share",
-    "productName": "Ozamigos Share",
+    "productName": "Ozamigos",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -33,6 +33,8 @@
       "inicio.js",
       "inicio.css",
       "build/icone.png",
+      "build/sora.woff2",
+      "build/sora-licenca-OFL.txt",
       "package.json"
     ],
     "win": {
@@ -55,11 +57,11 @@
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "artifactName": "Ozamigos-Share-Instalador-${version}.${ext}",
-      "shortcutName": "Ozamigos Share"
+      "artifactName": "Ozamigos-Instalador-${version}.${ext}",
+      "shortcutName": "Ozamigos"
     },
     "portable": {
-      "artifactName": "Ozamigos-Share-Portatil-${version}.${ext}"
+      "artifactName": "Ozamigos-Portatil-${version}.${ext}"
     },
     "extraResources": [
       {

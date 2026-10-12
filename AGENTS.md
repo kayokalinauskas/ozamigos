@@ -4,7 +4,7 @@ Este arquivo explica o projeto para quem vai mexer no código (pessoas ou agente
 
 ## O que é
 
-Ozamigos Share: transmissão de tela de jogos entre amigos, em até 1080p, **P2P por WebRTC**.
+Ozamigos: transmissão de tela de jogos entre amigos, em até 1080p, **P2P por WebRTC**.
 
 São três peças num repositório só:
 
@@ -24,6 +24,16 @@ Deploy: Render (Docker). O `Dockerfile` tem 3 etapas: Node monta `web/`, o JDK c
 - **Testes:** só o básico (JUnit no servidor). As mudanças de comportamento se verificam rodando o app (veja "Como testar").
 - **Telas prioritárias:** 1920×1080 e 2560×1440. A interface é tema escuro, com os tokens CSS em `web/src/estilo.css`.
 - **Segredos:** a senha do grupo vem só da variável `OZAMIGOS_SENHA`. Nunca coloque segredos no código.
+
+## Marca
+
+- **Nome:** "Ozamigos" (até a 1.0.2 era "Ozamigos Share"). O nome novo vale para tudo o que o usuário vê. Os nomes internos ficam como estão: o repositório, o pacote `dev.ozamigos`, o `OzamigosSom.exe`, a variável `OZAMIGOS_SENHA`, as chaves `ozamigos-*` do `localStorage` e o endereço no Render.
+- **Não mude:**
+  - o `appId` (`dev.ozamigos.share`): com ele, o instalador novo reconhece e substitui o antigo;
+  - a pasta de dados `%APPDATA%\Ozamigos Share`, fixada com `app.setPath('userData', ...)` no topo do `main.js`. Sem isso, o nome novo levaria o Electron para uma pasta vazia e todos perderiam o servidor, o nome, a senha e os volumes.
+- **Ícone "Tecla OZ":** uma tecla de teclado com o "O" claro e o "z" verde no canto. A geometria (em 96×96) existe em **dois lugares, que precisam ficar iguais**: `web/public/icone.svg` (favicon) e `desktop/build/gerar-icone.js`, que desenha o `desktop/build/icone.png` (ícone do app e do instalador; rode `npm run icone` em `desktop`).
+- **Logotipo:** "O" e "Z" em teclas (`.tecla`, com a borda de baixo verde fazendo a lateral) seguidos de "amigos", na fonte Sora. Na interface, vem do pacote `@fontsource-variable/sora` (`Logo.tsx`); na tela de início do app, de `desktop/build/sora.woff2` (licença OFL ao lado).
+- **Paleta Lima** (tokens em `web/src/estilo.css`, repetidos em `desktop/inicio.css`): fundo grafite esverdeado (`--fundo` `#0b0e0a`) e destaque verde-limão (`--destaque` `#b6f24a`). **Texto em cima do verde é escuro** (`--no-destaque`), nunca branco. O vermelho continua reservado para "ao vivo" (`--ao-vivo`).
 
 ## Comandos (PowerShell, a partir da raiz)
 
@@ -103,7 +113,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - Use sempre `origemDe()`: ela normaliza (`http://x/` vira `http://x`) e não lança exceção.
 - **Endereço do servidor, em ordem de prioridade:**
   1. a variável `OZAMIGOS_SERVIDOR`;
-  2. o `configuracao.json` em `%APPDATA%\Ozamigos Share`, gravado pela tela de início;
+  2. o `configuracao.json` em `%APPDATA%\Ozamigos Share`, gravado pela tela de início (a pasta guarda o nome antigo de propósito: veja "Marca");
   3. `ozamigos.servidor` no `desktop/package.json`.
 - O app só aceita `https://`, ou `http://` para `localhost`.
 - **Seletor de fontes:** `setDisplayMediaRequestHandler` lista as fontes e manda `escolher-fonte` para a página; o `SeletorDeFonte.tsx` responde com `fonte-escolhida` (`invoke`), que devolve `{ somDoApp }`.

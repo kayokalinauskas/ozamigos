@@ -32,7 +32,7 @@ build/
 ### VS Code ###
 .vscode/
 
-### Ozamigos Share App ###
+### Ozamigos ###
 # A interface é gerada pelo build do web/ (npm run build) e o Dockerfile a monta no deploy.
 src/main/resources/static/
 node_modules/
