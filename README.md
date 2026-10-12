@@ -184,7 +184,8 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │   ├── inicio.html|js|css            Tela de escolher o servidor
 │   ├── build/                        Ícone (e o script que o gera) e a fonte do logotipo
 │   └── som/                          Auxiliar de som em C# (.NET 10): OzamigosSom.exe
-├── docs/imagens/           Capa, GIF de demonstração e telas deste README
+├── docs/imagens/           Logotipo, telas e GIF de demonstração deste README
+├── docs/vitrine/           Scripts que geram as imagens de docs/imagens
 ├── Dockerfile              Build em 3 etapas: Node (interface) → JDK (servidor) → JRE (imagem final)
 └── pom.xml
 ```
