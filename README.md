@@ -1,214 +1,432 @@
+<div align="center">
+
+<img src="desktop/build/icone.png" alt="" width="96" height="96" />
+
 # Ozamigos Share
 
-Transmita o seu jogo para até 4 amigos em até 1080p, de um PC direto para o outro (WebRTC P2P).
-Funciona como **app para Windows** e também pelo **navegador**, com a mesma sala e a mesma senha.
+**Transmita seu jogo para os amigos em até 1080p, direto de um PC para o outro.**
 
-- **Quem está na sala e quem está ao vivo:** a barra lateral mostra cada pessoa, o selo **Ao vivo** e quantas pessoas assistem cada transmissão.
-- **Você escolhe o que assistir:** clique em **Assistir** em uma ou mais transmissões. O vídeo só sai do PC de quem transmite para quem pediu, o que economiza o upload e a placa de vídeo de quem transmite.
-- **Volume de cada transmissão:** cada uma tem silenciar e volume próprios, e o volume fica guardado por amigo. Há também um volume geral.
-- **Grade ou Destaque:** veja tudo lado a lado ou uma transmissão grande com as outras em miniatura. Dois cliques no vídeo abrem a tela cheia.
-- **Qualidade ao vivo:** 1080p ou 720p, a 30 ou 60 fps, sem derrubar ninguém. Cada transmissão tem um indicador verde, amarelo ou vermelho de como o vídeo está chegando, e as estatísticas completas ficam a um clique.
-- **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos, que você pode desligar, e notificação do Windows se a janela estiver atrás do jogo.
-- **No app para Windows:**
-  - um seletor próprio, com miniaturas de janelas e telas;
-  - o som do PC com um clique, **sem o som do Discord e sem o som das transmissões que você está assistindo** (os amigos nunca ouvem a própria voz ou o próprio jogo de volta), em estéreo;
-  - transmissão sem engasgar quando o jogo está na frente.
+App para Windows e versão web, com salas protegidas por senha, várias transmissões ao mesmo tempo
+e som do PC sem o eco do Discord.
 
-## Como as peças se encaixam
+![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
+![Java 25](https://img.shields.io/badge/Java-25-E76F00)
+![Spring Boot 4.1](https://img.shields.io/badge/Spring%20Boot-4.1-6DB33F)
+![React 19](https://img.shields.io/badge/React-19-149ECA)
+![Electron 44](https://img.shields.io/badge/Electron-44-47848F)
+![WebRTC](https://img.shields.io/badge/v%C3%ADdeo-WebRTC%20P2P-333333)
 
-```text
-web/        Interface (React + TypeScript + Vite). O build vai para src/main/resources/static.
-src/        Servidor Java (Spring Boot): salas, senha do grupo e sinalização por WebSocket.
-            Serve a interface pronta. O vídeo nunca passa por ele.
-desktop/    App para Windows (Electron). Abre a interface que o servidor serve e acrescenta
-            o seletor de fontes, o som do PC e as notificações.
-desktop/som Auxiliar de som (C#, OzamigosSom.exe). Vai dentro do instalador e roda escondido
-            enquanto alguém transmite com som.
+[**Baixar para Windows**](../../releases/latest) · [Como funciona](#como-funciona) · [Rodar localmente](#rodar-localmente) · [Deploy](#deploy-no-render) · [Publicar uma versão](#publicar-uma-versão-do-app)
+
+</div>
+
+---
+
+## Sumário
+
+- [Recursos](#recursos)
+- [Instalação (para quem só vai usar)](#instalação-para-quem-só-vai-usar)
+- [Como funciona](#como-funciona)
+- [Estrutura do repositório](#estrutura-do-repositório)
+- [Requisitos de desenvolvimento](#requisitos-de-desenvolvimento)
+- [Rodar localmente](#rodar-localmente)
+- [Deploy no Render](#deploy-no-render)
+- [Publicar uma versão do app](#publicar-uma-versão-do-app)
+- [O que fazer quando algo muda](#o-que-fazer-quando-algo-muda)
+- [Configuração](#configuração)
+- [Protocolo de sinalização](#protocolo-de-sinalização)
+- [Qualidade, banda e diagnóstico](#qualidade-banda-e-diagnóstico)
+- [Segurança](#segurança)
+- [Testes](#testes)
+- [Problemas comuns](#problemas-comuns)
+- [Limitações conhecidas](#limitações-conhecidas)
+
+---
+
+## Recursos
+
+**Na sala**
+- **Presença em tempo real:** quem está na sala, quem está **ao vivo** e quantas pessoas assistem cada transmissão.
+- **Assistir sob demanda:** você escolhe uma ou mais transmissões. O vídeo só sai do PC de quem transmite para quem clicou em **Assistir**, o que poupa o upload e a placa de vídeo de quem transmite.
+- **Todos podem transmitir ao mesmo tempo**, em salas de até 5 pessoas.
+- **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura. Dois cliques no vídeo abrem a tela cheia.
+- **Áudio por transmissão:** volume e silenciar de cada uma, lembrados por amigo, mais um volume geral.
+- **Qualidade ajustável ao vivo:** 1080p ou 720p, a 30 ou 60 fps, sem derrubar ninguém. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
+- **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos, que dá para desligar, e notificação do Windows quando o app está atrás do jogo.
+- **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
+
+**Só no app para Windows**
+- **Seletor próprio** de janelas e telas, com miniaturas e ícones.
+- **Som do PC sem eco:** captura o som de todos os programas, menos o **Discord** e o próprio **Ozamigos Share**. Os amigos não ouvem a própria voz nem o próprio jogo de volta. O áudio vai em estéreo.
+- **Sem engasgos atrás do jogo:** a janela não é freada pelo Windows quando fica escondida.
+- **Atualização automática da interface:** o app carrega a interface do servidor, então cada deploy chega a todos sem reinstalar.
+
+---
+
+## Instalação (para quem só vai usar)
+
+1. Baixe o `Ozamigos-Share-Instalador-x.y.z.exe` na [última versão](../../releases/latest).
+2. Abra o arquivo. Se o Windows mostrar **"O Windows protegeu o computador"**, clique em **Mais informações** e depois em **Executar assim mesmo**. O instalador não tem assinatura digital paga.
+3. Entre com o seu nome e a **senha do grupo**, que quem administra o servidor passa para você.
+
+**Sem instalar:** use o `Ozamigos-Share-Portatil-x.y.z.exe`, que abre com dois cliques.
+
+**Pelo navegador:** abra o endereço do servidor no Chrome ou no Edge. Pelo navegador dá para assistir e transmitir, mas o som do PC vai inteiro, sem a exclusão do Discord.
+
+**Requisitos:** Windows 10 (versão 2004 ou mais nova) ou Windows 11, 64 bits.
+
+---
+
+## Como funciona
+
+O vídeo nunca passa pelo servidor. O servidor Java só apresenta as pessoas umas às outras (sinalização por WebSocket) e confere a senha. Depois disso, cada PC manda o vídeo direto para quem pediu, por WebRTC.
+
+```mermaid
+flowchart LR
+    subgraph Render["Servidor (Render)"]
+        S["Spring Boot<br/>salas · senha · sinalização"]
+        UI["Interface web<br/>(React, servida pelo Spring)"]
+    end
+    A["App Windows<br/>(quem transmite)"] -- WebSocket --> S
+    B["App ou navegador<br/>(quem assiste)"] -- WebSocket --> S
+    A -. carrega a interface .-> UI
+    B -. carrega a interface .-> UI
+    A == "vídeo + áudio (WebRTC P2P)" ==> B
 ```
 
-**Como o som do PC deixa o Discord de fora.** O Windows 10 (versão 2004 em diante) e o 11 conseguem capturar o som de um programa por vez. O auxiliar:
+**Assistir sob demanda:** quem transmite só abre uma conexão de vídeo para quem pediu.
 
-1. confere, a cada 2 segundos, quais programas estão tocando som;
-2. captura cada um deles, menos o Discord (`Discord.exe`, `DiscordPTB.exe` e `DiscordCanary.exe`) e o próprio Ozamigos Share;
-3. mistura tudo e entrega ao app.
+```mermaid
+sequenceDiagram
+    participant V as Quem assiste
+    participant S as Servidor
+    participant T as Quem transmite
+    V->>S: assistir {para: T}
+    S->>T: assistir {de: V}
+    S-->>V: plateia {id: T, ids: [...]}
+    S-->>T: plateia {id: T, ids: [...]}
+    T->>S: oferta (SDP)
+    S->>V: oferta
+    V->>S: resposta (SDP)
+    S->>T: resposta
+    Note over V,T: candidatos ICE vão e voltam pelo servidor
+    T-->>V: vídeo e áudio direto (P2P)
+```
 
-O auxiliar não abre janela nem ícone. Ele liga quando a transmissão com som começa e desliga quando ela para. Se o app fechar de repente, ele percebe e fecha junto. A lista de exclusões fica em `SEM_SOM_DE`, no `desktop/main.js`.
+**Som do PC sem o Discord.** O Windows 10 (2004+) e o 11 capturam o som **de um programa (e dos que ele abriu) por vez**. O auxiliar `OzamigosSom.exe` (C#), que vai dentro do instalador:
 
-Num Windows mais antigo, em que o auxiliar não funciona, o app volta a mandar o som do Windows inteiro.
+1. confere, a cada 2 segundos, quais programas estão tocando som, em todas as saídas ativas;
+2. captura cada um deles com o *loopback* de processo do Windows, menos o Discord (`Discord.exe`, `DiscordPTB.exe`, `DiscordCanary.exe`) e o processo do próprio app;
+3. mistura tudo a 48 kHz em estéreo e entrega ao app pela saída padrão.
 
-Como o app abre a interface direto do servidor, **cada deploy atualiza o app de todo mundo**. O instalador só precisa ser gerado de novo quando algo dentro de `desktop/` mudar.
+No app, um `AudioWorklet` transforma esse fluxo numa faixa de áudio que vai junto com o vídeo. O auxiliar:
+- roda sem janela;
+- liga quando a transmissão com som começa e desliga quando ela para;
+- fecha sozinho se o app fechar.
 
-## Requisitos
+Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema inteiro.
 
-- **Java 25** (JDK). O Maven não precisa ser instalado, porque o `mvnw` baixa sozinho.
-- **Node.js 22** ou mais novo, para montar a interface e o app.
-- **.NET SDK 10**, só para gerar o instalador, porque ele compila o auxiliar de som. Os amigos não precisam instalar nada.
-- **Para transmitir:** o app para Windows (Windows 10/11, 64 bits), ou o Chrome ou o Edge no computador.
-- **Para assistir:** o app, ou qualquer navegador moderno.
+---
 
-## A senha do grupo
+## Estrutura do repositório
 
-Para entrar numa sala, além do link é preciso a **senha do grupo**. Ela vem da variável de ambiente `OZAMIGOS_SENHA` e **nunca fica no código**. Sem a variável, o servidor não sobe e o log mostra `Defina a senha do grupo na variável de ambiente OZAMIGOS_SENHA`.
+```text
+.
+├── src/                    Servidor Java (Spring Boot)
+│   ├── main/java/dev/ozamigos/
+│   │   ├── SinalizacaoHandler.java   WebSocket /sinal: entrada, plateias e repasse de SDP/ICE
+│   │   ├── Salas.java                Estado das salas em memória (participantes e plateias)
+│   │   ├── SenhaDoGrupo.java         Senha do grupo (variável de ambiente, comparação em tempo constante)
+│   │   └── WebSocketConfig.java      Registro do /sinal e limite de mensagem
+│   └── test/                         Testes (JUnit + AssertJ)
+├── web/                    Interface (React 19 + TypeScript + Vite)
+│   └── src/
+│       ├── cliente.ts                Núcleo: sinalização, WebRTC, qualidade e estatísticas
+│       ├── somDoApp.ts               Faixa de áudio do auxiliar de som (AudioWorklet)
+│       ├── ponte.ts                  Contrato com o app Electron
+│       └── componentes/              Entrada, Sala, BarraLateral, Palco, Transmissao, ...
+├── desktop/                App para Windows (Electron 44)
+│   ├── main.js                       Janela, permissões, seletor de fontes e auxiliar de som
+│   ├── preload.js                    Ponte segura entre a página e o app
+│   ├── inicio.html|js|css            Tela de escolher o servidor
+│   ├── build/                        Ícone (e o script que o gera)
+│   └── som/                          Auxiliar de som em C# (.NET 10): OzamigosSom.exe
+├── Dockerfile              Build em 3 etapas: Node (interface) → JDK (servidor) → JRE (imagem final)
+└── pom.xml
+```
 
-Use uma frase de quatro ou mais palavras sem relação entre si (exemplo: `pastel trombone feira azul`). É fácil de ditar para um amigo e difícil de adivinhar.
+O build da interface (`web/`) grava em `src/main/resources/static/`. A pasta não é versionada; o Dockerfile a monta no deploy.
 
-## 1. Rodar no seu computador
+---
 
-Monte a interface uma vez (e de novo sempre que mexer em `web/`):
+## Requisitos de desenvolvimento
 
-```bash
+| Ferramenta | Versão | Para quê |
+|---|---|---|
+| JDK | 25 | Servidor. O Maven vem pelo `mvnw`, sem instalar |
+| Node.js | 22 ou mais novo | Interface e app Electron |
+| .NET SDK | 10 | Compilar o auxiliar de som. Só para gerar o instalador |
+| GitHub CLI (`gh`) | qualquer recente | Criar repositório e releases (opcional) |
+| Chrome ou Edge | atual | Testar pelo navegador |
+
+---
+
+## Rodar localmente
+
+Os comandos estão em PowerShell, um por linha, a partir da raiz do repositório.
+
+**1. Monte a interface** (de novo sempre que mexer em `web/`):
+```powershell
 cd web
 npm install
 npm run build
 cd ..
 ```
 
-Suba o servidor. No PowerShell:
-
+**2. Suba o servidor:**
 ```powershell
 $env:OZAMIGOS_SENHA = "teste"
 .\mvnw.cmd spring-boot:run
 ```
+Abra `http://localhost:8080` e entre com a senha `teste`.
 
-No Git Bash:
-
-```bash
-OZAMIGOS_SENHA=teste ./mvnw spring-boot:run
+**3. (Opcional) Interface com recarga instantânea.** Com o servidor rodando, numa outra janela do terminal:
+```powershell
+cd web
+npm run dev
 ```
+Abra `http://localhost:5173`. O Vite repassa o WebSocket `/sinal` para a porta 8080.
 
-Abra `http://localhost:8080`. Para rodar os testes do servidor: `./mvnw test`.
-
-**Mexendo na interface:** com o servidor rodando, `cd web && npm run dev` abre a interface em `http://localhost:5173`. Ela atualiza na hora a cada alteração e repassa o WebSocket para o servidor na 8080.
-
-**O app apontando para o seu PC:**
-
-```bash
+**4. (Opcional) O app Electron apontando para o seu PC:**
+```powershell
 cd desktop
 npm install
+npm run som
 npm start
 ```
+Na tela de início, use `http://localhost:8080`. O app só aceita `http://` para `localhost`; qualquer outro endereço precisa de `https://`.
 
-Na primeira vez, o app pergunta o endereço do servidor: digite `http://localhost:8080`.
+**Testar o som sem eco no mesmo PC:** a aba do navegador onde você faz o papel do amigo não está na lista de exclusão. Silencie a transmissão nessa aba, senão o som recebido volta para a transmissão. Para ouvir de verdade, use outro PC na mesma rede (`http://IP-DO-SEU-PC:8080`).
 
-## 2. Deploy gratuito no Render
+---
 
-1. Crie o repositório no GitHub e envie o código. Com o [GitHub CLI](https://cli.github.com/):
+## Deploy no Render
 
-   ```bash
-   gh repo create ozamigos-share-app --public --source=. --push
+1. **Crie o repositório e envie o código:**
+   ```powershell
+   gh repo create ozamigos-share-app --private --source=. --push
    ```
-
-2. Em [render.com](https://render.com), clique em **New** → **Web Service** → escolha o repositório `ozamigos-share-app`.
-3. Confira **Language: Docker**, **Branch: main** e **Instance Type: Free**. O Dockerfile monta a interface e o servidor sozinho.
+2. No [Render](https://dashboard.render.com), clique em **New** → **Web Service** e escolha o repositório. Se ele não aparecer, clique em **Configure account** e libere o acesso a ele no GitHub.
+3. Preencha:
+   - **Language:** Docker;
+   - **Branch:** `main`;
+   - **Instance Type:** Free (ou Starter, para não dormir).
 4. Em **Environment Variables**, adicione `OZAMIGOS_SENHA` com a senha do grupo.
-5. Clique em **Deploy Web Service**. O primeiro build leva alguns minutos e termina quando o log mostra `Tomcat started on port 10000`.
+5. Clique em **Deploy Web Service**. O build leva de 5 a 10 minutos e termina com `Tomcat started on port 10000` no log.
 
-Anote o endereço, algo como `https://ozamigos-share-app.onrender.com`. A cada `git push` na `main`, o Render publica de novo sozinho.
+A cada `git push` na `main`, o Render publica de novo sozinho.
 
-**Plano gratuito:** o serviço dorme depois de 15 minutos sem uso e leva cerca de 1 minuto para acordar. Abra o app uns minutos antes de chamar os amigos. Enquanto alguém está numa sala, o serviço fica acordado.
+**Plano Free:**
+- O serviço dorme depois de 15 minutos sem uso e leva cerca de 1 minuto para acordar.
+- Enquanto alguém está numa sala, o ping do app a cada 30 segundos o mantém acordado.
+- Um deploy ou reinício derruba as salas abertas; basta entrar de novo.
 
-## 3. Gerar o app para Windows e mandar para os amigos
+---
 
-1. Em `desktop/package.json`, coloque o endereço do seu servidor. Assim ninguém precisa digitar:
+## Publicar uma versão do app
 
-   ```json
-   "ozamigos": {
-     "servidor": "https://ozamigos-share-app.onrender.com"
-   },
-   ```
+**1. Configure o endereço do servidor** em `desktop/package.json`:
+```json
+"ozamigos": {
+  "servidor": "https://ozamigos-share-app.onrender.com"
+}
+```
 
-2. Gere os executáveis:
+**2. Aumente a versão** em `desktop/package.json` (ex.: `"version": "1.0.1"`).
 
-   ```bash
-   cd desktop
-   npm install
-   npm run instalador
-   ```
+**3. Gere o instalador e a versão portátil:**
+```powershell
+cd desktop
+npm install
+npm run instalador
+```
+O comando compila o auxiliar de som (.NET) e empacota o app (electron-builder). Em `desktop\dist` saem:
+- `Ozamigos-Share-Instalador-1.0.1.exe`, que instala com atalhos e entra em "Adicionar ou remover programas";
+- `Ozamigos-Share-Portatil-1.0.1.exe`, que roda sem instalar.
 
-   O comando compila o auxiliar de som com o .NET e gera os instaladores. Em `desktop/dist` saem dois arquivos:
-   - `Ozamigos-Share-Instalador-1.0.0.exe` instala, cria o atalho e aparece em "Adicionar ou remover programas";
-   - `Ozamigos-Share-Portatil-1.0.0.exe` roda sem instalar.
+**4. Grave e envie o código:**
+```powershell
+cd ..
+git add desktop
+git commit -m "App 1.0.1: o que mudou"
+git push
+```
 
-3. Publique o instalador numa Release do GitHub e mande o link para os amigos:
+**5. Crie a release no GitHub:**
+```powershell
+gh release create v1.0.1 desktop\dist\Ozamigos-Share-Instalador-1.0.1.exe desktop\dist\Ozamigos-Share-Portatil-1.0.1.exe --title "Ozamigos Share 1.0.1" --generate-notes
+```
 
-   ```bash
-   gh release create v1.0.0 desktop/dist/Ozamigos-Share-Instalador-1.0.0.exe --title "Ozamigos Share 1.0.0" --notes "Primeira versão do app"
-   ```
+**Para corrigir uma release errada:** apague a release e a marca (o código não é afetado) e crie de novo.
+```powershell
+gh release delete v1.0.1 --cleanup-tag --yes
+```
 
-**Aviso do Windows na primeira vez:** o instalador não tem assinatura digital, porque o certificado custa caro. Por isso o Windows mostra "O Windows protegeu o computador". Clique em **Mais informações** e depois em **Executar assim mesmo**. Isso só acontece na primeira vez.
+**Link fixo para os amigos** (com o repositório público): `https://github.com/<usuário>/ozamigos-share-app/releases/latest`
 
-## 4. Roteiro de teste
+---
 
-Todos os itens dão para fazer num computador só, com o app e uma ou duas janelas do navegador.
+## O que fazer quando algo muda
 
-**Entrada e senha**
-- [ ] A senha errada mostra "Senha errada" e deixa tentar de novo. Com a senha certa, você entra na sala.
-- [ ] No campo **Sala**, colar o link inteiro que um amigo mandou também funciona.
-- [ ] A sexta pessoa vê "A sala está cheia (máximo de 5 pessoas)".
-
-**Transmitir e assistir**
-- [ ] No app, **Transmitir** abre o seletor com miniaturas, nas abas **Janelas** e **Telas**. Escolha uma e clique em **Transmitir**. Aparece a prévia "Ao vivo" na barra lateral.
-- [ ] No navegador, quem está ao vivo aparece com o selo e o botão **Assistir**, e surge o aviso "começou a transmitir" com o botão **Assistir**.
-- [ ] Ao clicar em **Assistir**, o vídeo aparece no palco e quem transmite vê "Assistindo você: (nome)".
-- [ ] Com duas pessoas transmitindo, dá para assistir as duas ao mesmo tempo, em **Grade** e em **Destaque**. **Destacar** troca qual fica grande.
-- [ ] O volume e o silenciar de cada transmissão funcionam sozinhos. O volume geral vale para todas. Ao recarregar a página, o volume de cada amigo continua o mesmo.
-- [ ] O **X** de uma transmissão para de assistir só aquela. Quem transmitia vê o número de quem assiste diminuir.
-- [ ] Quem transmite clica em **Parar** e depois em **Transmitir** de novo: quem assistia volta a assistir sozinho.
-- [ ] **Trocar o que transmito** muda a fonte sem derrubar quem está assistindo.
-
-**Som (no app, com "Transmitir o som do PC" marcado)**
-- [ ] Um amigo ouve o jogo, ou uma música tocando no seu PC.
-- [ ] Ele **não** ouve o Discord (a voz dos outros na chamada) nem o som das transmissões que você está assistindo no Ozamigos.
-- [ ] Ao clicar em **Parar**, o `OzamigosSom.exe` some do Gerenciador de Tarefas.
-
-**Qualidade**
-- [ ] Em **Estatísticas**, quem transmite vê:
-  - `1920×1080`;
-  - os fps da qualidade escolhida;
-  - o codificador de hardware (ex.: `NvencH264`, `AMDh264Encoder`, `MediaFoundationVideoEncodeAccelerator`);
-  - `Limite: nenhum`.
-- [ ] Nos primeiros 15 a 25 segundos, uma resolução menor é normal: é o WebRTC medindo a internet.
-
-## Banda: quanto custa cada pessoa que assiste
-
-Cada pessoa que assiste uma transmissão é mais um vídeo saindo do PC de quem transmite.
-
-| Qualidade | Upload de quem transmite, por pessoa assistindo | Download de quem assiste, por transmissão |
+| Mudou… | Precisa | Os usuários precisam… |
 |---|---|---|
-| 1080p · 30 fps (padrão) | ~5 Mbps | ~5 Mbps |
-| 1080p · 60 fps | ~8 Mbps | ~8 Mbps |
-| 720p · 60 fps | ~5 Mbps | ~5 Mbps |
-| 720p · 30 fps | ~3 Mbps | ~3 Mbps |
+| Interface (`web/`) ou servidor (`src/`) | `git push` (o Render publica sozinho) | Nada; no máximo Ctrl+R no app |
+| App (`desktop/`: `main.js`, `preload.js`, tela de início, auxiliar de som, ícone, endereço) | Aumentar a versão, `npm run instalador`, `git push` e criar a release | Baixar e instalar o `.exe` novo, por cima do antigo (as configurações continuam) |
+| Senha do grupo | Editar `OZAMIGOS_SENHA` no Render (**Environment**) | Digitar a senha nova |
 
-Exemplo: transmitindo em 1080p a 30 fps para 4 amigos, são cerca de 20 Mbps de upload. Se o upload não der conta, a linha `Limite` das estatísticas mostra `internet`, e o WebRTC baixa a resolução.
+---
 
-## Fps baixo ou travando: como descobrir o porquê
+## Configuração
 
-Abra **Estatísticas** no computador de quem transmite:
+**Servidor**
 
-| O que aparece | O que significa | O que fazer |
+| Variável | Obrigatória | Padrão | Descrição |
+|---|---|---|---|
+| `OZAMIGOS_SENHA` | sim | — | Senha do grupo. Sem ela, o servidor não sobe |
+| `PORT` | não | `8080` | Porta HTTP. O Render define `10000` |
+
+**App para Windows**
+
+| Onde | O quê |
+|---|---|
+| `desktop/package.json` → `ozamigos.servidor` | Endereço do servidor que vem no instalador |
+| `%APPDATA%\Ozamigos Share\configuracao.json` | Endereço escolhido pela pessoa (tem prioridade) e posição da janela |
+| `desktop/main.js` → `SEM_SOM_DE` | Programas cujo som nunca vai na transmissão |
+| Variável `OZAMIGOS_SERVIDOR` | Força um endereço, útil em testes |
+
+**Limites do servidor**
+
+| Limite | Valor |
+|---|---|
+| Pessoas por sala | 5 |
+| Código da sala | 6 a 20 letras e números |
+| Nome exibido | até 20 caracteres (vazio vira "Amigo") |
+| Mensagem de sinalização | até 64 KB |
+
+---
+
+## Protocolo de sinalização
+
+WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O servidor carimba o remetente (`de`) em tudo o que repassa; o cliente nunca informa quem ele é.
+
+**Cliente → servidor**
+
+| `tipo` | Campos | Efeito |
 |---|---|---|
-| `Captura` baixa (abaixo da qualidade escolhida) | O PC nem consegue copiar a tela, porque o jogo está usando a placa de vídeo inteira | **Limite o fps do jogo** (60 é o ideal) e use "janela sem bordas" |
-| `Limite: processador / placa de vídeo` | O codificador não dá conta | Escolha 720p, limite o fps do jogo e atualize o driver de vídeo |
-| `Limite: internet` ou `Banda estimada` baixa | O upload de quem transmite não aguenta | Baixe a qualidade, use cabo em vez de Wi-Fi ou peça para menos pessoas assistirem |
-| Tudo bem em quem transmite, mas quem assiste vê o indicador vermelho | A internet de quem assiste | Cabo, ou Wi-Fi mais perto do roteador |
+| `entrar` | `sala`, `senha`, `nome` | Confere a senha e entra na sala |
+| `comecei` / `parei` | — | Começa ou para de transmitir |
+| `assistir` / `deixar` | `para` | Entra ou sai da plateia de quem transmite |
+| `oferta` / `resposta` / `candidato` | `para`, `sdp` ou `candidato`, `canal` | Repassado só ao destinatário, na mesma sala |
+| `ping` | — | Mantém a conexão viva (a cada 30 s) |
+
+**Servidor → cliente**
+
+| `tipo` | Campos | Quando |
+|---|---|---|
+| `bem-vindo` | `id`, `outros[]`, `compartilhando[]`, `plateias{}` | Ao entrar |
+| `entrou` / `saiu` | `id` (e `nome`) | Alguém entrou ou saiu |
+| `pode-compartilhar` | — | Confirma o `comecei` |
+| `compartilhando` / `parou` | `id` | Alguém começou ou parou de transmitir |
+| `plateia` | `id`, `ids[]` | Mudou quem assiste uma transmissão |
+| `assistir` / `deixar` | `de` | (para quem transmite) alguém quer assistir ou desistiu |
+| `oferta` / `resposta` / `candidato` | `de`, ... | Repasse do WebRTC |
+| `erro` | `motivo` | `senha-errada`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, ... |
+
+Com `senha-errada` e `sala-cheia`, o servidor fecha a conexão logo depois de avisar.
+
+---
+
+## Qualidade, banda e diagnóstico
+
+Cada pessoa que assiste é mais um vídeo saindo do PC de quem transmite. O codec de vídeo preferido é o H.264, codificado pela placa de vídeo; o áudio vai em Opus estéreo, a até 128 kbps.
+
+| Qualidade | Upload por pessoa assistindo | Quando usar |
+|---|---|---|
+| 1080p · 30 fps (padrão) | ~5 Mbps | Imagem nítida, metade do trabalho do PC |
+| 1080p · 60 fps | ~8 Mbps | Jogos rápidos, com upload sobrando |
+| 720p · 60 fps | ~5 Mbps | Fluidez com menos banda |
+| 720p · 30 fps | ~3 Mbps | Internet fraca |
+
+Exemplo: em 1080p a 30 fps para 4 amigos, são cerca de 20 Mbps de upload. Nos primeiros 15 a 25 segundos, uma resolução menor é normal: o WebRTC está medindo a rede.
+
+**Fps baixo ou travando.** Abra **Estatísticas** no PC de quem transmite:
+
+| O que aparece | Significado | O que fazer |
+|---|---|---|
+| `Captura` abaixo da qualidade escolhida | O jogo ocupa a placa de vídeo inteira | Limite o fps do jogo (60 é o ideal) e use "janela sem bordas" |
+| `Limite: processador / placa de vídeo` | O codificador não dá conta | 720p, fps do jogo limitado, driver atualizado |
+| `Limite: internet` / `Banda estimada` baixa | O upload não aguenta | Baixe a qualidade, use cabo ou tenha menos gente assistindo |
+| Indicador vermelho só em quem assiste | A internet de quem assiste | Cabo ou Wi-Fi mais perto do roteador |
+
+---
+
+## Segurança
+
+- **Senha do grupo:**
+  - fica só na variável de ambiente e nunca no código;
+  - é conferida antes de qualquer outra coisa, então quem erra não descobre nada sobre a sala;
+  - é comparada em tempo constante.
+- **Origem do WebSocket:** só páginas servidas pelo próprio servidor conseguem abrir o WebSocket (checagem de origem do Spring).
+- **Remetente carimbado:** o servidor diz quem enviou cada mensagem (`de`) e só repassa dentro da mesma sala.
+- **App Electron:**
+  - roda com `contextIsolation`, `sandbox` e sem `nodeIntegration`;
+  - a página só acessa as funções da `preload.js`, e o `main.js` confere a origem de cada pedido;
+  - permissões (tela, notificações, tela cheia) só valem para o endereço do servidor configurado;
+  - links externos abrem no navegador.
+- **Nomes:** aparecem como texto, nunca como HTML.
+
+---
+
+## Testes
+
+```powershell
+.\mvnw.cmd test
+```
+
+Os testes cobrem:
+- o limite de pessoas por sala;
+- o que quem chega depois recebe (transmissões e plateias);
+- as regras de plateia;
+- a senha do grupo;
+- a subida da aplicação.
+
+Para verificar os tipos da interface: `cd web` e depois `npm run typecheck`.
+
+---
 
 ## Problemas comuns
 
-| Sintoma | Causa provável | O que fazer |
+| Sintoma | Causa provável | Solução |
 |---|---|---|
-| O servidor não sobe: "Defina a senha do grupo…" | Falta a variável `OZAMIGOS_SENHA` | Defina a variável (no Render, em **Environment**) |
-| `http://localhost:8080` mostra erro 404 | A interface não foi montada | `cd web && npm install && npm run build` |
-| O app diz "Não foi possível abrir…" | Endereço errado, sem internet, ou o Render acordando | Confira o endereço; espere 1 minuto e clique em **Conectar** |
-| Os amigos ouvem o próprio som de volta | Você transmite pelo **navegador**, que leva o som do computador inteiro. No app, isso não acontece | Transmita pelo app para Windows, ou silencie as transmissões que você assiste |
-| A voz de uma chamada ainda vai junto | A chamada é por um programa que não está na lista, como o Discord aberto no navegador | Use o Discord instalado, ou acrescente o programa em `SEM_SOM_DE` (`desktop/main.js`) |
-| Vídeo preto com o jogo em tela cheia | A tela cheia exclusiva não é capturável como janela | Use "janela sem bordas" no jogo ou transmita a tela inteira |
-| "Não foi possível conectar direto com…" | A rede de alguém não permite conexão direta (4G/5G, CGNAT, rede corporativa) | Tente outra rede. Esses casos precisam de um servidor TURN, que esta versão não tem |
-| "A conexão com o servidor caiu" | O Render reiniciou ou a internet caiu | Clique em **Entrar de novo** |
+| Servidor não sobe: "Defina a senha do grupo…" | Falta `OZAMIGOS_SENHA` | Defina a variável (no Render, em **Environment**) |
+| `localhost:8080` dá 404 | Interface não montada | `cd web`, depois `npm install` e `npm run build` |
+| App diz "Não foi possível abrir…" | Endereço errado, sem internet ou Render acordando | Confira o endereço; espere 1 minuto e clique em **Conectar** |
+| App abre num endereço antigo | O endereço guardado tem prioridade sobre o do instalador | Ícone de servidor na sala, ou Alt → **Trocar o servidor** |
+| Amigos ouvem o próprio som de volta | Transmissão pelo navegador (som do PC inteiro) | Transmita pelo app para Windows |
+| Voz de chamada vai junto | Programa fora da lista (ex.: Discord no navegador) | Use o Discord instalado ou acrescente o programa em `SEM_SOM_DE` |
+| Vídeo preto com o jogo em tela cheia | Tela cheia exclusiva não é capturável | "Janela sem bordas" ou transmita a tela inteira |
+| "Não foi possível conectar direto com…" | 4G/5G, CGNAT ou rede corporativa | Outra rede. Esses casos exigem TURN (veja Limitações) |
+| "A conexão com o servidor caiu" | Render reiniciou ou a internet caiu | **Entrar de novo** |
+| Comando com `&&` falha no terminal | O PowerShell 5 não aceita `&&` | Use `;` ou um comando por linha |
+
+---
 
 ## Limitações conhecidas
 
-- **O som que fica de fora:** o som de programas abertos *a partir* do Discord ou do Ozamigos também fica de fora, porque o Windows trata o programa e os que ele abriu como um grupo só. Jogos abertos pela Steam, pela Epic ou pelo menu Iniciar não são afetados.
+- **Sem servidor TURN:** quem está atrás de CGNAT, em 4G/5G ou em rede corporativa pode não conseguir conectar. O TURN repassa o vídeo e tem custo por GB.
+- **Senha única por servidor:** pensada para grupos de amigos, cada grupo com o próprio deploy. Para uso público, seriam necessários senha por sala e limite de tentativas.
+- **Estado em memória:** as salas vivem num servidor só. Para mais de um servidor, seria preciso um armazenamento compartilhado (ex.: Redis).
+- **Exclusão de som por grupo de processos:** programas abertos *a partir* do Discord ou do Ozamigos também ficam de fora. Jogos abertos pela Steam, pela Epic ou pelo menu Iniciar não são afetados.
 - **Programa que começa a tocar no meio:** o som dele entra na transmissão em até 2 segundos.
-- **Sem TURN:** quem está atrás de CGNAT ou de rede corporativa pode não conseguir conectar.
-- **Até 5 pessoas por sala:** é o limite seguro para um PC de casa mandando vídeo direto para cada amigo.
+- **Instalador sem assinatura digital:** o SmartScreen avisa na primeira execução.
+- **Atualização do app:** a interface se atualiza sozinha; já o app em si (pasta `desktop/`) exige baixar o instalador novo.
