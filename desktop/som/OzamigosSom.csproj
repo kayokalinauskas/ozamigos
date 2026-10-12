@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Auxiliar de som do app para Windows. Roda escondido (WinExe: nunca abre janela),
+    captura o som de cada programa, menos os excluídos, e escreve a mistura na saída padrão:
+    float32, 48 kHz, estéreo intercalado.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>OzamigosSom</AssemblyName>
+    <RootNamespace>Ozamigos.Som</RootNamespace>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Um .exe só, com o .NET dentro: os amigos não precisam instalar nada. -->
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>true</PublishTrimmed>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <DebuggerSupport>false</DebuggerSupport>
+  </PropertyGroup>
+
+</Project>

@@ -15,7 +15,11 @@ export type PonteOzamigos = {
   versao: string;
   /** Chamado quando a página pede getDisplayMedia: a interface mostra o seletor e responde. */
   aoPedirFonte(ouvinte: (fontes: FonteDeCaptura[]) => void): void;
-  responderFonte(escolha: EscolhaDeFonte | null): void;
+  /** somDoApp: o som do PC vem do auxiliar do app (sem o Discord e sem o Ozamigos), não do navegador. */
+  responderFonte(escolha: EscolhaDeFonte | null): Promise<{ somDoApp: boolean }>;
+  /** Pedaços do som do PC: float32 estéreo intercalado, 48 kHz. */
+  aoReceberSom(ouvinte: (dados: Uint8Array) => void): void;
+  pararSom(): void;
   /** Volta para a tela de escolher o servidor. */
   trocarServidor(): void;
 };
@@ -28,3 +32,15 @@ declare global {
 
 export const ponte: PonteOzamigos | undefined = window.ozamigos;
 export const noApp = ponte !== undefined;
+
+// A resposta do último seletor: o cliente consulta depois que getDisplayMedia termina,
+// para saber se precisa juntar a faixa de som do app ao vídeo.
+let ultimaEscolha: Promise<{ somDoApp: boolean }> = Promise.resolve({ somDoApp: false });
+
+export function responderFonte(escolha: EscolhaDeFonte | null) {
+  ultimaEscolha = ponte?.responderFonte(escolha) ?? Promise.resolve({ somDoApp: false });
+}
+
+export function resultadoDaUltimaEscolha() {
+  return ultimaEscolha;
+}

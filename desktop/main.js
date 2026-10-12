@@ -1,8 +1,9 @@
 // O app para Windows. Ele abre a interface que o servidor do Ozamigos já serve (a mesma do navegador)
-// e acrescenta o que só um app consegue: o seletor de janelas e telas com o som do PC,
-// notificações do Windows, e não ser freado quando fica atrás do jogo.
+// e acrescenta o que só um app consegue: o seletor de janelas e telas, o som do PC sem o Discord
+// e sem o próprio app, notificações do Windows, e não ser freado quando fica atrás do jogo.
 
 const { app, BrowserWindow, Menu, desktopCapturer, ipcMain, nativeTheme, session, shell } = require('electron');
+const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -12,6 +13,11 @@ const PERMISSOES = new Set(['media', 'display-capture', 'notifications', 'fullsc
 
 let janela = null;
 let pedidoDeFonte = null; // { responder, fontes } enquanto o seletor está aberto
+let auxiliarDeSom = null; // o OzamigosSom.exe, enquanto alguém transmite com som
+
+// O som desses programas nunca vai na transmissão: o próprio app (este processo e os filhos dele,
+// que tocam o som das transmissões) e o Discord, para os amigos não ouvirem a própria voz de volta.
+const SEM_SOM_DE = ['Discord.exe', 'DiscordPTB.exe', 'DiscordCanary.exe'];
 
 // ===== Configuração (endereço do servidor e posição da janela) =====
 
@@ -167,18 +173,91 @@ function configurarSessao() {
     );
   });
 
-  ipcMain.on('fonte-escolhida', (evento, escolha) => {
-    if (!pedidoDeFonte || new URL(evento.senderFrame.url).origin !== origemDoServidor()) return;
+  // Devolve { somDoApp: true } quando o som vem do auxiliar: a página então junta essa faixa ao vídeo.
+  ipcMain.handle('fonte-escolhida', async (evento, escolha) => {
+    if (!pedidoDeFonte || origemDe(evento.senderFrame?.url) !== origemDoServidor()) return { somDoApp: false };
     const { responder, fontes } = pedidoDeFonte;
     pedidoDeFonte = null;
     const fonte = escolha && fontes.find((f) => f.id === escolha.id);
     if (!fonte) {
       responder(null); // a pessoa cancelou
-      return;
+      return { somDoApp: false };
     }
-    // "loopback" é o som do Windows inteiro (o Chromium ainda não separa o som de um aplicativo só).
-    responder(escolha.audio ? { video: fonte, audio: 'loopback' } : { video: fonte });
+    if (!escolha.audio) {
+      responder({ video: fonte });
+      return { somDoApp: false };
+    }
+    const somDoApp = await ligarAuxiliarDeSom();
+    // Se o auxiliar não rodar (Windows antigo demais), vai o som do Windows inteiro, como no navegador.
+    responder(somDoApp ? { video: fonte } : { video: fonte, audio: 'loopback' });
+    return { somDoApp };
   });
+
+  ipcMain.on('som-parar', (evento) => {
+    if (origemDe(evento.senderFrame?.url) === origemDoServidor()) desligarAuxiliarDeSom();
+  });
+}
+
+// ===== Som do PC, sem o Discord e sem o próprio app (desktop/som, roda escondido) =====
+
+function caminhoDoAuxiliar() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'som', 'OzamigosSom.exe')
+    : path.join(__dirname, 'som', 'publicado', 'OzamigosSom.exe');
+}
+
+/** Liga o auxiliar (se ainda não estiver ligado). Resolve true quando ele avisa "pronto". */
+function ligarAuxiliarDeSom() {
+  if (auxiliarDeSom) return Promise.resolve(true);
+  const executavel = caminhoDoAuxiliar();
+  if (!fs.existsSync(executavel)) return Promise.resolve(false);
+  return new Promise((resolver) => {
+    const processo = spawn(executavel, ['--excluir-pid', String(process.pid), '--excluir-nome', SEM_SOM_DE.join(',')], {
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let pronto = false;
+    let sobra = Buffer.alloc(0);
+    const desistir = setTimeout(() => {
+      if (!pronto) processo.kill();
+    }, 8000);
+
+    processo.stderr.setEncoding('utf8');
+    processo.stderr.on('data', (texto) => {
+      for (const linha of texto.split(/\r?\n/).filter(Boolean)) {
+        if (linha === 'pronto' && !pronto) {
+          pronto = true;
+          clearTimeout(desistir);
+          auxiliarDeSom = processo;
+          resolver(true);
+        } else {
+          console.log('[som]', linha);
+        }
+      }
+    });
+    // A saída é float32 estéreo (8 bytes por quadro): só manda quadros inteiros para a página.
+    processo.stdout.on('data', (dados) => {
+      if (!pronto || !janela || janela.isDestroyed()) return;
+      const tudo = sobra.length ? Buffer.concat([sobra, dados]) : dados;
+      const inteiros = tudo.length - (tudo.length % 8);
+      sobra = Buffer.from(tudo.subarray(inteiros));
+      if (inteiros > 0) janela.webContents.send('som', tudo.subarray(0, inteiros));
+    });
+    processo.on('error', (erro) => console.error('Auxiliar de som não abriu', erro));
+    processo.on('exit', (codigo) => {
+      clearTimeout(desistir);
+      if (auxiliarDeSom === processo) auxiliarDeSom = null;
+      if (!pronto) resolver(false);
+      console.log('Auxiliar de som terminou, código', codigo);
+    });
+  });
+}
+
+function desligarAuxiliarDeSom() {
+  if (!auxiliarDeSom) return;
+  auxiliarDeSom.stdin.end(); // ele termina sozinho quando a entrada fecha
+  auxiliarDeSom.kill();
+  auxiliarDeSom = null;
 }
 
 // ===== Tela de início (escolher o servidor) =====
@@ -261,4 +340,5 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('window-all-closed', () => app.quit());
+  app.on('will-quit', desligarAuxiliarDeSom);
 }

@@ -11,7 +11,7 @@ Funciona como **app para Windows** e também pelo **navegador**, com a mesma sal
 - **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos, que você pode desligar, e notificação do Windows se a janela estiver atrás do jogo.
 - **No app para Windows:**
   - um seletor próprio, com miniaturas de janelas e telas;
-  - o som do PC com um clique;
+  - o som do PC com um clique, **sem o som do Discord e sem o som das transmissões que você está assistindo** (os amigos nunca ouvem a própria voz ou o próprio jogo de volta), em estéreo;
   - transmissão sem engasgar quando o jogo está na frente.
 
 ## Como as peças se encaixam
@@ -22,7 +22,19 @@ src/        Servidor Java (Spring Boot): salas, senha do grupo e sinalização p
             Serve a interface pronta. O vídeo nunca passa por ele.
 desktop/    App para Windows (Electron). Abre a interface que o servidor serve e acrescenta
             o seletor de fontes, o som do PC e as notificações.
+desktop/som Auxiliar de som (C#, OzamigosSom.exe). Vai dentro do instalador e roda escondido
+            enquanto alguém transmite com som.
 ```
+
+**Como o som do PC deixa o Discord de fora.** O Windows 10 (versão 2004 em diante) e o 11 conseguem capturar o som de um programa por vez. O auxiliar:
+
+1. confere, a cada 2 segundos, quais programas estão tocando som;
+2. captura cada um deles, menos o Discord (`Discord.exe`, `DiscordPTB.exe` e `DiscordCanary.exe`) e o próprio Ozamigos Share;
+3. mistura tudo e entrega ao app.
+
+O auxiliar não abre janela nem ícone. Ele liga quando a transmissão com som começa e desliga quando ela para. Se o app fechar de repente, ele percebe e fecha junto. A lista de exclusões fica em `SEM_SOM_DE`, no `desktop/main.js`.
+
+Num Windows mais antigo, em que o auxiliar não funciona, o app volta a mandar o som do Windows inteiro.
 
 Como o app abre a interface direto do servidor, **cada deploy atualiza o app de todo mundo**. O instalador só precisa ser gerado de novo quando algo dentro de `desktop/` mudar.
 
@@ -30,6 +42,7 @@ Como o app abre a interface direto do servidor, **cada deploy atualiza o app de 
 
 - **Java 25** (JDK). O Maven não precisa ser instalado, porque o `mvnw` baixa sozinho.
 - **Node.js 22** ou mais novo, para montar a interface e o app.
+- **.NET SDK 10**, só para gerar o instalador, porque ele compila o auxiliar de som. Os amigos não precisam instalar nada.
 - **Para transmitir:** o app para Windows (Windows 10/11, 64 bits), ou o Chrome ou o Edge no computador.
 - **Para assistir:** o app, ou qualquer navegador moderno.
 
@@ -112,7 +125,7 @@ Anote o endereço, algo como `https://ozamigos-share-app.onrender.com`. A cada `
    npm run instalador
    ```
 
-   Em `desktop/dist` saem dois arquivos:
+   O comando compila o auxiliar de som com o .NET e gera os instaladores. Em `desktop/dist` saem dois arquivos:
    - `Ozamigos-Share-Instalador-1.0.0.exe` instala, cria o atalho e aparece em "Adicionar ou remover programas";
    - `Ozamigos-Share-Portatil-1.0.0.exe` roda sem instalar.
 
@@ -142,6 +155,11 @@ Todos os itens dão para fazer num computador só, com o app e uma ou duas janel
 - [ ] O **X** de uma transmissão para de assistir só aquela. Quem transmitia vê o número de quem assiste diminuir.
 - [ ] Quem transmite clica em **Parar** e depois em **Transmitir** de novo: quem assistia volta a assistir sozinho.
 - [ ] **Trocar o que transmito** muda a fonte sem derrubar quem está assistindo.
+
+**Som (no app, com "Transmitir o som do PC" marcado)**
+- [ ] Um amigo ouve o jogo, ou uma música tocando no seu PC.
+- [ ] Ele **não** ouve o Discord (a voz dos outros na chamada) nem o som das transmissões que você está assistindo no Ozamigos.
+- [ ] Ao clicar em **Parar**, o `OzamigosSom.exe` some do Gerenciador de Tarefas.
 
 **Qualidade**
 - [ ] Em **Estatísticas**, quem transmite vê:
@@ -182,13 +200,15 @@ Abra **Estatísticas** no computador de quem transmite:
 | O servidor não sobe: "Defina a senha do grupo…" | Falta a variável `OZAMIGOS_SENHA` | Defina a variável (no Render, em **Environment**) |
 | `http://localhost:8080` mostra erro 404 | A interface não foi montada | `cd web && npm install && npm run build` |
 | O app diz "Não foi possível abrir…" | Endereço errado, sem internet, ou o Render acordando | Confira o endereço; espere 1 minuto e clique em **Conectar** |
-| Os amigos ouvem o próprio som de volta | "Transmitir o som do PC" leva o som do computador inteiro, inclusive o das transmissões que você está ouvindo | Silencie as transmissões que você assiste enquanto transmite com som, ou transmita sem o som do PC |
+| Os amigos ouvem o próprio som de volta | Você transmite pelo **navegador**, que leva o som do computador inteiro. No app, isso não acontece | Transmita pelo app para Windows, ou silencie as transmissões que você assiste |
+| A voz de uma chamada ainda vai junto | A chamada é por um programa que não está na lista, como o Discord aberto no navegador | Use o Discord instalado, ou acrescente o programa em `SEM_SOM_DE` (`desktop/main.js`) |
 | Vídeo preto com o jogo em tela cheia | A tela cheia exclusiva não é capturável como janela | Use "janela sem bordas" no jogo ou transmita a tela inteira |
 | "Não foi possível conectar direto com…" | A rede de alguém não permite conexão direta (4G/5G, CGNAT, rede corporativa) | Tente outra rede. Esses casos precisam de um servidor TURN, que esta versão não tem |
 | "A conexão com o servidor caiu" | O Render reiniciou ou a internet caiu | Clique em **Entrar de novo** |
 
 ## Limitações conhecidas
 
-- **Som de um aplicativo só:** no Windows, o Chromium captura o som do sistema inteiro. Isolar só o jogo exigiria código nativo.
+- **O som que fica de fora:** o som de programas abertos *a partir* do Discord ou do Ozamigos também fica de fora, porque o Windows trata o programa e os que ele abriu como um grupo só. Jogos abertos pela Steam, pela Epic ou pelo menu Iniciar não são afetados.
+- **Programa que começa a tocar no meio:** o som dele entra na transmissão em até 2 segundos.
 - **Sem TURN:** quem está atrás de CGNAT ou de rede corporativa pode não conseguir conectar.
 - **Até 5 pessoas por sala:** é o limite seguro para um PC de casa mandando vídeo direto para cada amigo.

@@ -4,6 +4,8 @@
 import { lembrado, lembrar } from './armazenamento';
 import { QUALIDADES, QUALIDADE_PADRAO, ehQualidade, type Qualidade } from './qualidade';
 import { tocar } from './sons';
+import { noApp, resultadoDaUltimaEscolha } from './ponte';
+import { pararSomDoApp, trilhaDoSomDoApp } from './somDoApp';
 
 // STUN: um servidor público que diz ao navegador qual é o seu endereço visto da internet.
 const SERVIDORES_ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -364,6 +366,19 @@ class Cliente {
   }
 
   private async capturar(fonte: Fonte): Promise<MediaStream | null> {
+    const tela = await this.capturarDoNavegador(fonte);
+    if (!tela || !noApp) return tela;
+    // No app, o som do PC vem do auxiliar do Windows (sem o Discord e sem o próprio Ozamigos).
+    const { somDoApp } = await resultadoDaUltimaEscolha();
+    if (somDoApp) {
+      tela.addTrack(await trilhaDoSomDoApp());
+    } else if (this.estado.minhaTela) {
+      pararSomDoApp(); // trocou para uma fonte sem som
+    }
+    return tela;
+  }
+
+  private async capturarDoNavegador(fonte: Fonte): Promise<MediaStream | null> {
     const { fps } = QUALIDADES[this.estado.qualidade];
     const superficie = fonte === 'aplicativo' ? 'window' : fonte === 'tela' ? 'monitor' : undefined;
     try {
@@ -409,7 +424,8 @@ class Cliente {
       }
     }
     antiga.getVideoTracks()[0].onended = null; // parar a antiga não pode encerrar a transmissão
-    antiga.getTracks().forEach((trilha) => trilha.stop());
+    // A faixa de som do app passa de uma fonte para a outra: só para o que não continua.
+    antiga.getTracks().filter((trilha) => !nova.getTracks().includes(trilha)).forEach((trilha) => trilha.stop());
     await this.aplicarQualidade(); // a fonte nova pode ter outro tamanho
   }
 
@@ -417,6 +433,7 @@ class Cliente {
     const { minhaTela, meuId } = this.estado;
     if (!minhaTela) return;
     minhaTela.getTracks().forEach((trilha) => trilha.stop());
+    if (noApp) pararSomDoApp();
     for (const { canal, id } of [...this.conexoes.values()]) {
       if (canal === 'envio') this.fecharConexao(canal, id);
     }
@@ -543,7 +560,8 @@ class Cliente {
     // Sempre cria o canal de áudio, mesmo sem áudio agora: assim a troca de fonte não precisa renegociar.
     const [audio] = tela.getAudioTracks();
     pc.addTransceiver(audio ?? 'audio', { direction: 'sendonly', streams: [tela] });
-    await pc.setLocalDescription(await pc.createOffer());
+    const oferta = await pc.createOffer();
+    await pc.setLocalDescription({ type: 'offer', sdp: opusEstereo(oferta.sdp ?? '') });
     this.enviar({ tipo: 'oferta', para: idEspectador, sdp: pc.localDescription });
   }
 
@@ -574,7 +592,8 @@ class Cliente {
     };
     await conexao.pc.setRemoteDescription(sdp);
     await this.aplicarCandidatosPendentes(conexao);
-    await conexao.pc.setLocalDescription(await conexao.pc.createAnswer());
+    const resposta = await conexao.pc.createAnswer();
+    await conexao.pc.setLocalDescription({ type: 'answer', sdp: opusEstereo(resposta.sdp ?? '') });
     this.enviar({ tipo: 'resposta', para: idTransmissor, sdp: conexao.pc.localDescription });
   }
 
@@ -666,6 +685,18 @@ class Cliente {
     }
     this.mudar({ metricas });
   }
+}
+
+/**
+ * O WebRTC manda o Opus em mono, a menos que as duas pontas peçam estéreo no SDP.
+ * Som de jogo tem esquerda e direita: pedimos estéreo e até 128 kbps.
+ */
+function opusEstereo(sdp: string): string {
+  const tipo = /a=rtpmap:(\d+) opus\/48000\/2/i.exec(sdp)?.[1];
+  if (!tipo) return sdp;
+  return sdp.replace(new RegExp(`(a=fmtp:${tipo} [^\\r\\n]*)`), (linha) =>
+    linha.includes('stereo=1') ? linha : `${linha};stereo=1;sprop-stereo=1;maxaveragebitrate=128000`,
+  );
 }
 
 // H.264 é o codec que quase toda placa de vídeo codifica em hardware.

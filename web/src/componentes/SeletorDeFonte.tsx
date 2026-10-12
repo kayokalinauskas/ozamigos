@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppWindow, Monitor } from 'lucide-react';
 import { lembrado, lembrar } from '../armazenamento';
-import { ponte, type FonteDeCaptura } from '../ponte';
+import { ponte, responderFonte, type FonteDeCaptura } from '../ponte';
 
 /**
  * O seletor do app para Windows: janelas e telas com miniaturas, e o som do PC com um clique.
@@ -30,7 +30,7 @@ export function SeletorDeFonte() {
 
   function responder(id: string | null) {
     lembrar('ozamigos-audio', audio ? '' : 'nao');
-    ponte!.responderFonte(id ? { id, audio } : null);
+    responderFonte(id ? { id, audio } : null);
     dialogo.current?.close();
     setFontes(null);
   }
@@ -85,7 +85,7 @@ export function SeletorDeFonte() {
           <input type="checkbox" checked={audio} onChange={(e) => setAudio(e.target.checked)} />
           <span>
             Transmitir o som do PC
-            <small>Vai o som do computador inteiro: jogo, música e também o das transmissões que você está ouvindo.</small>
+            <small>Vai o som do jogo e dos outros programas. O do Discord e o das transmissões que você assiste ficam de fora.</small>
           </span>
         </label>
         <div className="botoes">

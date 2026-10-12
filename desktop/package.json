@@ -12,7 +12,8 @@
   "scripts": {
     "start": "electron .",
     "icone": "node build/gerar-icone.js",
-    "instalador": "electron-builder --win"
+    "instalador": "npm run som && electron-builder --win",
+    "som": "dotnet publish som -c Release -o som/publicado"
   },
   "devDependencies": {
     "electron": "^44.7.0",
@@ -59,6 +60,12 @@
     },
     "portable": {
       "artifactName": "Ozamigos-Share-Portatil-${version}.${ext}"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "som/publicado/OzamigosSom.exe",
+        "to": "som/OzamigosSom.exe"
+      }
+    ]
   }
 }
