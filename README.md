@@ -1,25 +1,39 @@
-<div align="center">
+<p align="center">
+  <img src="docs/imagens/capa.png" alt="Ozamigos: transmita seu jogo para os amigos, direto de um PC para o outro, em até 1080p" width="100%">
+</p>
 
-<img src="desktop/build/icone.png" alt="" width="96" height="96" />
+<p align="center">
+  App para Windows e versão web, com salas protegidas por senha,<br>
+  várias transmissões ao mesmo tempo e som do PC sem o eco do Discord.
+</p>
 
-# Ozamigos
+<p align="center">
+  <a href="../../releases/latest"><img src="https://img.shields.io/badge/Baixar%20para%20Windows-b6f24a?style=for-the-badge" alt="Baixar para Windows" height="34"></a>
+</p>
 
-**Transmita seu jogo para os amigos em até 1080p, direto de um PC para o outro.**
+<p align="center">
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-1f261c?style=flat-square" alt="Windows 10 e 11">
+  <img src="https://img.shields.io/badge/Java-25-1f261c?style=flat-square" alt="Java 25">
+  <img src="https://img.shields.io/badge/Spring%20Boot-4.1-1f261c?style=flat-square" alt="Spring Boot 4.1">
+  <img src="https://img.shields.io/badge/React-19-1f261c?style=flat-square" alt="React 19">
+  <img src="https://img.shields.io/badge/Electron-44-1f261c?style=flat-square" alt="Electron 44">
+  <img src="https://img.shields.io/badge/v%C3%ADdeo-WebRTC%20P2P-1f261c?style=flat-square" alt="Vídeo por WebRTC P2P">
+  <img src="https://img.shields.io/badge/licen%C3%A7a-MIT-b6f24a?style=flat-square" alt="Licença MIT">
+</p>
 
-App para Windows e versão web, com salas protegidas por senha, várias transmissões ao mesmo tempo
-e som do PC sem o eco do Discord.
+<p align="center">
+  <a href="#recursos">Recursos</a> ·
+  <a href="#como-funciona">Como funciona</a> ·
+  <a href="#rodar-localmente">Rodar localmente</a> ·
+  <a href="#deploy-no-render">Deploy</a> ·
+  <a href="#publicar-uma-versão-do-app">Publicar uma versão</a>
+</p>
 
-![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
-![Java 25](https://img.shields.io/badge/Java-25-E76F00)
-![Spring Boot 4.1](https://img.shields.io/badge/Spring%20Boot-4.1-6DB33F)
-![React 19](https://img.shields.io/badge/React-19-149ECA)
-![Electron 44](https://img.shields.io/badge/Electron-44-47848F)
-![WebRTC](https://img.shields.io/badge/v%C3%ADdeo-WebRTC%20P2P-333333)
-![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue)
-
-[**Baixar para Windows**](../../releases/latest) · [Como funciona](#como-funciona) · [Rodar localmente](#rodar-localmente) · [Deploy](#deploy-no-render) · [Publicar uma versão](#publicar-uma-versão-do-app)
-
-</div>
+<p align="center">
+  <img src="docs/imagens/demo.gif" alt="Demonstração: a Duda assiste a Ana; o Caio começa a transmitir e ela entra pelo aviso; depois assiste o Beto, baixa o volume dele e coloca o Caio em destaque" width="100%">
+  <br>
+  <sub>A Duda assiste a Ana, entra na transmissão do Caio pelo aviso, abre a do Beto, baixa o volume dele e coloca o Caio em destaque. Os "jogos" são desenhados por código, só para a demonstração.</sub>
+</p>
 
 ---
 
@@ -47,6 +61,17 @@ e som do PC sem o eco do Discord.
 
 ## Recursos
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/imagens/sala-grade.png" alt="Sala em grade com quatro transmissões ao vivo e a lista de quem está na sala"></td>
+    <td width="50%"><img src="docs/imagens/sala-destaque.png" alt="Uma transmissão em destaque, as outras ao lado e o painel de estatísticas aberto"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Grade:</b> até 4 transmissões lado a lado, e quem está ao vivo na lateral</sub></td>
+    <td align="center"><sub><b>Destaque:</b> uma grande, as outras ao lado, e as estatísticas de cada conexão</sub></td>
+  </tr>
+</table>
+
 **Na sala**
 - **Presença em tempo real:** quem está na sala, quem está **ao vivo** e quantas pessoas assistem cada transmissão.
 - **Assistir sob demanda:** você escolhe uma ou mais transmissões. O vídeo só sai do PC de quem transmite para quem clicou em **Assistir**, o que poupa o upload e a placa de vídeo de quem transmite.
@@ -71,6 +96,8 @@ e som do PC sem o eco do Discord.
 1. Baixe o `Ozamigos-Instalador-x.y.z.exe` na [última versão](../../releases/latest).
 2. Abra o arquivo. Se o Windows mostrar **"O Windows protegeu o computador"**, clique em **Mais informações** e depois em **Executar assim mesmo**. O instalador não tem assinatura digital paga.
 3. Entre com o seu nome e a **senha do grupo**, que quem administra o servidor passa para você.
+
+<p align="center"><img src="docs/imagens/entrada.png" alt="Tela de entrada com nome, senha do grupo e código da sala" width="640"></p>
 
 **Sem instalar:** use o `Ozamigos-Portatil-x.y.z.exe`, que abre com dois cliques.
 
@@ -152,8 +179,9 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │   ├── main.js                       Janela, permissões, seletor de fontes e auxiliar de som
 │   ├── preload.js                    Ponte segura entre a página e o app
 │   ├── inicio.html|js|css            Tela de escolher o servidor
-│   ├── build/                        Ícone (e o script que o gera)
+│   ├── build/                        Ícone (e o script que o gera) e a fonte do logotipo
 │   └── som/                          Auxiliar de som em C# (.NET 10): OzamigosSom.exe
+├── docs/imagens/           Capa, GIF de demonstração e telas deste README
 ├── Dockerfile              Build em 3 etapas: Node (interface) → JDK (servidor) → JRE (imagem final)
 └── pom.xml
 ```

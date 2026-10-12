@@ -142,6 +142,19 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 - **Som sem eco:** toque tons diferentes em processos diferentes (por exemplo, `Media.SoundPlayer` no PowerShell com WAVs de 440 Hz e 1200 Hz). Para simular o Discord, use uma cópia do `powershell.exe` renomeada para `Discord.exe`. Depois meça com `AnalyserNode` em quem recebe, silenciando o vídeo na aba de teste. **O navegador de teste também é capturado se não estiver silenciado**, e o som recebido volta para a transmissão.
 - **Simular o deploy:** clone limpo; em `web`, `npm ci` e `npm run build`; na raiz, `mvnw -DskipTests package`; rode o jar com `PORT=10000`. O handshake do WebSocket deve dar 101 com a mesma origem e 403 com uma origem estranha.
 
+## Imagens do README
+
+As telas, o GIF e a capa em `docs/imagens` são gerados por scripts em `docs/vitrine`, com a interface de verdade. **Refaça-os quando a interface mudar de cara.**
+
+1. Monte a interface (`npm run build` em `web`) e suba o servidor local na porta **8090** com a senha **teste**.
+2. Na raiz: `desktop\node_modules\.bin\electron docs\vitrine\captura.js`. São janelas invisíveis, com o som mudo e as notificações bloqueadas.
+   - Cinco amigos fictícios (Ana, Beto, Caio, Duda e Eli) entram na sala `Ozamigos26`, cada um transmitindo um "jogo" desenhado por código (`jogo-falso.js`). Nunca use imagem de jogo de verdade.
+   - Saem `entrada.png`, `sala-grade.png`, `sala-destaque.png` e `demo.gif`. O GIF é montado pelo ffmpeg, que precisa estar no PATH.
+   - No GIF, os cliques são eventos de mouse reais (`sendInputEvent`, para o `:hover` mostrar os controles), com um cursor desenhado por cima.
+3. Depois: `desktop\node_modules\.bin\electron docs\vitrine\capa.js`. Ele gera a `capa.png` (topo do README) e a `social.png` (prévia de link, enviada à mão em *Settings* → *Social preview* no GitHub).
+
+As janelas que ninguém fotografa rodam a 4 quadros por segundo, e os amigos fictícios não assistem uns aos outros. Sem isso, o PC fica sobrecarregado e as fotos saem com "instável" e congelamentos.
+
 ## Armadilhas conhecidas
 
 - O `.gitignore` da raiz ignora `build/`. A pasta `desktop/build/` (o ícone) é liberada com `!desktop/build/`. Arquivos novos nela continuam entrando.
