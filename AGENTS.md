@@ -182,4 +182,5 @@ As janelas que ninguém fotografa rodam a 4 quadros por segundo, e os amigos fic
   3. crie e envie a marca: `git tag vX.Y.Z` e `git push origin vX.Y.Z`.
   - O workflow `.github/workflows/release.yml` (máquina `windows-latest`) confere se a marca bate com a versão, roda `npm ci` e `npm run instalador` em `desktop/` e cria a release com os dois `.exe` (se a release já existir, só troca os arquivos).
   - O `npm run instalador` usa `--publish never`: quem publica é o `gh` do workflow, não o electron-builder.
-  - Repositório privado gasta a cota grátis do Actions (Windows conta em dobro). Não cadastre forma de pagamento: o dono não aceita nenhum risco de cobrança.
+  - Para refazer os arquivos de uma release que já existe: aba *Actions* → *Release do app* → *Run workflow*, escolhendo a tag em *Use workflow from* (`gh workflow run release.yml --ref vX.Y.Z`).
+  - O repositório é público, então o Actions não tem custo. Mesmo assim, não cadastre forma de pagamento: o dono não aceita nenhum risco de cobrança.
