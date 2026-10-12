@@ -15,6 +15,7 @@ e som do PC sem o eco do Discord.
 ![React 19](https://img.shields.io/badge/React-19-149ECA)
 ![Electron 44](https://img.shields.io/badge/Electron-44-47848F)
 ![WebRTC](https://img.shields.io/badge/v%C3%ADdeo-WebRTC%20P2P-333333)
+![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue)
 
 [**Baixar para Windows**](../../releases/latest) · [Como funciona](#como-funciona) · [Rodar localmente](#rodar-localmente) · [Deploy](#deploy-no-render) · [Publicar uma versão](#publicar-uma-versão-do-app)
 
@@ -40,6 +41,7 @@ e som do PC sem o eco do Discord.
 - [Testes](#testes)
 - [Problemas comuns](#problemas-comuns)
 - [Limitações conhecidas](#limitações-conhecidas)
+- [Licença](#licença)
 
 ---
 
@@ -430,3 +432,9 @@ Para verificar os tipos da interface: `cd web` e depois `npm run typecheck`.
 - **Programa que começa a tocar no meio:** o som dele entra na transmissão em até 2 segundos.
 - **Instalador sem assinatura digital:** o SmartScreen avisa na primeira execução.
 - **Atualização do app:** a interface se atualiza sozinha; já o app em si (pasta `desktop/`) exige baixar o instalador novo.
+
+---
+
+## Licença
+
+Distribuído sob a [licença MIT](LICENSE): pode usar, copiar, modificar e distribuir, inclusive para fins comerciais, desde que o aviso de copyright e a licença acompanhem as cópias. O software é fornecido sem garantia.
