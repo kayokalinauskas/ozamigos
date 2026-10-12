@@ -157,6 +157,10 @@ As janelas que ninguém fotografa rodam a 4 quadros por segundo, e os amigos fic
 
 ## Armadilhas conhecidas
 
+- **Endereço do servidor guardado:** o `servidor` do `configuracao.json` vence o padrão do instalador, e desinstalar não apaga essa pasta. Por isso:
+  - quem escolhe o endereço que já é o padrão não o tem guardado (`salvar-servidor`), e assim acompanha as mudanças de padrão;
+  - **ao trocar o endereço oficial, ponha o antigo em `SERVIDORES_APOSENTADOS`** (em `main.js`). Quem o tiver guardado volta sozinho para o novo. Isso aconteceu na troca de `ozamigos-share-app.onrender.com` para `ozamigos.onrender.com`.
+- **Os comandos do agente podem ver outra cópia do `%APPDATA%`:** num ambiente isolado (sandbox), o `configuracao.json` lido pelo terminal pode não ser o mesmo que o app usa quando aberto pelo atalho. Para ler o arquivo real, use um `.bat` aberto pelo `explorer.exe`, ou o inspetor do processo principal (`Ozamigos.exe --inspect=9229`).
 - **Cache da interface:** o jar data todos os arquivos de 1980. Sem regra de cache, o navegador e o app guardavam o `index.html` por anos e mostravam a interface antiga depois de um deploy. Isso aconteceu na 1.1.1. Hoje há três proteções, **não remova nenhuma**:
   - o servidor manda `Cache-Control: no-cache`, sem `Last-Modified`, para tudo; só `/assets/**`, que tem hash no nome, recebe cache de um ano (`CacheConfig` e `application.properties`);
   - o app abre a página com `cache-control: no-cache` no pedido;

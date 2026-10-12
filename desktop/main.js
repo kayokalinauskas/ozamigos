@@ -12,6 +12,8 @@ const path = require('node:path');
 app.setPath('userData', path.join(app.getPath('appData'), 'Ozamigos Share'));
 
 const SERVIDOR_PADRAO = process.env.OZAMIGOS_SERVIDOR || require('./package.json').ozamigos.servidor || '';
+// Endereços oficiais que já foram desligados. Quem os tiver guardado volta sozinho para o padrão.
+const SERVIDORES_APOSENTADOS = new Set(['https://ozamigos-share-app.onrender.com']);
 const ARQUIVO_DE_CONFIGURACAO = path.join(app.getPath('userData'), 'configuracao.json');
 const PERMISSOES = new Set(['media', 'display-capture', 'notifications', 'fullscreen', 'clipboard-sanitized-write']);
 
@@ -40,8 +42,14 @@ function salvarConfiguracao(mudancas) {
   fs.writeFileSync(ARQUIVO_DE_CONFIGURACAO, JSON.stringify(configuracao, null, 2));
 }
 
+/** O endereço guardado pela pessoa (tem prioridade) ou o que vem no app. */
 function servidor() {
-  return lerConfiguracao().servidor || SERVIDOR_PADRAO;
+  const guardado = lerConfiguracao().servidor;
+  if (guardado && SERVIDORES_APOSENTADOS.has(origemDe(guardado))) {
+    salvarConfiguracao({ servidor: undefined }); // o JSON não grava undefined: a chave some
+    return SERVIDOR_PADRAO;
+  }
+  return guardado || SERVIDOR_PADRAO;
 }
 
 /** "http://localhost:8090/" e "http://localhost:8090/?sala=x" viram "http://localhost:8090". */
@@ -304,7 +312,8 @@ ipcMain.handle('salvar-servidor', (evento, texto) => {
   if (!vindoDoInicio(evento)) return 'Pedido recusado.';
   const origem = enderecoValido(String(texto));
   if (!origem) return 'Use um endereço que comece com https:// (ou http://localhost para testar no seu PC).';
-  salvarConfiguracao({ servidor: origem });
+  // O endereço que já vem no app não é guardado: assim, se o padrão mudar numa versão nova, todos acompanham.
+  salvarConfiguracao({ servidor: origem === origemDe(SERVIDOR_PADRAO) ? undefined : origem });
   abrirServidorOuInicio();
   return null;
 });
