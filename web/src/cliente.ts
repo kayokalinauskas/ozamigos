@@ -200,7 +200,13 @@ class Cliente {
     // As mensagens são tratadas uma de cada vez, na ordem em que chegaram.
     let fila = Promise.resolve();
     ws.onmessage = (evento) => {
-      const msg = JSON.parse(evento.data) as Mensagem;
+      let msg: Mensagem;
+      try {
+        msg = JSON.parse(evento.data) as Mensagem;
+      } catch {
+        console.error('Mensagem inválida do servidor', evento.data);
+        return;
+      }
       fila = fila.then(() => this.tratar(msg, nome, senha)).catch((erro) => console.error('Erro ao tratar', msg, erro));
     };
   }
@@ -371,7 +377,14 @@ class Cliente {
     // No app, o som do PC vem do auxiliar do Windows (sem o Discord e sem o próprio Ozamigos).
     const { somDoApp } = await resultadoDaUltimaEscolha();
     if (somDoApp) {
-      tela.addTrack(await trilhaDoSomDoApp());
+      try {
+        tela.addTrack(await trilhaDoSomDoApp());
+      } catch (erro) {
+        // Sem a faixa de som, a transmissão segue só com vídeo (melhor que deixar a captura ligada à toa).
+        console.error('Não foi possível montar o som do PC', erro);
+        pararSomDoApp();
+        this.avisar('Não foi possível transmitir o som do PC; a transmissão segue sem som.', 'erro');
+      }
     } else if (this.estado.minhaTela) {
       pararSomDoApp(); // trocou para uma fonte sem som
     }
@@ -533,6 +546,11 @@ class Cliente {
     if (!conexao) return;
     conexao.pc.close();
     this.conexoes.delete(chave(canal, idRemoto));
+    const prefixo = `${chave(canal, idRemoto)}:`;
+    for (const chaveDoRelatorio of this.anteriores.keys()) {
+      if (chaveDoRelatorio.startsWith(prefixo)) this.anteriores.delete(chaveDoRelatorio);
+    }
+    this.historicoDeCongelamentos.delete(chave(canal, idRemoto));
     const metricas = { ...this.estado.metricas };
     delete metricas[chave(canal, idRemoto)];
     const parcial: Partial<Estado> = { metricas };

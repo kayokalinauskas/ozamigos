@@ -14,6 +14,7 @@ const PERMISSOES = new Set(['media', 'display-capture', 'notifications', 'fullsc
 let janela = null;
 let pedidoDeFonte = null; // { responder, fontes } enquanto o seletor está aberto
 let auxiliarDeSom = null; // o OzamigosSom.exe, enquanto alguém transmite com som
+let ligandoAuxiliar = null; // Promise enquanto o auxiliar está abrindo
 
 // O som desses programas nunca vai na transmissão: o próprio app (este processo e os filhos dele,
 // que tocam o som das transmissões) e o Discord, para os amigos não ouvirem a própria voz de volta.
@@ -94,6 +95,8 @@ function criarJanela() {
       nodeIntegration: false,
       // Com o jogo na frente, a janela do Ozamigos fica escondida: sem isto, o Chromium a frearia.
       backgroundThrottling: false,
+      // O som das transmissões pode começar sem um clique (ex.: voltar a assistir sozinho quando o amigo retoma).
+      autoplayPolicy: 'no-user-gesture-required',
       additionalArguments: [`--ozamigos-versao=${app.getVersion()}`],
     },
   });
@@ -108,7 +111,7 @@ function criarJanela() {
   const conteudo = janela.webContents;
   // A janela só navega dentro do servidor; qualquer outro link abre no navegador de verdade.
   conteudo.on('will-navigate', (evento, url) => {
-    if (url.startsWith('file:') || new URL(url).origin === origemDoServidor()) return;
+    if (url.startsWith('file:') || origemDe(url) === origemDoServidor()) return;
     evento.preventDefault();
     abrirFora(url);
   });
@@ -206,9 +209,19 @@ function caminhoDoAuxiliar() {
     : path.join(__dirname, 'som', 'publicado', 'OzamigosSom.exe');
 }
 
-/** Liga o auxiliar (se ainda não estiver ligado). Resolve true quando ele avisa "pronto". */
+/**
+ * Liga o auxiliar (se ainda não estiver ligado). Resolve true quando ele avisa "pronto".
+ * Dois pedidos seguidos (trocar a fonte rápido) esperam o mesmo auxiliar: nunca dois ao mesmo tempo.
+ */
 function ligarAuxiliarDeSom() {
   if (auxiliarDeSom) return Promise.resolve(true);
+  ligandoAuxiliar ??= abrirAuxiliarDeSom().finally(() => {
+    ligandoAuxiliar = null;
+  });
+  return ligandoAuxiliar;
+}
+
+function abrirAuxiliarDeSom() {
   const executavel = caminhoDoAuxiliar();
   if (!fs.existsSync(executavel)) return Promise.resolve(false);
   return new Promise((resolver) => {
@@ -263,7 +276,7 @@ function desligarAuxiliarDeSom() {
 // ===== Tela de início (escolher o servidor) =====
 
 function vindoDoInicio(evento) {
-  return evento.senderFrame?.url.startsWith('file:');
+  return Boolean(evento.senderFrame?.url?.startsWith('file:'));
 }
 
 ipcMain.handle('servidor-atual', (evento) => (vindoDoInicio(evento) ? servidor() : null));
@@ -278,7 +291,7 @@ ipcMain.handle('salvar-servidor', (evento, texto) => {
 });
 
 ipcMain.on('trocar-servidor', (evento) => {
-  if (new URL(evento.senderFrame.url).origin === origemDoServidor()) trocarServidor();
+  if (origemDe(evento.senderFrame?.url) === origemDoServidor()) trocarServidor();
 });
 
 function trocarServidor() {

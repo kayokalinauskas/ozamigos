@@ -1,0 +1,152 @@
+# AGENTS.md — guia para agentes de código
+
+Este arquivo explica o projeto para quem vai mexer no código (pessoas ou agentes). O `README.md` é para quem usa e publica; aqui ficam as regras, os contratos e as armadilhas.
+
+## O que é
+
+Ozamigos Share: transmissão de tela de jogos entre amigos, em até 1080p, **P2P por WebRTC**.
+
+São três peças num repositório só:
+
+| Pasta | Tecnologia | Papel |
+|---|---|---|
+| `src/` | Java 25, Spring Boot 4.1 (Jackson 3: `tools.jackson.*`) | Salas, senha do grupo, sinalização por WebSocket em `/sinal`. **O vídeo nunca passa por aqui.** Serve a interface pronta |
+| `web/` | React 19, TypeScript 7, Vite 8 | Interface. O build vai para `src/main/resources/static/` (não versionado) |
+| `desktop/` | Electron 44 + auxiliar C# (.NET 10) em `desktop/som/` | App Windows: carrega a interface **do servidor** (`loadURL`) e acrescenta seletor de fontes, som do PC sem Discord, notificações |
+
+Deploy: Render (Docker). O `Dockerfile` tem 3 etapas: Node monta `web/`, o JDK compila, e a imagem final roda no JRE. O Render publica a cada push na `main`.
+
+## Convenções do projeto (siga sempre)
+
+- **Idioma:** código, identificadores, comentários, mensagens de commit e textos da interface em **português do Brasil**. Os comentários explicam o *porquê*, no tom dos já existentes.
+- **Commits:** adicione **caminhos explícitos** (`git add caminho/arquivo`), nunca `git add -A` ou `git add .`. Faça push só quando pedirem.
+- **Terminal do dono:** é o PowerShell 5.1, que **não aceita `&&`**. Nas instruções para ele, use um comando por linha ou `;`.
+- **Testes:** só o básico (JUnit no servidor). As mudanças de comportamento se verificam rodando o app (veja "Como testar").
+- **Telas prioritárias:** 1920×1080 e 2560×1440. A interface é tema escuro, com os tokens CSS em `web/src/estilo.css`.
+- **Segredos:** a senha do grupo vem só da variável `OZAMIGOS_SENHA`. Nunca coloque segredos no código.
+
+## Comandos (PowerShell, a partir da raiz)
+
+```powershell
+# Interface (sempre que mexer em web/)
+cd web; npm install; npm run build; cd ..
+# Verificar tipos
+cd web; npm run typecheck; cd ..
+# Servidor local
+$env:OZAMIGOS_SENHA = "teste"
+.\mvnw.cmd spring-boot:run
+# Testes do servidor
+.\mvnw.cmd test
+# App Electron em desenvolvimento (compila o auxiliar de som antes)
+cd desktop; npm install; npm run som; npm start
+# Instalador e versão portátil (desktop\dist); compila o auxiliar também
+cd desktop; npm run instalador
+```
+
+**Porta 8080:** o dono costuma ter outro projeto rodando nela. Para testes, prefira outra porta (`$env:PORT = "8090"`) e **não mate processos que você não abriu**.
+
+**Servidor de teste servindo a interface direto da pasta,** para não refazer o jar a cada build da interface:
+```powershell
+java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static-locations=file:src/main/resources/static/ --spring.web.resources.cache.period=0
+```
+
+## Arquitetura e contratos importantes
+
+### Servidor (`src/main/java/dev/ozamigos/`)
+
+- `Salas`: estado **em memória**, com todos os métodos `synchronized`.
+  - Cada sala guarda `participantes` (id → sessão), `nomes` e `plateias` (quem transmite → quem assiste).
+  - **Existir uma chave em `plateias` é o que significa "está transmitindo".**
+  - Limite: `LIMITE_POR_SALA = 5`.
+- `SinalizacaoHandler`:
+  - **a senha é conferida antes de tudo**; quem erra recebe `senha-errada` e a conexão é fechada;
+  - o servidor **carimba `de`** em tudo o que repassa (o cliente nunca diz quem é) e só repassa dentro da mesma sala;
+  - os envios usam `ConcurrentWebSocketSessionDecorator` (a sessão "segura").
+- `WebSocketConfig`: **sem `setAllowedOrigins`**. Só páginas do próprio servidor conectam; o app Electron funciona porque carrega a interface do servidor. Mensagens de texto vão até 64 KB.
+- Protocolo completo: seção "Protocolo de sinalização" do `README.md`. **Se mudar o protocolo, mude o servidor, o `web/src/cliente.ts` e o README juntos.**
+
+### Interface (`web/src/`)
+
+- `cliente.ts` é o núcleo, sem React: um *store* com `inscrever`/`ler` consumido por `useSyncExternalStore` (`useCliente`). Os componentes só leem o estado e chamam as ações.
+- **Duas conexões por par, uma por sentido:** a chave é `${canal}:${id}`, com `canal` igual a `'envio'` (minha tela para a pessoa) ou `'recebimento'` (a tela dela para mim).
+  - O candidato ICE carrega o `canal` **do ponto de vista de quem mandou**, e quem recebe inverte (`envio` ↔ `recebimento`). Não remova essa inversão.
+  - Quem transmite **sempre** é quem faz a oferta; isso evita colisão de ofertas (*glare*).
+- **Assistir sob demanda:**
+  1. quem quer assistir manda `assistir {para}`;
+  2. o servidor põe a pessoa na plateia, avisa quem transmite (`assistir {de}`) e manda `plateia` para todos;
+  3. quem transmite cria a conexão de envio e faz a oferta;
+  4. quem assiste só aceita a oferta se ainda estiver em `estado.assistindo`.
+- **`assistindo` é intenção, não conexão:** a pessoa continua na lista quando quem transmite para. Quando chega `compartilhando` dessa pessoa, o cliente manda `assistir` sozinho (volta automática). A pessoa só sai da lista com `deixarDeAssistir` ou com `saiu`.
+- **Trocar a fonte não renegocia:** a conexão é sempre criada com um *transceiver* de áudio (mesmo sem áudio no momento), e a troca usa `replaceTrack`.
+- **Qualidade:** `QUALIDADES` em `qualidade.ts`. A troca vale ao vivo, via `setParameters` (`maxBitrate`, `maxFramerate`, `scaleResolutionDownBy`, `degradationPreference`) e `applyConstraints` na captura. O codec preferido é H.264 (hardware). O Opus vai em estéreo pela edição do SDP (`opusEstereo`), aplicada **na oferta e na resposta**.
+- **Estatísticas:** `medir()` roda a cada 1 s.
+  - O Firefox não informa `qualityLimitationReason`, o fps da captura nem `encoderImplementation`.
+  - O Firefox gera ids de relatório novos a cada consulta, então os Mbps são calculados por `tipo:ssrc`.
+- **Volume:** é o `video.volume` (de 0 a 1, multiplicado pelo volume geral), lembrado por **nome** (`ozamigos-volume:<nome>`).
+- O `localStorage` está sempre dentro de `try/catch` (`armazenamento.ts`).
+
+### App Electron (`desktop/`)
+
+- **Segurança, não afrouxe:**
+  - `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`;
+  - permissões só para a origem do servidor configurado;
+  - navegação para fora abre no navegador;
+  - cada `ipcMain` confere a origem de quem pediu (`origemDe(evento.senderFrame?.url)`).
+  - Use sempre `origemDe()`: ela normaliza (`http://x/` vira `http://x`) e não lança exceção.
+- **Endereço do servidor, em ordem de prioridade:**
+  1. a variável `OZAMIGOS_SERVIDOR`;
+  2. o `configuracao.json` em `%APPDATA%\Ozamigos Share`, gravado pela tela de início;
+  3. `ozamigos.servidor` no `desktop/package.json`.
+- O app só aceita `https://`, ou `http://` para `localhost`.
+- **Seletor de fontes:** `setDisplayMediaRequestHandler` lista as fontes e manda `escolher-fonte` para a página; o `SeletorDeFonte.tsx` responde com `fonte-escolhida` (`invoke`), que devolve `{ somDoApp }`.
+- **Som do PC sem eco** (`desktop/som`, C#):
+  - O `OzamigosSom.exe` usa o *loopback* de processo do Windows (`ActivateAudioInterfaceAsync`, `VAD\Process_Loopback`, modo INCLUIR). O Windows só aceita **um processo por captura**, por isso o auxiliar captura cada processo que toca som, menos os excluídos (Discord por nome; o app pelo PID principal, com toda a árvore de processos), e mistura tudo.
+  - **Regras da árvore de processos:**
+    - capturar um processo leva junto os filhos dele;
+    - quem tem um processo excluído entre os descendentes fica de fora;
+    - quem é filho de outro processo já capturado não é capturado de novo, para o som não sair dobrado.
+    - Os PIDs são validados pela hora de criação, porque o Windows reaproveita números.
+  - **Saída:** float32 estéreo, 48 kHz, intercalado, em blocos de 10 ms, pela saída padrão. A saída de erro manda `pronto` (quando começou) ou `sem-suporte`. **Entrada padrão fechada faz o auxiliar terminar**, e é isso que garante que ele morre junto com o app.
+  - No `main.js`, o caminho do áudio é: `ligarAuxiliarDeSom()` (que nunca abre dois ao mesmo tempo), depois os quadros inteiros de 8 bytes vão por IPC (`som`) até o `somDoApp.ts`, onde um `AudioWorklet` (com reserva de 40 ms e corte acima de 150 ms) vira um `MediaStreamTrack` adicionado à tela capturada.
+  - **Fallback:** se o auxiliar não subir (Windows antigo), o `main.js` responde com `audio: 'loopback'`, que é o som do sistema inteiro.
+  - Os COM do Windows são chamados **por índice da vtable** (`Com.Metodo(obj, i)`), sem a interop embutida do .NET, para o `.exe` poder ser *trimmed*. **Ao acrescentar uma chamada, confira o índice no cabeçalho do Windows** (0–2 são as funções básicas de COM).
+  - A lista de exclusão é `SEM_SOM_DE`, em `desktop/main.js`.
+
+## Como testar (sem câmera nem jogo)
+
+- **Várias pessoas num PC só:** abra várias abas em `http://localhost:<porta>/?sala=Teste01`.
+  - Para simular a tela, troque `navigator.mediaDevices.getDisplayMedia` por uma tela falsa: um `OffscreenCanvas` num *Worker* gerando `VideoFrame`, que alimenta um `MediaStreamTrackGenerator`, mais um oscilador de `AudioContext` para o som. Com o painel escondido, um canvas comum na thread principal fica preso a 1 fps.
+  - Para preencher campos do React, use o *setter* nativo de `value` e dispare o evento `input`.
+- **Abas em segundo plano** mostram fps de recebimento perto de 0, porque o Chrome não decodifica vídeo de aba escondida. Para medir fps, use a aba da frente.
+- **Electron:** rode `npx electron . --remote-debugging-port=9333` com `OZAMIGOS_SERVIDOR=http://localhost:<porta>` e controle a janela pelo CDP (`/json`, depois `Runtime.evaluate` e `Page.captureScreenshot`).
+  - A janela aparece na tela do dono, que pode interagir com ela.
+  - Ao clicar em botões que dependem de estado do React, espere uns 300 ms (o botão Transmitir do seletor só habilita depois de escolher uma fonte).
+- **Som sem eco:** toque tons diferentes em processos diferentes (por exemplo, `Media.SoundPlayer` no PowerShell com WAVs de 440 Hz e 1200 Hz). Para simular o Discord, use uma cópia do `powershell.exe` renomeada para `Discord.exe`. Depois meça com `AnalyserNode` em quem recebe, silenciando o vídeo na aba de teste. **O navegador de teste também é capturado se não estiver silenciado**, e o som recebido volta para a transmissão.
+- **Simular o deploy:** clone limpo; em `web`, `npm ci` e `npm run build`; na raiz, `mvnw -DskipTests package`; rode o jar com `PORT=10000`. O handshake do WebSocket deve dar 101 com a mesma origem e 403 com uma origem estranha.
+
+## Armadilhas conhecidas
+
+- O `.gitignore` da raiz ignora `build/`. A pasta `desktop/build/` (o ícone) é liberada com `!desktop/build/`. Arquivos novos nela continuam entrando.
+- `src/main/resources/static/` é gerada pelo build e ignorada pelo git. Se `localhost` der 404, falta rodar `npm run build` em `web`.
+- **Não rode `npx @electron/asar extract-file` dentro de `desktop/`:** ele grava `package.json` na pasta atual, por cima do arquivo real. Para inspecionar o `app.asar`, use `grep -a` ou extraia numa pasta temporária.
+- Nos *heredocs* do Git Bash, `\\n` e `\\r` viram quebras de linha reais no Python ou no JS gerado. Para editar código, use as ferramentas de edição ou scripts em arquivo.
+- O Render Free dorme depois de 15 min sem tráfego. O `ping` do WebSocket a cada 30 s mantém o serviço acordado com alguém na sala (isso ainda não foi medido por mais de 15 min). Um deploy reinicia o servidor e derruba as salas, mas as transmissões P2P já abertas continuam.
+- O instalador não tem assinatura digital, então o SmartScreen avisa na primeira vez.
+
+## Limitações conscientes (não são bugs)
+
+- Sem TURN: CGNAT, 4G/5G e redes corporativas podem não conectar.
+- Uma senha por servidor, sem limite de tentativas: o projeto não serve para uso público aberto sem antes mudar isso.
+- Sem reconexão automática do WebSocket: quando cai, a faixa "Entrar de novo" recarrega a página.
+  - Os ids mudam na reconexão, por isso a volta automática a assistir não sobrevive a um recarregamento.
+- Salas em memória, num servidor só.
+- O volume é lembrado por nome; dois amigos com o mesmo nome dividem a configuração.
+
+## Fluxo de versão do app
+
+- Mudou `web/` ou `src/`: basta o push. A interface do app de todos se atualiza.
+- Mudou `desktop/`:
+  1. aumente `version` em `desktop/package.json`;
+  2. rode `npm run instalador`;
+  3. faça commit e push;
+  4. crie a release: `gh release create vX.Y.Z desktop\dist\Ozamigos-Share-Instalador-X.Y.Z.exe desktop\dist\Ozamigos-Share-Portatil-X.Y.Z.exe --title "Ozamigos Share X.Y.Z" --generate-notes`.

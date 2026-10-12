@@ -29,6 +29,8 @@ sealed unsafe class Captura
 
     public uint Pid { get; }
     public string Nome { get; }
+    /// <summary>Quando o processo começou: distingue o programa de outro que ganhou o mesmo número depois.</summary>
+    public long Criado { get; }
     public Anel Anel { get; } = new();
 
     readonly Thread linha;
@@ -36,17 +38,18 @@ sealed unsafe class Captura
     volatile bool parar;
     bool funcionou;
 
-    Captura(uint pid, string nome)
+    Captura(uint pid, string nome, long criado)
     {
         Pid = pid;
         Nome = nome;
+        Criado = criado;
         linha = new Thread(Rodar) { IsBackground = true, Name = $"captura {nome}", Priority = ThreadPriority.AboveNormal };
     }
 
     /// <summary>Abre a captura; devolve null se o Windows recusar.</summary>
-    public static Captura? Abrir(uint pid, string nome)
+    public static Captura? Abrir(uint pid, string nome, long criado)
     {
-        var captura = new Captura(pid, nome);
+        var captura = new Captura(pid, nome, criado);
         captura.linha.Start();
         captura.iniciou.Wait(7000);
         if (captura.funcionou) return captura;

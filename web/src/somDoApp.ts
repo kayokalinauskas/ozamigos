@@ -78,15 +78,23 @@ async function abrir(): Promise<Sessao> {
 /** A faixa com o som do PC. Trocar a fonte de vídeo reaproveita a mesma faixa. */
 export async function trilhaDoSomDoApp(): Promise<MediaStreamTrack> {
   sessao ??= abrir();
-  return (await sessao).trilha;
+  try {
+    return (await sessao).trilha;
+  } catch (erro) {
+    sessao = null; // a próxima tentativa começa do zero
+    throw erro;
+  }
 }
 
 export function pararSomDoApp() {
   ponte?.pararSom();
   const atual = sessao;
   sessao = null;
-  void atual?.then(({ contexto, trilha }) => {
-    trilha.stop();
-    void contexto.close();
-  });
+  atual?.then(
+    ({ contexto, trilha }) => {
+      trilha.stop();
+      void contexto.close();
+    },
+    () => undefined, // não chegou a abrir: nada para fechar
+  );
 }

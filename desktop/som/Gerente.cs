@@ -78,7 +78,8 @@ sealed unsafe class Gerente
 
         foreach (var (pid, captura) in capturas.ToArray())
         {
-            if (alvo.Contains(pid)) continue;
+            // Continua se o programa ainda toca som e é o mesmo (o Windows reaproveita números de processo).
+            if (alvo.Contains(pid) && processos[pid].Criado == captura.Criado) continue;
             captura.Fechar();
             capturas.Remove(pid);
             Console.Error.WriteLine($"parou de capturar {captura.Nome} ({pid})");
@@ -89,7 +90,7 @@ sealed unsafe class Gerente
             if (capturas.ContainsKey(pid)) continue;
             if (falhas.TryGetValue(pid, out var quando) && DateTime.UtcNow - quando < TimeSpan.FromSeconds(30)) continue;
             var nome = processos[pid].Nome;
-            var captura = Captura.Abrir(pid, nome);
+            var captura = Captura.Abrir(pid, nome, processos[pid].Criado);
             if (captura is null)
             {
                 falhas[pid] = DateTime.UtcNow;

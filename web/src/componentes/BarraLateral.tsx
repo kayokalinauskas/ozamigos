@@ -13,7 +13,13 @@ export function BarraLateral() {
   const total = pessoas.length + 1;
 
   async function copiarLink() {
-    await navigator.clipboard.writeText(linkDaSala(sala));
+    try {
+      await navigator.clipboard.writeText(linkDaSala(sala));
+    } catch {
+      // Sem área de transferência (página sem HTTPS, ou permissão negada): mostra o link para copiar à mão.
+      cliente.avisar(`Copie o link: ${linkDaSala(sala)}`);
+      return;
+    }
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
   }
