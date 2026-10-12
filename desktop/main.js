@@ -16,6 +16,8 @@ const SERVIDOR_PADRAO = process.env.OZAMIGOS_SERVIDOR || require('./package.json
 // Endereços oficiais que já foram desligados. Quem os tiver guardado volta sozinho para o padrão.
 const SERVIDORES_APOSENTADOS = new Set(['https://ozamigos-share-app.onrender.com']);
 const ARQUIVO_DE_CONFIGURACAO = path.join(app.getPath('userData'), 'configuracao.json');
+// O .ico traz cada tamanho desenhado à parte: com o PNG de 256, o ícone de 16 da barra de título saía torto.
+const ICONE = path.join(__dirname, 'build', 'icone.ico');
 const PERMISSOES = new Set(['media', 'display-capture', 'notifications', 'fullscreen', 'clipboard-sanitized-write']);
 
 let janela = null;
@@ -116,7 +118,7 @@ function criarJanela() {
     backgroundColor: '#0b0d12',
     autoHideMenuBar: true, // o menu aparece com Alt
     title: 'Ozamigos',
-    icon: path.join(__dirname, 'build', 'icone.png'),
+    icon: ICONE,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -413,7 +415,7 @@ function mostrarAvisoDeAtualizacao(versao) {
     show: false,
     backgroundColor: '#0b0e0a',
     title: 'Atualizando o Ozamigos',
-    icon: path.join(__dirname, 'build', 'icone.png'),
+    icon: ICONE,
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
   });
   avisoDeAtualizacao.once('ready-to-show', () => avisoDeAtualizacao?.show());

@@ -1,13 +1,15 @@
-// Gera build/icone.png (256x256), o mesmo desenho de web/public/icone.svg: a tecla "OZ".
+// Gera o ícone do app, o mesmo desenho de web/public/icone.svg: a tecla "OZ".
 // Uma tecla com a lateral verde-limão ocupando o ícone todo, o "O" claro e o "z" verde no canto.
-// O electron-builder transforma este PNG no .ico do instalador. Rode com: npm run icone
+// - build/icone.png (256x256): imagem de referência.
+// - build/icone.ico: cada tamanho que o Windows usa desenhado direto naquele tamanho. Encolher o PNG
+//   de 256 para os 16 pixels da barra de título deixava o desenho torto.
+// Rode com: npm run icone
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
 
-const LADO = 256;
-const AMOSTRAS = 4; // 4x4 amostras por pixel para as bordas ficarem suaves
-const escala = LADO / 96; // o SVG original tem 96x96
+const AMOSTRAS = 8; // 8x8 amostras por pixel para as bordas ficarem suaves
+const TAMANHOS_DO_ICO = [16, 20, 24, 32, 40, 48, 64, 128, 256];
 
 const hex = (cor) => [1, 3, 5].map((i) => parseInt(cor.slice(i, i + 2), 16));
 
@@ -41,30 +43,6 @@ const CAMADAS = [
   [traco([[61, 52], [76.6, 52], [61, 66.4], [76.6, 66.4]], 4.7), hex('#b6f24a')], // "z"
 ];
 
-const linhas = [];
-for (let py = 0; py < LADO; py++) {
-  const linha = Buffer.alloc(1 + LADO * 4); // 1 byte de filtro + RGBA
-  for (let px = 0; px < LADO; px++) {
-    const soma = [0, 0, 0];
-    let cobertas = 0;
-    for (let sy = 0; sy < AMOSTRAS; sy++) {
-      for (let sx = 0; sx < AMOSTRAS; sx++) {
-        const x = (px + (sx + 0.5) / AMOSTRAS) / escala;
-        const y = (py + (sy + 0.5) / AMOSTRAS) / escala;
-        let cor = null;
-        for (const [dentro, corDaCamada] of CAMADAS) if (dentro(x, y)) cor = corDaCamada;
-        if (!cor) continue;
-        cobertas++;
-        cor.forEach((canal, i) => (soma[i] += canal));
-      }
-    }
-    const i = 1 + px * 4;
-    for (let c = 0; c < 3; c++) linha[i + c] = cobertas ? Math.round(soma[c] / cobertas) : 0;
-    linha[i + 3] = Math.round((255 * cobertas) / (AMOSTRAS * AMOSTRAS));
-  }
-  linhas.push(linha);
-}
-
 function bloco(tipo, dados) {
   const tamanho = Buffer.alloc(4);
   tamanho.writeUInt32BE(dados.length);
@@ -74,16 +52,100 @@ function bloco(tipo, dados) {
   return Buffer.concat([tamanho, corpo, crc]);
 }
 
-const cabecalho = Buffer.alloc(13);
-cabecalho.writeUInt32BE(LADO, 0);
-cabecalho.writeUInt32BE(LADO, 4);
-cabecalho[8] = 8; // 8 bits por canal
-cabecalho[9] = 6; // RGBA
-const png = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  bloco('IHDR', cabecalho),
-  bloco('IDAT', zlib.deflateSync(Buffer.concat(linhas))),
-  bloco('IEND', Buffer.alloc(0)),
-]);
-fs.writeFileSync(path.join(__dirname, 'icone.png'), png);
-console.log('build/icone.png gerado');
+/** Desenha o ícone com lado x lado pixels: RGBA, linha a linha, de cima para baixo. */
+function desenhar(lado) {
+  const escala = lado / 96; // o SVG original tem 96x96
+  const rgba = Buffer.alloc(lado * lado * 4);
+  for (let py = 0; py < lado; py++) {
+    for (let px = 0; px < lado; px++) {
+      const soma = [0, 0, 0];
+      let cobertas = 0;
+      for (let sy = 0; sy < AMOSTRAS; sy++) {
+        for (let sx = 0; sx < AMOSTRAS; sx++) {
+          const x = (px + (sx + 0.5) / AMOSTRAS) / escala;
+          const y = (py + (sy + 0.5) / AMOSTRAS) / escala;
+          let cor = null;
+          for (const [dentro, corDaCamada] of CAMADAS) if (dentro(x, y)) cor = corDaCamada;
+          if (!cor) continue;
+          cobertas++;
+          cor.forEach((canal, i) => (soma[i] += canal));
+        }
+      }
+      const i = (py * lado + px) * 4;
+      for (let c = 0; c < 3; c++) rgba[i + c] = cobertas ? Math.round(soma[c] / cobertas) : 0;
+      rgba[i + 3] = Math.round((255 * cobertas) / (AMOSTRAS * AMOSTRAS));
+    }
+  }
+  return rgba;
+}
+
+function png(lado, rgba) {
+  const linhas = [];
+  for (let y = 0; y < lado; y++) {
+    linhas.push(Buffer.from([0]), rgba.subarray(y * lado * 4, (y + 1) * lado * 4)); // filtro 0 + a linha
+  }
+  const cabecalho = Buffer.alloc(13);
+  cabecalho.writeUInt32BE(lado, 0);
+  cabecalho.writeUInt32BE(lado, 4);
+  cabecalho[8] = 8; // 8 bits por canal
+  cabecalho[9] = 6; // RGBA
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    bloco('IHDR', cabecalho),
+    bloco('IDAT', zlib.deflateSync(Buffer.concat(linhas))),
+    bloco('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+/**
+ * A imagem de um tamanho dentro do .ico, no formato BMP clássico (BGRA, de baixo para cima, mais a
+ * máscara de 1 bit zerada): é o que todo o Windows lê. O 256 vai em PNG, como o Windows espera.
+ */
+function bmp(lado, rgba) {
+  const cabecalho = Buffer.alloc(40);
+  cabecalho.writeUInt32LE(40, 0);
+  cabecalho.writeInt32LE(lado, 4);
+  cabecalho.writeInt32LE(lado * 2, 8); // a altura conta a imagem e a máscara
+  cabecalho.writeUInt16LE(1, 12); // planos
+  cabecalho.writeUInt16LE(32, 14); // bits por pixel
+  const pixels = Buffer.alloc(lado * lado * 4);
+  for (let y = 0; y < lado; y++) {
+    for (let x = 0; x < lado; x++) {
+      const de = (y * lado + x) * 4;
+      const para = ((lado - 1 - y) * lado + x) * 4;
+      pixels[para] = rgba[de + 2];
+      pixels[para + 1] = rgba[de + 1];
+      pixels[para + 2] = rgba[de];
+      pixels[para + 3] = rgba[de + 3];
+    }
+  }
+  const mascara = Buffer.alloc(Math.ceil(lado / 32) * 4 * lado);
+  return Buffer.concat([cabecalho, pixels, mascara]);
+}
+
+function ico(imagens) {
+  const cabecalho = Buffer.alloc(6);
+  cabecalho.writeUInt16LE(1, 2); // tipo: ícone
+  cabecalho.writeUInt16LE(imagens.length, 4);
+  let posicao = 6 + 16 * imagens.length;
+  const entradas = imagens.map(([lado, dados]) => {
+    const entrada = Buffer.alloc(16);
+    entrada[0] = lado % 256; // 0 quer dizer 256
+    entrada[1] = lado % 256;
+    entrada.writeUInt16LE(1, 4); // planos
+    entrada.writeUInt16LE(32, 6); // bits por pixel
+    entrada.writeUInt32LE(dados.length, 8);
+    entrada.writeUInt32LE(posicao, 12);
+    posicao += dados.length;
+    return entrada;
+  });
+  return Buffer.concat([cabecalho, ...entradas, ...imagens.map(([, dados]) => dados)]);
+}
+
+const imagens = TAMANHOS_DO_ICO.map((lado) => {
+  const rgba = desenhar(lado);
+  return [lado, lado === 256 ? png(lado, rgba) : bmp(lado, rgba)];
+});
+fs.writeFileSync(path.join(__dirname, 'icone.png'), imagens.at(-1)[1]);
+fs.writeFileSync(path.join(__dirname, 'icone.ico'), ico(imagens));
+console.log('build/icone.png e build/icone.ico gerados');
