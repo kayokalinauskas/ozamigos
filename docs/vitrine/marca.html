@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'Sora'; font-weight: 100 800; src: url('../../desktop/build/sora.woff2'); }
+  @font-face { font-family: 'Inter'; font-weight: 100 900; src: url('../../web/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2'); }
+  html, body { margin: 0; background: transparent; }
+
+  /* O logotipo: "O" e "Z" em teclas, seguidos de "amigos". */
+  .logo { display: inline-flex; align-items: center; padding: 6px; font-family: 'Sora'; font-weight: 600; font-size: 96px; letter-spacing: -0.02em; line-height: 1; }
+  .tecla { display: inline-grid; place-items: center; min-width: 1.2em; height: 1.3em; margin-right: 0.12em; padding: 0 0.14em; border-bottom: 0.14em solid #b6f24a; border-radius: 0.26em; letter-spacing: 0; }
+  /* Tema escuro do GitHub: tecla um pouco mais clara que o fundo e texto claro. */
+  .tema-escuro .tecla { background: #2a3326; color: #eef5e4; }
+  .tema-escuro .resto { color: #eef5e4; }
+  /* Tema claro: tecla escura, como num teclado, e texto quase preto. */
+  .tema-claro .tecla { background: #1f261c; color: #eef5e4; }
+  .tema-claro .resto { color: #0f130e; }
+
+  /* Prévia de link (1280x640): logotipo, frase e um pedaço da sala. */
+  .social { position: relative; overflow: hidden; width: 1280px; height: 640px; border-radius: 28px;
+    background: radial-gradient(700px 420px at 8% 0%, rgb(182 242 74 / 0.16), transparent 70%), #0b0e0a;
+    font-family: 'Inter', sans-serif; color: #eef5e4; }
+  .social .logo { position: absolute; left: 58px; top: 64px; font-size: 84px; }
+  .social .frase { position: absolute; left: 64px; top: 230px; margin: 0; font-size: 27px; line-height: 1.4; color: #c9d4bb; }
+  .social .frase strong { color: #eef5e4; font-weight: 600; }
+  .social .print { position: absolute; left: 620px; top: 375px; width: 760px; border-radius: 16px; border: 1px solid #3b4835; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <div id="logo" class="logo" hidden><span class="tecla">O</span><span class="tecla">Z</span><span class="resto">amigos</span></div>
+  <div id="social" class="social tema-escuro" hidden>
+    <div class="logo"><span class="tecla">O</span><span class="tecla">Z</span><span class="resto">amigos</span></div>
+    <p class="frase">Transmita seu jogo para os amigos.<br><strong>Direto de um PC para o outro, em até 1080p.</strong></p>
+    <img class="print" src="../imagens/sala-grade.png" alt="">
+  </div>
+  <script>
+    const modo = new URLSearchParams(location.search).get('modo');
+    if (modo === 'social') {
+      document.getElementById('social').hidden = false;
+    } else {
+      document.getElementById('logo').hidden = false;
+      document.body.classList.add(modo);
+    }
+  </script>
+</body>
+</html>

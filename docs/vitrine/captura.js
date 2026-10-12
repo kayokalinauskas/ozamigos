@@ -2,7 +2,7 @@
 // senha "teste"), cada um com um "jogo" desenhado por código (jogo-falso.js).
 // Uso, a partir da raiz do repositório, com o servidor rodando e o ffmpeg no PATH:
 //   desktop\node_modules\.bin\electron docs\vitrine\captura.js
-// As imagens saem em docs/imagens. Depois, para a capa: desktop\node_modules\.bin\electron docs\vitrine\capa.js
+// As imagens saem em docs/imagens. Depois, para o logo e a prévia de link: desktop\node_modules\.bin\electron docs\vitrine\marca.js
 const { app, BrowserWindow, session } = require('electron');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');

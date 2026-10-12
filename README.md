@@ -1,9 +1,17 @@
-<p align="center">
-  <img src="docs/imagens/capa.png" alt="Ozamigos: transmita seu jogo para os amigos, direto de um PC para o outro, em até 1080p" width="100%">
-</p>
+<br>
 
 <p align="center">
-  App para Windows e versão web, com salas protegidas por senha,<br>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/imagens/logo-tema-escuro.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/imagens/logo-tema-claro.png">
+    <img src="docs/imagens/logo-tema-claro.png" alt="Ozamigos" width="340">
+  </picture>
+</p>
+
+<h3 align="center">Transmita seu jogo para os amigos, direto de um PC para o outro.</h3>
+
+<p align="center">
+  Até 1080p, sem servidor de vídeo no meio. App para Windows e versão web, com salas protegidas por senha,<br>
   várias transmissões ao mesmo tempo e som do PC sem o eco do Discord.
 </p>
 
@@ -12,6 +20,7 @@
 </p>
 
 <p align="center">
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/kayokalinauskas/ozamigos?style=flat-square&label=vers%C3%A3o&color=b6f24a" alt="Última versão"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-1f261c?style=flat-square" alt="Windows 10 e 11">
   <img src="https://img.shields.io/badge/Java-25-1f261c?style=flat-square" alt="Java 25">
   <img src="https://img.shields.io/badge/Spring%20Boot-4.1-1f261c?style=flat-square" alt="Spring Boot 4.1">
@@ -237,9 +246,9 @@ Na tela de início, use `http://localhost:8080`. O app só aceita `http://` para
 
 ## Deploy no Render
 
-1. **Crie o repositório e envie o código:**
+1. **Tenha o código num repositório seu:** faça um *fork* deste no GitHub, ou envie uma cópia com:
    ```powershell
-   gh repo create ozamigos-share-app --private --source=. --push
+   gh repo create ozamigos --private --source=. --push
    ```
 2. No [Render](https://dashboard.render.com), clique em **New** → **Web Service** e escolha o repositório. Se ele não aparecer, clique em **Configure account** e libere o acesso a ele no GitHub.
 3. Preencha:
@@ -300,7 +309,7 @@ Em `desktop\dist` saem o `Ozamigos-Instalador-x.y.z.exe` (instala com atalhos e 
 gh release delete v1.0.1 --cleanup-tag --yes
 ```
 
-**Link fixo para os amigos** (com o repositório público): `https://github.com/<usuário>/ozamigos-share-app/releases/latest`
+**Link fixo para os amigos:** `https://github.com/kayokalinauskas/ozamigos/releases/latest` (sempre a versão mais nova).
 
 ---
 

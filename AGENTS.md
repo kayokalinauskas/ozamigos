@@ -27,7 +27,7 @@ Deploy: Render (Docker). O `Dockerfile` tem 3 etapas: Node monta `web/`, o JDK c
 
 ## Marca
 
-- **Nome:** "Ozamigos" (até a 1.0.2 era "Ozamigos Share"). O nome novo vale para tudo o que o usuário vê. Os nomes internos ficam como estão: o repositório, o pacote `dev.ozamigos`, o `OzamigosSom.exe`, a variável `OZAMIGOS_SENHA`, as chaves `ozamigos-*` do `localStorage` e o endereço no Render.
+- **Nome:** "Ozamigos" (até a 1.0.2 era "Ozamigos Share"). O nome novo vale para tudo o que o usuário vê. O repositório público é `kayokalinauskas/ozamigos`. O antigo, `ozamigos-share-app`, ficou privado e parado, com o histórico anterior à troca do e-mail dos commits. Os nomes internos ficam como estão: o pacote `dev.ozamigos`, o `OzamigosSom.exe`, a variável `OZAMIGOS_SENHA`, as chaves `ozamigos-*` do `localStorage` e o endereço no Render.
 - **Não mude:**
   - o `appId` (`dev.ozamigos.share`): com ele, o instalador novo reconhece e substitui o antigo;
   - a pasta de dados `%APPDATA%\Ozamigos Share`, fixada com `app.setPath('userData', ...)` no topo do `main.js`. Sem isso, o nome novo levaria o Electron para uma pasta vazia e todos perderiam o servidor, o nome, a senha e os volumes.
@@ -144,14 +144,14 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 
 ## Imagens do README
 
-As telas, o GIF e a capa em `docs/imagens` são gerados por scripts em `docs/vitrine`, com a interface de verdade. **Refaça-os quando a interface mudar de cara.**
+O logotipo, as telas e o GIF em `docs/imagens` são gerados por scripts em `docs/vitrine`, com a interface de verdade. **Refaça-os quando a interface mudar de cara.**
 
 1. Monte a interface (`npm run build` em `web`) e suba o servidor local na porta **8090** com a senha **teste**.
 2. Na raiz: `desktop\node_modules\.bin\electron docs\vitrine\captura.js`. São janelas invisíveis, com o som mudo e as notificações bloqueadas.
    - Cinco amigos fictícios (Ana, Beto, Caio, Duda e Eli) entram na sala `Ozamigos26`, cada um transmitindo um "jogo" desenhado por código (`jogo-falso.js`). Nunca use imagem de jogo de verdade.
    - Saem `entrada.png`, `sala-grade.png`, `sala-destaque.png` e `demo.gif`. O GIF é montado pelo ffmpeg, que precisa estar no PATH.
    - No GIF, os cliques são eventos de mouse reais (`sendInputEvent`, para o `:hover` mostrar os controles), com um cursor desenhado por cima.
-3. Depois: `desktop\node_modules\.bin\electron docs\vitrine\capa.js`. Ele gera a `capa.png` (topo do README) e a `social.png` (prévia de link, enviada à mão em *Settings* → *Social preview* no GitHub).
+3. Depois: `desktop\node_modules\.bin\electron docs\vitrine\marca.js`. Ele gera o logotipo do topo do README em duas versões com fundo transparente, `logo-tema-escuro.png` e `logo-tema-claro.png`, escolhidas pelo `<picture>` conforme o tema do GitHub. Gera também a `social.png` (prévia de link, enviada à mão em *Settings* → *Social preview* no GitHub).
 
 As janelas que ninguém fotografa rodam a 4 quadros por segundo, e os amigos fictícios não assistem uns aos outros. Sem isso, o PC fica sobrecarregado e as fotos saem com "instável" e congelamentos.
 
