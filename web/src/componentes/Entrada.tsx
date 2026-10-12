@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
-import { Eye, EyeOff, LoaderCircle, RefreshCw, Server } from 'lucide-react';
+import { Download, Eye, EyeOff, LoaderCircle, RefreshCw, Server } from 'lucide-react';
 import { cliente, codigoDe, codigoValido, novoCodigo } from '../cliente';
 import { lembrado } from '../armazenamento';
 import { ponte } from '../ponte';
 import { useCliente } from '../useCliente';
 import { Logo } from './Logo';
 
-export function Entrada() {
+/** aoConhecerOApp: no navegador, volta para a apresentação, com o botão de baixar o app. */
+export function Entrada({ aoConhecerOApp }: { aoConhecerOApp: () => void }) {
   const { fase, erro, sala, meuNome } = useCliente();
   const [nome, setNome] = useState(meuNome);
   const [senha, setSenha] = useState(() => lembrado('ozamigos-senha'));
@@ -107,9 +108,13 @@ export function Entrada() {
           )}
         </button>
 
-        {ponte && (
+        {ponte ? (
           <button type="button" className="botao botao-fantasma botao-pequeno trocar-servidor" onClick={() => ponte!.trocarServidor()}>
             <Server size={14} /> Servidor: {location.host}
+          </button>
+        ) : (
+          <button type="button" className="botao botao-fantasma botao-pequeno trocar-servidor" onClick={aoConhecerOApp}>
+            <Download size={14} /> Baixar o app para Windows (som sem o Discord)
           </button>
         )}
       </form>

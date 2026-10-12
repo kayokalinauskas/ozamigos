@@ -96,6 +96,9 @@ export function codigoDe(texto: string): string {
   return limpo;
 }
 
+/** Chegou por um link de sala que um amigo mandou (lido antes de a entrada mexer no endereço). */
+export const veioPorConvite = codigoValido(new URLSearchParams(location.search).get('sala') ?? '');
+
 export function linkDaSala(codigo: string): string {
   return `${location.origin}${location.pathname}?sala=${codigo}`;
 }
@@ -139,7 +142,8 @@ class Cliente {
       avisos: [],
       conexaoPerdida: false,
     };
-    this.trocarSala(sala);
+    // Sem ?sala no endereço, o código novo só vai para o link quando a pessoa entra: a página de
+    // apresentação fica com o endereço limpo.
     // Um "estou aqui" a cada 30 s: sem isso, proxies e hospedagens gratuitas fecham a conexão parada.
     setInterval(() => {
       if (this.ws?.readyState !== WebSocket.OPEN || this.estado.fase !== 'sala') return;

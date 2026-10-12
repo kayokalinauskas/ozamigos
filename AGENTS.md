@@ -102,6 +102,12 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 - **Janela flutuante:** `requestPictureInPicture()` no `<video>` da transmissão (funciona no Chrome, no Edge e no Electron). O volume continua valendo, porque é o mesmo elemento.
 - **Volume:** é o `video.volume` (de 0 a 1, multiplicado pelo volume geral), lembrado por **nome** (`ozamigos-volume:<nome>`).
 - O `localStorage` está sempre dentro de `try/catch` (`armazenamento.ts`).
+- **Página de apresentação** (`Apresentacao.tsx` + `apresentacao.css`): no navegador, a raiz `/` mostra o site, que recomenda o app para Windows. Vão direto para a entrada:
+  - o app Electron (`noApp`), que sempre carrega `/`: **o app nunca pode cair na apresentação**;
+  - quem chega por link de sala (`veioPorConvite`, lido antes de a entrada mexer no endereço);
+  - quem já clicou em **Usar no navegador** (`ozamigos-no-navegador` no `localStorage`). O botão "Baixar o app para Windows" da entrada apaga a escolha e volta para o site.
+  - O construtor do cliente **não** grava `?sala=` no endereço; isso só acontece ao entrar (`trocarSala`). Assim, o site fica com o endereço limpo.
+  - O botão de baixar consulta a API do GitHub (`versaoDoApp.ts`) para pegar o link direto, a versão e o tamanho do instalador. Se falhar, ele leva para `releases/latest`.
 
 ### App Electron (`desktop/`)
 
@@ -199,4 +205,6 @@ As janelas que ninguém fotografa rodam a 4 quadros por segundo, e os amigos fic
   - O `npm run instalador` usa `--publish never`: quem publica é o `gh` do workflow, não o electron-builder.
   - **A release precisa ter o `latest.yml` e o `Ozamigos-Instalador-X.Y.Z.exe.blockmap`**, além dos `.exe`: sem eles, nenhum app instalado se atualiza. O workflow já envia os quatro.
   - Para refazer os arquivos de uma release que já existe: aba *Actions* → *Release do app* → *Run workflow*, escolhendo a tag em *Use workflow from* (`gh workflow run release.yml --ref vX.Y.Z`).
+  - Registre a versão no `CHANGELOG.md` (mesmo texto das notas da release, no formato Keep a Changelog).
+  - O workflow `ci.yml` roda em cada push na `main` e em cada PR: build da interface, `mvnw test` e `node --check` nos scripts do app.
   - O repositório é público, então o Actions não tem custo. Mesmo assim, não cadastre forma de pagamento: o dono não aceita nenhum risco de cobrança.
