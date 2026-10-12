@@ -29,12 +29,6 @@
   <a href="#publicar-uma-versão-do-app">Publicar uma versão</a>
 </p>
 
-<p align="center">
-  <img src="docs/imagens/demo.gif" alt="Demonstração: a Duda assiste a Ana; o Caio começa a transmitir e ela entra pelo aviso; depois assiste o Beto, baixa o volume dele e coloca o Caio em destaque" width="100%">
-  <br>
-  <sub>A Duda assiste a Ana, entra na transmissão do Caio pelo aviso, abre a do Beto, baixa o volume dele e coloca o Caio em destaque. Os "jogos" são desenhados por código, só para a demonstração.</sub>
-</p>
-
 ---
 
 ## Sumário
