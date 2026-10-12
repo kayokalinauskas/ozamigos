@@ -1,5 +1,5 @@
 // Gera build/icone.png (256x256), o mesmo desenho de web/public/icone.svg: a tecla "OZ".
-// Fundo grafite, uma tecla com a lateral verde-limão, o "O" claro e o "z" verde no canto.
+// Uma tecla com a lateral verde-limão ocupando o ícone todo, o "O" claro e o "z" verde no canto.
 // O electron-builder transforma este PNG no .ico do instalador. Rode com: npm run icone
 const fs = require('node:fs');
 const path = require('node:path');
@@ -33,12 +33,12 @@ const traco = (pontos, espessura) => (x, y) =>
   pontos.slice(1).some((ponto, i) => distanciaAoSegmento(x, y, pontos[i], ponto) <= espessura / 2);
 
 // Camadas de baixo para cima; a cor de cada amostra é a da camada mais alta que a cobre.
+// A tecla ocupa o ícone inteiro, sem placa de fundo: na barra de tarefas ela fica do tamanho dos outros ícones.
 const CAMADAS = [
-  [retanguloArredondado(0, 0, 96, 96, 22), hex('#0f130e')], // fundo
-  [retanguloArredondado(14, 16, 68, 66, 15), hex('#b6f24a')], // lateral da tecla
-  [retanguloArredondado(18, 18, 60, 54, 12), hex('#2a3326')], // topo da tecla
-  [anelEliptico(40, 44, 11.5, 13.5, 6.5), hex('#eef9dc')], // "O"
-  [traco([[58, 52], [70, 52], [58, 63], [70, 63]], 3.6), hex('#b6f24a')], // "z"
+  [retanguloArredondado(4, 5, 88, 87, 20), hex('#b6f24a')], // lateral da tecla
+  [retanguloArredondado(9, 8, 78, 70, 16), hex('#2a3326')], // topo da tecla
+  [anelEliptico(37.6, 41.7, 15, 17.5, 8.5), hex('#eef9dc')], // "O"
+  [traco([[61, 52], [76.6, 52], [61, 66.4], [76.6, 66.4]], 4.7), hex('#b6f24a')], // "z"
 ];
 
 const linhas = [];
