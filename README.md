@@ -253,13 +253,14 @@ Na tela de início, use `http://localhost:8080`. O app só aceita `http://` para
    ```
 2. No [Render](https://dashboard.render.com), clique em **New** → **Web Service** e escolha o repositório. Se ele não aparecer, clique em **Configure account** e libere o acesso a ele no GitHub.
 3. Preencha:
+   - **Name:** o nome vira o endereço (`ozamigos` → `https://ozamigos.onrender.com`);
    - **Language:** Docker;
    - **Branch:** `main`;
    - **Instance Type:** Free (ou Starter, para não dormir).
 4. Em **Environment Variables**, adicione `OZAMIGOS_SENHA` com a senha do grupo.
 5. Clique em **Deploy Web Service**. O build leva de 5 a 10 minutos e termina com `Tomcat started on port 10000` no log.
 
-A cada `git push` na `main`, o Render publica de novo sozinho.
+A cada `git push` na `main`, o Render publica de novo sozinho. Depois, coloque o endereço do seu serviço em `desktop/package.json` (`ozamigos.servidor`) e gere o instalador: é o endereço com que o app abre.
 
 **Plano Free:**
 - O serviço dorme depois de 15 minutos sem uso e leva cerca de 1 minuto para acordar.
@@ -273,7 +274,7 @@ A cada `git push` na `main`, o Render publica de novo sozinho.
 **1. Configure o endereço do servidor** em `desktop/package.json`:
 ```json
 "ozamigos": {
-  "servidor": "https://ozamigos-share-app.onrender.com"
+  "servidor": "https://ozamigos.onrender.com"
 }
 ```
 

@@ -1,13 +1,13 @@
 {
   "name": "ozamigos-share",
   "productName": "Ozamigos",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Transmita seu jogo para os amigos, direto de um PC para o outro.",
   "author": "Ozamigos",
   "license": "MIT",
   "main": "main.js",
   "ozamigos": {
-    "servidor": "https://ozamigos-share-app.onrender.com"
+    "servidor": "https://ozamigos.onrender.com"
   },
   "scripts": {
     "start": "electron .",

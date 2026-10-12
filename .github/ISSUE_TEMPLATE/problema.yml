@@ -1,0 +1,46 @@
+name: Problema
+description: Algo não funciona como deveria
+labels: ['problema']
+body:
+  - type: textarea
+    id: o-que-aconteceu
+    attributes:
+      label: O que aconteceu
+      description: E o que você esperava que acontecesse.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Passos para repetir
+      placeholder: |
+        1. Entrei na sala com...
+        2. Cliquei em Transmitir...
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: onde
+    attributes:
+      label: Onde
+      options:
+        - App para Windows
+        - Navegador (Chrome ou Edge)
+        - Outro navegador
+    validations:
+      required: true
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do app
+      placeholder: 1.1.1 (está no nome do instalador)
+  - type: input
+    id: windows
+    attributes:
+      label: Windows
+      placeholder: Windows 11 24H2
+  - type: textarea
+    id: estatisticas
+    attributes:
+      label: Estatísticas e prints
+      description: Se for travamento ou qualidade, abra **Estatísticas** na sala e cole um print aqui.
