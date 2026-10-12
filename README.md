@@ -51,11 +51,12 @@ e som do PC sem o eco do Discord.
 - **Presença em tempo real:** quem está na sala, quem está **ao vivo** e quantas pessoas assistem cada transmissão.
 - **Assistir sob demanda:** você escolhe uma ou mais transmissões. O vídeo só sai do PC de quem transmite para quem clicou em **Assistir**, o que poupa o upload e a placa de vídeo de quem transmite.
 - **Todos podem transmitir ao mesmo tempo**, em salas de até 5 pessoas.
-- **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura. Dois cliques no vídeo abrem a tela cheia.
+- **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura. Dois cliques no vídeo abrem a tela cheia, e o botão **Janela flutuante** solta a transmissão numa janelinha que fica por cima do jogo.
 - **Áudio por transmissão:** volume e silenciar de cada uma, lembrados por amigo, mais um volume geral.
 - **Qualidade ajustável ao vivo:** 1080p ou 720p, a 30 ou 60 fps, sem derrubar ninguém. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
 - **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos, que dá para desligar, e notificação do Windows quando o app está atrás do jogo.
 - **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
+- **Reconexão automática:** se a internet oscilar ou o servidor reiniciar, o app volta sozinho para a sala. Quem transmitia continua transmitindo, e quem assistia continua assistindo. As transmissões já abertas não param enquanto isso.
 
 **Só no app para Windows**
 - **Seletor próprio** de janelas e telas, com miniaturas e ícones.
@@ -231,7 +232,7 @@ A cada `git push` na `main`, o Render publica de novo sozinho.
 **Plano Free:**
 - O serviço dorme depois de 15 minutos sem uso e leva cerca de 1 minuto para acordar.
 - Enquanto alguém está numa sala, o ping do app a cada 30 segundos o mantém acordado.
-- Um deploy ou reinício derruba as salas abertas; basta entrar de novo.
+- Um deploy ou reinício derruba as salas abertas por alguns segundos; o app reconecta sozinho.
 
 ---
 
@@ -244,30 +245,33 @@ A cada `git push` na `main`, o Render publica de novo sozinho.
 }
 ```
 
-**2. Aumente a versão** em `desktop/package.json` (ex.: `"version": "1.0.1"`).
+**2. Aumente a versão** em `desktop/package.json` (ex.: `"version": "1.0.2"`).
 
-**3. Gere o instalador e a versão portátil:**
+**3. Grave, envie o código e a marca da versão:**
+```powershell
+git add desktop/package.json
+git commit -m "App 1.0.2: o que mudou"
+git push
+git tag v1.0.2
+git push origin v1.0.2
+```
+
+**4. Pronto.** A marca `v1.0.2` dispara o workflow [`.github/workflows/release.yml`](.github/workflows/release.yml), que, numa máquina Windows do GitHub:
+- confere se a marca bate com a versão do `desktop/package.json`;
+- compila o auxiliar de som (.NET) e empacota o app (electron-builder);
+- cria a release com o `Ozamigos-Share-Instalador-1.0.2.exe` e o `Ozamigos-Share-Portatil-1.0.2.exe`.
+
+Acompanhe na aba **Actions** do repositório (leva de 5 a 10 minutos) ou com `gh run watch`.
+
+> **Custo:** repositório público não gasta nada. Repositório privado usa a cota grátis do GitHub Actions (2.000 minutos por mês no plano Free; a máquina Windows conta em dobro). Sem cartão cadastrado, o GitHub não cobra: se a cota acabar, o workflow só para até o mês seguinte.
+
+**Gerar na sua máquina** (para testar o instalador antes, ou sem o GitHub):
 ```powershell
 cd desktop
 npm install
 npm run instalador
 ```
-O comando compila o auxiliar de som (.NET) e empacota o app (electron-builder). Em `desktop\dist` saem:
-- `Ozamigos-Share-Instalador-1.0.1.exe`, que instala com atalhos e entra em "Adicionar ou remover programas";
-- `Ozamigos-Share-Portatil-1.0.1.exe`, que roda sem instalar.
-
-**4. Grave e envie o código:**
-```powershell
-cd ..
-git add desktop
-git commit -m "App 1.0.1: o que mudou"
-git push
-```
-
-**5. Crie a release no GitHub:**
-```powershell
-gh release create v1.0.1 desktop\dist\Ozamigos-Share-Instalador-1.0.1.exe desktop\dist\Ozamigos-Share-Portatil-1.0.1.exe --title "Ozamigos Share 1.0.1" --generate-notes
-```
+Em `desktop\dist` saem o `Ozamigos-Share-Instalador-x.y.z.exe` (instala com atalhos e entra em "Adicionar ou remover programas") e o `Ozamigos-Share-Portatil-x.y.z.exe` (roda sem instalar). Para publicar à mão: `gh release create v1.0.2 desktop\dist\Ozamigos-Share-Instalador-1.0.2.exe desktop\dist\Ozamigos-Share-Portatil-1.0.2.exe --title "Ozamigos Share 1.0.2" --generate-notes`.
 
 **Para corrigir uma release errada:** apague a release e a marca (o código não é afetado) e crie de novo.
 ```powershell
@@ -283,7 +287,7 @@ gh release delete v1.0.1 --cleanup-tag --yes
 | Mudou… | Precisa | Os usuários precisam… |
 |---|---|---|
 | Interface (`web/`) ou servidor (`src/`) | `git push` (o Render publica sozinho) | Nada; no máximo Ctrl+R no app |
-| App (`desktop/`: `main.js`, `preload.js`, tela de início, auxiliar de som, ícone, endereço) | Aumentar a versão, `npm run instalador`, `git push` e criar a release | Baixar e instalar o `.exe` novo, por cima do antigo (as configurações continuam) |
+| App (`desktop/`: `main.js`, `preload.js`, tela de início, auxiliar de som, ícone, endereço) | Aumentar a versão, `git push` e enviar a marca `vX.Y.Z` (o GitHub gera a release) | Baixar e instalar o `.exe` novo, por cima do antigo (as configurações continuam) |
 | Senha do grupo | Editar `OZAMIGOS_SENHA` no Render (**Environment**) | Digitar a senha nova |
 
 ---
@@ -325,17 +329,18 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 
 | `tipo` | Campos | Efeito |
 |---|---|---|
-| `entrar` | `sala`, `senha`, `nome` | Confere a senha e entra na sala |
+| `entrar` | `sala`, `senha`, `nome`, `ficha` (opcional) | Confere a senha e entra na sala. Na reconexão, a `ficha` recebida no `bem-vindo` anterior tira da sala a conexão antiga, se o servidor ainda não percebeu a queda |
 | `comecei` / `parei` | — | Começa ou para de transmitir |
 | `assistir` / `deixar` | `para` | Entra ou sai da plateia de quem transmite |
 | `oferta` / `resposta` / `candidato` | `para`, `sdp` ou `candidato`, `canal` | Repassado só ao destinatário, na mesma sala |
-| `ping` | — | Mantém a conexão viva (a cada 30 s) |
+| `ping` | — | Mantém a conexão viva (a cada 30 s); o servidor responde `pong` |
 
 **Servidor → cliente**
 
 | `tipo` | Campos | Quando |
 |---|---|---|
-| `bem-vindo` | `id`, `outros[]`, `compartilhando[]`, `plateias{}` | Ao entrar |
+| `bem-vindo` | `id`, `ficha`, `outros[]`, `compartilhando[]`, `plateias{}` | Ao entrar. A `ficha` é secreta: só quem a recebeu pode usá-la para reconectar |
+| `pong` | — | Resposta ao `ping`. Sem nenhuma mensagem por 70 s, o cliente considera a conexão morta e reconecta |
 | `entrou` / `saiu` | `id` (e `nome`) | Alguém entrou ou saiu |
 | `pode-compartilhar` | — | Confirma o `comecei` |
 | `compartilhando` / `parou` | `id` | Alguém começou ou parou de transmitir |
@@ -418,7 +423,7 @@ Para verificar os tipos da interface: `cd web` e depois `npm run typecheck`.
 | Voz de chamada vai junto | Programa fora da lista (ex.: Discord no navegador) | Use o Discord instalado ou acrescente o programa em `SEM_SOM_DE` |
 | Vídeo preto com o jogo em tela cheia | Tela cheia exclusiva não é capturável | "Janela sem bordas" ou transmita a tela inteira |
 | "Não foi possível conectar direto com…" | 4G/5G, CGNAT ou rede corporativa | Outra rede. Esses casos exigem TURN (veja Limitações) |
-| "A conexão com o servidor caiu" | Render reiniciou ou a internet caiu | **Entrar de novo** |
+| "A conexão com o servidor caiu. Reconectando…" | Render reiniciou ou a internet caiu | Espere: o app tenta de novo sozinho (1, 2, 5 e depois a cada 10 s). **Tentar agora** força uma tentativa |
 | Comando com `&&` falha no terminal | O PowerShell 5 não aceita `&&` | Use `;` ou um comando por linha |
 
 ---

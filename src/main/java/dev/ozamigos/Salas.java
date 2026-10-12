@@ -1,5 +1,7 @@
 package dev.ozamigos;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -35,6 +37,8 @@ public class Salas {
     private static final class Sala {
         final Map<String, WebSocketSession> participantes = new LinkedHashMap<>();
         final Map<String, String> nomes = new HashMap<>();
+        /** A ficha de cada pessoa: só ela sabe, e é o que prova que é ela voltando depois de uma queda. */
+        final Map<String, String> fichas = new HashMap<>();
         /** Quem transmite -> quem está assistindo (só existe enquanto a pessoa transmite). */
         final Map<String, Set<String>> plateias = new LinkedHashMap<>();
     }
@@ -42,7 +46,7 @@ public class Salas {
     private final Map<String, Sala> salas = new HashMap<>();
 
     /** Devolve null se a sala estiver cheia. */
-    public synchronized Entrada entrar(String codigo, String id, String nome, WebSocketSession sessao) {
+    public synchronized Entrada entrar(String codigo, String id, String nome, String ficha, WebSocketSession sessao) {
         Sala sala = salas.computeIfAbsent(codigo, c -> new Sala());
         if (sala.participantes.size() >= LIMITE_POR_SALA) {
             return null;
@@ -51,18 +55,21 @@ public class Salas {
         sala.participantes.keySet().forEach(outroId -> outros.put(outroId, sala.nomes.get(outroId)));
         sala.participantes.put(id, sessao);
         sala.nomes.put(id, nome);
+        sala.fichas.put(id, ficha);
         Map<String, List<String>> plateias = new LinkedHashMap<>();
         sala.plateias.forEach((quem, plateia) -> plateias.put(quem, List.copyOf(plateia)));
         return new Entrada(outros, List.copyOf(sala.plateias.keySet()), plateias);
     }
 
+    /** Devolve null se a pessoa já não estava na sala (por exemplo, já tirada numa reconexão). */
     public synchronized Saida sair(String codigo, String id) {
         Sala sala = salas.get(codigo);
         if (sala == null || !sala.participantes.containsKey(id)) {
-            return new Saida(List.of(), Map.of());
+            return null;
         }
         sala.participantes.remove(id);
         sala.nomes.remove(id);
+        sala.fichas.remove(id);
         sala.plateias.remove(id); // quem sai para de transmitir; o "saiu" já avisa os outros
         Map<String, List<String>> mudaram = new LinkedHashMap<>();
         sala.plateias.forEach((quem, plateia) -> {
@@ -74,6 +81,24 @@ public class Salas {
             salas.remove(codigo);
         }
         return new Saida(new ArrayList<>(sala.participantes.values()), mudaram);
+    }
+
+    /**
+     * Quem na sala tem esta ficha, ou null. Serve para a reconexão: a conexão antiga de quem caiu
+     * pode continuar "aberta" no servidor por um tempo, ocupando lugar como uma pessoa fantasma.
+     */
+    public synchronized String donoDaFicha(String codigo, String ficha) {
+        Sala sala = salas.get(codigo);
+        if (sala == null || ficha.isEmpty()) {
+            return null;
+        }
+        byte[] procurada = ficha.getBytes(StandardCharsets.UTF_8);
+        for (Map.Entry<String, String> entrada : sala.fichas.entrySet()) {
+            if (MessageDigest.isEqual(procurada, entrada.getValue().getBytes(StandardCharsets.UTF_8))) {
+                return entrada.getKey();
+            }
+        }
+        return null;
     }
 
     /** Todos podem transmitir ao mesmo tempo. Devolve false se a pessoa não está na sala ou já transmite. */

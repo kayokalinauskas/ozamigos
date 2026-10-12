@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { RefreshCw, WifiOff } from 'lucide-react';
 import { lembrado, lembrar } from '../armazenamento';
+import { cliente } from '../cliente';
 import { useCliente } from '../useCliente';
 import { BarraLateral } from './BarraLateral';
 import { Controles } from './Controles';
@@ -31,9 +32,9 @@ export function Sala() {
         {conexaoPerdida && (
           <div className="faixa-alerta" role="alert">
             <WifiOff size={18} />
-            <span>A conexão com o servidor caiu. As transmissões em andamento podem continuar, mas ninguém novo consegue conectar.</span>
-            <button type="button" className="botao botao-primario botao-pequeno" onClick={() => location.reload()}>
-              <RefreshCw size={14} /> Entrar de novo
+            <span>A conexão com o servidor caiu. Reconectando sozinho… As transmissões abertas continuam enquanto isso.</span>
+            <button type="button" className="botao botao-primario botao-pequeno" onClick={() => cliente.reconectar()}>
+              <RefreshCw size={14} /> Tentar agora
             </button>
           </div>
         )}

@@ -1,0 +1,55 @@
+# Gera o instalador e a versão portátil do app e publica a release no GitHub.
+# Dispara quando uma tag de versão (v1.2.3) é enviada; a tag precisa bater com desktop/package.json.
+name: Release do app
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # criar a release e enviar os arquivos
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: actions/setup-dotnet@v4 # o auxiliar de som (desktop/som) é .NET 10
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Conferir a versão
+        shell: pwsh
+        run: |
+          $versao = (Get-Content desktop/package.json -Raw | ConvertFrom-Json).version
+          if ("v$versao" -ne "${{ github.ref_name }}") {
+            throw "A tag ${{ github.ref_name }} não bate com a versão $versao do desktop/package.json."
+          }
+
+      - name: Gerar o instalador e a versão portátil
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run instalador
+
+      - name: Publicar a release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $versao = $tag.TrimStart('v')
+          $arquivos = "desktop/dist/Ozamigos-Share-Instalador-$versao.exe", "desktop/dist/Ozamigos-Share-Portatil-$versao.exe"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @arquivos --clobber # a release já existia: só troca os arquivos
+          } else {
+            gh release create $tag @arquivos --title "Ozamigos Share $versao" --generate-notes
+          }

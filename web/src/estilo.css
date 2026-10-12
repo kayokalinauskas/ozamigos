@@ -837,6 +837,15 @@ input[type='range']::-moz-range-thumb {
   color: #fff;
 }
 
+.transmissao-controles .botao-icone.ativo {
+  color: var(--destaque);
+}
+
+.transmissao-controles .botao-icone:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .volume-numero {
   width: 40px;
   color: #d5dae4;

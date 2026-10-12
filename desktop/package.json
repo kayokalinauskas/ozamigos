@@ -12,7 +12,7 @@
   "scripts": {
     "start": "electron .",
     "icone": "node build/gerar-icone.js",
-    "instalador": "npm run som && electron-builder --win",
+    "instalador": "npm run som && electron-builder --win --publish never",
     "som": "dotnet publish som -c Release -o som/publicado"
   },
   "devDependencies": {

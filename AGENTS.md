@@ -82,6 +82,14 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 - **Estatísticas:** `medir()` roda a cada 1 s.
   - O Firefox não informa `qualityLimitationReason`, o fps da captura nem `encoderImplementation`.
   - O Firefox gera ids de relatório novos a cada consulta, então os Mbps são calculados por `tipo:ssrc`.
+- **Reconexão automática** (`perderConexao` → `agendarReconexao` → `conectar`; `voltei` no `bem-vindo` seguinte):
+  - a queda é detectada pelo `onclose` **ou** pelo silêncio: o servidor responde `pong` a cada `ping` (30 s), e 70 s sem mensagem nenhuma (`SILENCIO_MAXIMO`) derrubam a conexão do lado do cliente;
+  - tentativas com espera de 1, 2, 5 e depois 10 s, para sempre; o evento `online` do navegador força uma tentativa;
+  - o `bem-vindo` traz uma `ficha` secreta. Na reconexão, o `entrar` a reenvia, e o servidor (`Salas.donoDaFicha`) **tira da sala a conexão antiga** que ele ainda não viu cair (senão sobra uma pessoa fantasma ocupando vaga);
+  - **o id muda na reconexão.** Por isso, quem volta é reconhecido **pelo nome** (`saidas`, janela de 2 min): `voltei` fecha todas as conexões WebRTC, reenvia `comecei` se eu transmitia e volta a assistir quem eu assistia; do outro lado, `saiu` + `entrou` com o mesmo nome vira "reconectou", e `compartilhando` dessa pessoa retoma a plateia;
+  - durante a queda, as conexões WebRTC abertas **continuam** (o vídeo não passa pelo servidor); elas só são refeitas quando a sinalização volta;
+  - recusado ao reconectar (`senha-errada`, `sala-cheia`): desfaz tudo e volta para a entrada com o erro.
+- **Janela flutuante:** `requestPictureInPicture()` no `<video>` da transmissão (funciona no Chrome, no Edge e no Electron). O volume continua valendo, porque é o mesmo elemento.
 - **Volume:** é o `video.volume` (de 0 a 1, multiplicado pelo volume geral), lembrado por **nome** (`ozamigos-volume:<nome>`).
 - O `localStorage` está sempre dentro de `try/catch` (`armazenamento.ts`).
 
@@ -137,16 +145,18 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 
 - Sem TURN: CGNAT, 4G/5G e redes corporativas podem não conectar.
 - Uma senha por servidor, sem limite de tentativas: o projeto não serve para uso público aberto sem antes mudar isso.
-- Sem reconexão automática do WebSocket: quando cai, a faixa "Entrar de novo" recarrega a página.
-  - Os ids mudam na reconexão, por isso a volta automática a assistir não sobrevive a um recarregamento.
+- Na reconexão, a pessoa ganha outro id e é reconhecida pelo nome. Dois amigos com o mesmo nome podem confundir a volta automática.
+- Recarregar a página (Ctrl+R) não é reconexão: é uma entrada nova, e a volta automática a assistir não sobrevive a isso.
 - Salas em memória, num servidor só.
 - O volume é lembrado por nome; dois amigos com o mesmo nome dividem a configuração.
 
 ## Fluxo de versão do app
 
-- Mudou `web/` ou `src/`: basta o push. A interface do app de todos se atualiza.
+- Mudou `web/` ou `src/`: basta o push na `main`. A interface do app de todos se atualiza.
 - Mudou `desktop/`:
   1. aumente `version` em `desktop/package.json`;
-  2. rode `npm run instalador`;
-  3. faça commit e push;
-  4. crie a release: `gh release create vX.Y.Z desktop\dist\Ozamigos-Share-Instalador-X.Y.Z.exe desktop\dist\Ozamigos-Share-Portatil-X.Y.Z.exe --title "Ozamigos Share X.Y.Z" --generate-notes`.
+  2. faça commit e push;
+  3. crie e envie a marca: `git tag vX.Y.Z` e `git push origin vX.Y.Z`.
+  - O workflow `.github/workflows/release.yml` (máquina `windows-latest`) confere se a marca bate com a versão, roda `npm ci` e `npm run instalador` em `desktop/` e cria a release com os dois `.exe` (se a release já existir, só troca os arquivos).
+  - O `npm run instalador` usa `--publish never`: quem publica é o `gh` do workflow, não o electron-builder.
+  - Repositório privado gasta a cota grátis do Actions (Windows conta em dobro). Não cadastre forma de pagamento: o dono não aceita nenhum risco de cobrança.

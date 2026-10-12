@@ -45,6 +45,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession sessao) {
         Map<String, Object> atributos = sessao.getAttributes();
         atributos.put("id", UUID.randomUUID().toString().substring(0, 8));
+        atributos.put("ficha", UUID.randomUUID().toString());
         // Envios de threads diferentes na mesma sessão precisam ser em fila.
         atributos.put("segura", new ConcurrentWebSocketSessionDecorator(sessao, 5_000, 512 * 1024));
     }
@@ -62,19 +63,20 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
         switch (tipo) {
             case "entrar" -> entrar(sessao, id, msg.path("sala").asString(""), msg.path("senha").asString(""),
-                    nomeLimpo(msg.path("nome").asString("")));
+                    nomeLimpo(msg.path("nome").asString("")), msg.path("ficha").asString(""));
             case "comecei" -> comecei(sessao, id, sala);
             case "parei" -> parei(id, sala);
             case "assistir" -> assistir(id, sala, msg.path("para").asString(""));
             case "deixar" -> deixar(id, sala, msg.path("para").asString(""));
             case "oferta", "resposta", "candidato" -> repassar(sessao, id, sala, (ObjectNode) msg);
-            case "ping" -> { } // só mantém a conexão viva
+            // Mantém a conexão viva; a resposta mostra ao cliente que o servidor ainda está ouvindo.
+            case "ping" -> enviar(segura(sessao), json.createObjectNode().put("tipo", "pong"));
             default -> erro(sessao, "tipo-desconhecido");
         }
     }
 
-    private void entrar(WebSocketSession sessao, String id, String codigo, String senha, String nome)
-            throws IOException {
+    private void entrar(WebSocketSession sessao, String id, String codigo, String senha, String nome,
+            String fichaAnterior) throws IOException {
         // A senha vem antes de tudo: sem ela, a pessoa não descobre nada sobre a sala.
         if (!senhaDoGrupo.confere(senha)) {
             log.info("{} errou a senha", id);
@@ -90,7 +92,16 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             erro(sessao, "codigo-invalido");
             return;
         }
-        Salas.Entrada entrada = salas.entrar(codigo, id, nome, segura(sessao));
+        // Reconexão: se a conexão antiga da mesma pessoa ainda consta na sala, ela sai agora
+        // (senão ficaria uma pessoa fantasma ocupando lugar até o servidor perceber a queda).
+        String anterior = salas.donoDaFicha(codigo, fichaAnterior);
+        if (anterior != null) {
+            WebSocketSession antiga = salas.sessao(codigo, anterior);
+            retirar(codigo, anterior);
+            fecharSemErro(antiga);
+        }
+        String ficha = (String) sessao.getAttributes().get("ficha");
+        Salas.Entrada entrada = salas.entrar(codigo, id, nome, ficha, segura(sessao));
         if (entrada == null) {
             erro(sessao, "sala-cheia");
             sessao.close(CloseStatus.POLICY_VIOLATION);
@@ -101,7 +112,8 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
 
         ObjectNode boasVindas = json.createObjectNode()
                 .put("tipo", "bem-vindo")
-                .put("id", id);
+                .put("id", id)
+                .put("ficha", ficha);
         ArrayNode outros = boasVindas.putArray("outros");
         entrada.outros().forEach((outroId, outroNome) -> outros.addObject().put("id", outroId).put("nome", outroNome));
         ArrayNode compartilhando = boasVindas.putArray("compartilhando");
@@ -179,10 +191,17 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession sessao, CloseStatus status) throws IOException {
         String id = (String) sessao.getAttributes().get("id");
         String sala = (String) sessao.getAttributes().get("sala");
-        if (sala == null) {
+        if (sala != null) {
+            retirar(sala, id);
+        }
+    }
+
+    /** Tira a pessoa da sala e avisa quem ficou. Se ela já tinha saído, não faz nada. */
+    private void retirar(String sala, String id) throws IOException {
+        Salas.Saida saida = salas.sair(sala, id);
+        if (saida == null) {
             return;
         }
-        Salas.Saida saida = salas.sair(sala, id);
         log.info("{} saiu da sala {}", id, sala);
         ObjectNode saiu = json.createObjectNode().put("tipo", "saiu").put("id", id);
         for (WebSocketSession restante : saida.restantes()) {
@@ -190,6 +209,17 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
         for (Map.Entry<String, List<String>> mudou : saida.plateiasQueMudaram().entrySet()) {
             avisarPlateia(sala, mudou.getKey(), mudou.getValue());
+        }
+    }
+
+    private static void fecharSemErro(WebSocketSession sessao) {
+        if (sessao == null) {
+            return;
+        }
+        try {
+            sessao.close(CloseStatus.GOING_AWAY);
+        } catch (IOException | RuntimeException e) {
+            // a conexão antiga já estava morta: era exatamente o que queríamos
         }
     }
 

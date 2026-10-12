@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { LoaderCircle, Maximize, Maximize2, Volume1, Volume2, VolumeX, X } from 'lucide-react';
+import { LoaderCircle, Maximize, Maximize2, PictureInPicture2, Volume1, Volume2, VolumeX, X } from 'lucide-react';
 import { cliente, type Metrica } from '../cliente';
 import { useCliente, useNumeroLembrado } from '../useCliente';
 import { Avatar } from './Avatar';
@@ -48,6 +48,30 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
     video.current.volume = Math.min(1, (volume / 100) * (volumeGeral / 100));
     video.current.muted = mudo;
   }, [volume, volumeGeral, mudo]);
+
+  // Janela flutuante (picture-in-picture): fica por cima do jogo e das outras janelas.
+  const [emJanela, setEmJanela] = useState(false);
+  useEffect(() => {
+    const elemento = video.current;
+    if (!elemento) return;
+    const entrou = () => setEmJanela(true);
+    const saiu = () => setEmJanela(false);
+    elemento.addEventListener('enterpictureinpicture', entrou);
+    elemento.addEventListener('leavepictureinpicture', saiu);
+    return () => {
+      elemento.removeEventListener('enterpictureinpicture', entrou);
+      elemento.removeEventListener('leavepictureinpicture', saiu);
+    };
+  }, []);
+
+  async function alternarJanela() {
+    try {
+      if (document.pictureInPictureElement === video.current) await document.exitPictureInPicture();
+      else await video.current?.requestPictureInPicture();
+    } catch {
+      cliente.avisar('Não foi possível abrir a janela flutuante.', 'erro');
+    }
+  }
 
   const IconeDeVolume = mudo || volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
   const telaCheia = () => void bloco.current?.requestFullscreen();
@@ -101,6 +125,19 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
         {aoDestacar && !principal && (
           <button type="button" className="botao-icone" aria-label={`Destacar ${nome}`} title="Destacar" onClick={aoDestacar}>
             <Maximize2 size={18} />
+          </button>
+        )}
+        {document.pictureInPictureEnabled && (
+          <button
+            type="button"
+            className={emJanela ? 'botao-icone ativo' : 'botao-icone'}
+            aria-label={emJanela ? `Voltar ${nome} para a sala` : `Janela flutuante: ${nome}`}
+            aria-pressed={emJanela}
+            title={emJanela ? 'Voltar para a sala' : 'Janela flutuante (fica por cima do jogo)'}
+            disabled={!stream}
+            onClick={() => void alternarJanela()}
+          >
+            <PictureInPicture2 size={18} />
           </button>
         )}
         <button type="button" className="botao-icone" aria-label={`Tela cheia: ${nome}`} title="Tela cheia (ou dois cliques no vídeo)" onClick={telaCheia}>

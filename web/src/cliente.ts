@@ -56,7 +56,7 @@ export type Estado = {
   qualidade: Qualidade;
   metricas: Record<string, Metrica>; // `${canal}:${id}` -> medição
   avisos: Aviso[];
-  conexaoPerdida: boolean;
+  conexaoPerdida: boolean; // caiu a conexão com o servidor; o cliente já está tentando voltar sozinho
 };
 
 type Canal = 'envio' | 'recebimento';
@@ -66,6 +66,13 @@ type Fonte = 'aplicativo' | 'tela' | 'escolher';
 type Mensagem = Record<string, any> & { tipo: string };
 
 const chave = (canal: Canal, id: string) => `${canal}:${id}`;
+
+// Reconexão: espera 1 s, depois 2, 5 e então 10 s entre as tentativas, até conseguir.
+const ESPERAS_PARA_RECONECTAR = [1_000, 2_000, 5_000, 10_000];
+// Sem nenhuma mensagem do servidor por esse tempo (o pong chega a cada 30 s), a conexão está morta.
+const SILENCIO_MAXIMO = 70_000;
+// Quem volta dentro desse tempo com o mesmo nome é tratado como a mesma pessoa reconectando.
+const JANELA_DE_VOLTA = 120_000;
 
 export function codigoValido(codigo: string): boolean {
   return /^[A-Za-z0-9]{6,20}$/.test(codigo);
@@ -99,6 +106,14 @@ class Cliente {
   private ws: WebSocket | null = null;
   private readonly conexoes = new Map<string, Conexao>();
   private recusado = false;
+  private nome = '';
+  private senha = '';
+  private ficha = ''; // dada pelo servidor; na reconexão, prova que somos a mesma pessoa
+  private tentativas = 0;
+  private reconexao: ReturnType<typeof setTimeout> | null = null;
+  private ultimaMensagem = 0;
+  // Nome de quem saiu -> quando, e se eu assistia. Quem volta ganha outro id: o nome é o que liga.
+  private readonly saidas = new Map<string, { momento: number; assistia: boolean }>();
   private proximoAviso = 1;
   private readonly anteriores = new Map<string, { bytes: number; momento: number }>();
   private readonly historicoDeCongelamentos = new Map<string, number[]>();
@@ -127,8 +142,18 @@ class Cliente {
     this.trocarSala(sala);
     // Um "estou aqui" a cada 30 s: sem isso, proxies e hospedagens gratuitas fecham a conexão parada.
     setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN && this.estado.meuId) this.enviar({ tipo: 'ping' });
+      if (this.ws?.readyState !== WebSocket.OPEN || this.estado.fase !== 'sala') return;
+      // Uma rede que caiu de vez pode deixar o WebSocket "aberto" por minutos: o silêncio denuncia.
+      if (Date.now() - this.ultimaMensagem > SILENCIO_MAXIMO) {
+        this.perderConexao();
+        return;
+      }
+      this.enviar({ tipo: 'ping' });
     }, 30_000);
+    // Voltou a internet: tenta reconectar agora, sem esperar a próxima tentativa.
+    addEventListener('online', () => {
+      if (this.estado.conexaoPerdida) this.reconectar();
+    });
     setInterval(() => void this.medir(), 1000);
   }
 
@@ -184,15 +209,25 @@ class Cliente {
   entrar(nome: string, senha: string) {
     if (this.estado.fase !== 'entrada') return; // dois cliques abririam duas conexões (uma "pessoa fantasma")
     this.recusado = false;
+    this.nome = nome;
+    this.senha = senha;
+    this.ficha = '';
     this.mudar({ fase: 'entrando', erro: '', meuNome: nome.trim() || 'Amigo' });
+    this.conectar();
+  }
+
+  private conectar() {
     const protocolo = location.protocol === 'https:' ? 'wss' : 'ws';
     const ws = new WebSocket(`${protocolo}://${location.host}/sinal`);
     this.ws = ws;
-    ws.onopen = () => this.enviar({ tipo: 'entrar', sala: this.estado.sala, senha, nome });
+    ws.onopen = () => {
+      this.ultimaMensagem = Date.now();
+      this.enviar({ tipo: 'entrar', sala: this.estado.sala, senha: this.senha, nome: this.nome, ficha: this.ficha });
+    };
     ws.onclose = () => {
-      if (this.recusado) return;
+      if (this.recusado || this.ws !== ws) return;
       if (this.estado.fase === 'sala') {
-        this.mudar({ conexaoPerdida: true });
+        this.perderConexao();
       } else {
         this.mudar({ fase: 'entrada', erro: 'Não foi possível falar com o servidor. Se ele estava dormindo, espere 1 minuto e tente de novo.' });
       }
@@ -200,6 +235,8 @@ class Cliente {
     // As mensagens são tratadas uma de cada vez, na ordem em que chegaram.
     let fila = Promise.resolve();
     ws.onmessage = (evento) => {
+      if (this.ws !== ws) return; // uma conexão antiga, já abandonada
+      this.ultimaMensagem = Date.now();
       let msg: Mensagem;
       try {
         msg = JSON.parse(evento.data) as Mensagem;
@@ -207,8 +244,91 @@ class Cliente {
         console.error('Mensagem inválida do servidor', evento.data);
         return;
       }
-      fila = fila.then(() => this.tratar(msg, nome, senha)).catch((erro) => console.error('Erro ao tratar', msg, erro));
+      fila = fila.then(() => this.tratar(msg)).catch((erro) => console.error('Erro ao tratar', msg, erro));
     };
+  }
+
+  // ===== Reconexão =====
+
+  /**
+   * Caiu a conexão com o servidor. As transmissões já abertas continuam (o vídeo não passa por ele),
+   * e o cliente tenta voltar sozinho. Ao voltar, refaz as conexões e retoma o que estava assistindo.
+   */
+  private perderConexao() {
+    const antiga = this.ws;
+    this.ws = null;
+    if (antiga) {
+      antiga.onclose = null;
+      antiga.onmessage = null;
+      antiga.close();
+    }
+    if (!this.estado.conexaoPerdida) {
+      this.tentativas = 0;
+      this.mudar({ conexaoPerdida: true });
+    }
+    this.agendarReconexao();
+  }
+
+  private agendarReconexao() {
+    if (this.reconexao) return;
+    const espera = ESPERAS_PARA_RECONECTAR[Math.min(this.tentativas, ESPERAS_PARA_RECONECTAR.length - 1)];
+    this.tentativas++;
+    this.reconexao = setTimeout(() => {
+      this.reconexao = null;
+      this.reconectar();
+    }, espera);
+  }
+
+  /** Tenta agora. Se não der, a conexão fecha e o onclose agenda a próxima tentativa. */
+  reconectar() {
+    if (this.recusado || this.estado.fase !== 'sala') return;
+    if (this.reconexao) {
+      clearTimeout(this.reconexao);
+      this.reconexao = null;
+    }
+    if (this.ws && this.ws.readyState <= WebSocket.OPEN) return; // já está tentando
+    this.conectar();
+  }
+
+  /** De volta ao servidor, com um id novo: as conexões antigas não servem mais e são refeitas. */
+  private voltei(msg: Mensagem) {
+    for (const id of this.estado.assistindo) this.lembrarSaida(this.nomeDe(id), true);
+    for (const { canal, id } of [...this.conexoes.values()]) this.fecharConexao(canal, id);
+    this.tentativas = 0;
+    this.mudar({
+      meuId: msg.id,
+      pessoas: msg.outros,
+      transmitindo: msg.compartilhando,
+      plateias: msg.plateias ?? {},
+      assistindo: [],
+      videos: {},
+      conexaoPerdida: false,
+    });
+    if (this.estado.minhaTela) this.enviar({ tipo: 'comecei' }); // continuo transmitindo, agora com o id novo
+    for (const id of msg.compartilhando as string[]) {
+      if (this.voltandoQuemEuAssistia(id)) this.assistir(id);
+    }
+    this.avisar('Conexão com o servidor restabelecida');
+  }
+
+  private lembrarSaida(nome: string, assistia: boolean) {
+    this.saidas.set(nome, { momento: Date.now(), assistia });
+  }
+
+  /** Quem saiu há pouco com esse nome, ou null. */
+  private saidaRecente(nome: string) {
+    const saida = this.saidas.get(nome);
+    if (saida && Date.now() - saida.momento < JANELA_DE_VOLTA) return saida;
+    this.saidas.delete(nome);
+    return null;
+  }
+
+  /** É alguém que eu assistia, caiu e voltou com outro id? Responde uma vez só. */
+  private voltandoQuemEuAssistia(id: string): boolean {
+    const nome = this.nomeDe(id);
+    if (!this.saidaRecente(nome)?.assistia) return false;
+    this.saidas.delete(nome);
+    return true;
   }
 
   sair() {
@@ -223,12 +343,17 @@ class Cliente {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
   }
 
-  private async tratar(msg: Mensagem, nome: string, senha: string) {
+  private async tratar(msg: Mensagem) {
     const e = this.estado;
     switch (msg.tipo) {
       case 'bem-vindo': {
-        lembrar('ozamigos-nome', nome);
-        lembrar('ozamigos-senha', senha);
+        this.ficha = msg.ficha ?? '';
+        if (e.fase === 'sala') {
+          this.voltei(msg);
+          break;
+        }
+        lembrar('ozamigos-nome', this.nome);
+        lembrar('ozamigos-senha', this.senha);
         this.mudar({
           fase: 'sala',
           meuId: msg.id,
@@ -241,14 +366,22 @@ class Cliente {
         }
         break;
       }
-      case 'entrou':
+      case 'entrou': {
         this.mudar({ pessoas: [...e.pessoas, { id: msg.id, nome: msg.nome }] });
+        const saida = this.saidaRecente(msg.nome);
+        if (saida) {
+          this.avisar(`${msg.nome} reconectou`); // caiu e voltou: sem som nem notificação
+          if (!saida.assistia) this.saidas.delete(msg.nome);
+          break;
+        }
         this.avisar(`${msg.nome} entrou na sala`);
         this.notificar('Ozamigos Share', `${msg.nome} entrou na sala`);
         tocar('entrou');
         break;
+      }
       case 'saiu': {
         const nomeQueSaiu = this.nomeDe(msg.id);
+        this.lembrarSaida(nomeQueSaiu, e.assistindo.includes(msg.id));
         this.fecharConexao('envio', msg.id);
         this.fecharConexao('recebimento', msg.id);
         const plateias = { ...e.plateias };
@@ -281,6 +414,8 @@ class Cliente {
           // Eu já assistia essa pessoa antes de ela parar: volto a assistir sozinho.
           this.enviar({ tipo: 'assistir', para: msg.id });
           this.avisar(`${nomeDeQuem} voltou a transmitir`);
+        } else if (this.voltandoQuemEuAssistia(msg.id)) {
+          this.assistir(msg.id); // caiu e voltou com outro id: continuo assistindo
         } else {
           this.avisar(`${nomeDeQuem} começou a transmitir`, 'info', {
             rotulo: 'Assistir',
@@ -333,6 +468,12 @@ class Cliente {
     if (motivo in textos) {
       this.recusado = true;
       if (motivo === 'senha-errada') lembrar('ozamigos-senha', ''); // a senha pode ter mudado
+      if (this.estado.fase === 'sala') {
+        // Recusado ao reconectar (a senha mudou, a sala encheu): desfaz tudo e volta para a entrada.
+        this.pararDeTransmitir(false);
+        for (const { canal, id } of [...this.conexoes.values()]) this.fecharConexao(canal, id);
+        this.mudar({ meuId: null, pessoas: [], transmitindo: [], plateias: {}, assistindo: [], videos: {}, conexaoPerdida: false });
+      }
       this.mudar({ fase: 'entrada', erro: texto });
     } else {
       this.avisar(texto, 'erro');
