@@ -1,10 +1,13 @@
 # Gera o instalador e a versão portátil do app e publica a release no GitHub.
 # Dispara quando uma tag de versão (v1.2.3) é enviada; a tag precisa bater com desktop/package.json.
+# Também dá para rodar à mão (aba Actions → Run workflow), escolhendo a tag em "Use workflow from",
+# para refazer os arquivos de uma release que já existe.
 name: Release do app
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write # criar a release e enviar os arquivos
