@@ -49,7 +49,9 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $versao = $tag.TrimStart('v')
-          $arquivos = "desktop/dist/Ozamigos-Instalador-$versao.exe", "desktop/dist/Ozamigos-Portatil-$versao.exe"
+          # latest.yml e o .blockmap são o que o app instalado lê para se atualizar sozinho: sem eles, ninguém atualiza.
+          $arquivos = "desktop/dist/Ozamigos-Instalador-$versao.exe", "desktop/dist/Ozamigos-Instalador-$versao.exe.blockmap",
+            "desktop/dist/latest.yml", "desktop/dist/Ozamigos-Portatil-$versao.exe"
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag @arquivos --clobber # a release já existia: só troca os arquivos

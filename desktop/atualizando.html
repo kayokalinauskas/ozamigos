@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'" />
+    <title>Ozamigos</title>
+    <link rel="stylesheet" href="inicio.css" />
+    <link rel="stylesheet" href="atualizando.css" />
+  </head>
+  <body>
+    <!-- Mostrada só enquanto uma versão nova baixa; o main.js atualiza a barra e o texto. -->
+    <main class="atualizando">
+      <h1 class="logo" aria-label="Ozamigos">
+        <span class="tecla" aria-hidden="true">O</span><span class="tecla" aria-hidden="true">Z</span><span aria-hidden="true">amigos</span>
+      </h1>
+      <p id="mensagem" role="status">Baixando a versão nova…</p>
+      <div class="barra" aria-hidden="true"><div id="progresso"></div></div>
+    </main>
+  </body>
+</html>

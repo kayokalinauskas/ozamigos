@@ -1,0 +1,36 @@
+/* A janelinha "Atualizando" (atualizando.html); cores e logotipo vêm do inicio.css. */
+body {
+  padding: 0 28px;
+  background: var(--fundo);
+  -webkit-app-region: drag; /* a janela não tem moldura: arrasta por qualquer lugar */
+  user-select: none;
+}
+
+.atualizando {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.atualizando .logo {
+  font-size: 24px;
+}
+
+#mensagem {
+  color: var(--texto-2);
+}
+
+.barra {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--painel-3);
+}
+
+#progresso {
+  width: 0;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--destaque);
+  transition: width 0.3s ease;
+}

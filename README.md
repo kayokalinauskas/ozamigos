@@ -91,6 +91,7 @@
 - **Som do PC sem eco:** captura o som de todos os programas, menos o **Discord** e o próprio **Ozamigos**. Os amigos não ouvem a própria voz nem o próprio jogo de volta. O áudio vai em estéreo.
 - **Sem engasgos atrás do jogo:** a janela não é freada pelo Windows quando fica escondida.
 - **Atualização automática da interface:** o app carrega a interface do servidor, então cada deploy chega a todos sem reinstalar.
+- **O app se atualiza sozinho** (a partir da 1.2.0, na versão instalada): ao abrir, ele procura uma versão nova nas releases, baixa, instala e abre de novo. A versão portátil continua sendo atualizada à mão.
 
 ---
 
@@ -292,7 +293,7 @@ git push origin v1.0.2
 **4. Pronto.** A marca `v1.0.2` dispara o workflow [`.github/workflows/release.yml`](.github/workflows/release.yml), que, numa máquina Windows do GitHub:
 - confere se a marca bate com a versão do `desktop/package.json`;
 - compila o auxiliar de som (.NET) e empacota o app (electron-builder);
-- cria a release com o `Ozamigos-Instalador-1.0.2.exe` e o `Ozamigos-Portatil-1.0.2.exe`.
+- cria a release com o `Ozamigos-Instalador-1.0.2.exe` e o `Ozamigos-Portatil-1.0.2.exe`, mais o `latest.yml` e o `.blockmap`, que o app instalado lê para se atualizar sozinho.
 
 Acompanhe na aba **Actions** do repositório (leva de 5 a 10 minutos) ou com `gh run watch`.
 
@@ -320,7 +321,7 @@ gh release delete v1.0.1 --cleanup-tag --yes
 | Mudou… | Precisa | Os usuários precisam… |
 |---|---|---|
 | Interface (`web/`) ou servidor (`src/`) | `git push` (o Render publica sozinho) | Nada; no máximo Ctrl+R no app |
-| App (`desktop/`: `main.js`, `preload.js`, tela de início, auxiliar de som, ícone, endereço) | Aumentar a versão, `git push` e enviar a marca `vX.Y.Z` (o GitHub gera a release) | Baixar e instalar o `.exe` novo, por cima do antigo (as configurações continuam) |
+| App (`desktop/`: `main.js`, `preload.js`, tela de início, auxiliar de som, ícone, endereço) | Aumentar a versão, `git push` e enviar a marca `vX.Y.Z` (o GitHub gera a release) | Nada: o app instalado se atualiza sozinho na próxima vez que abrir (a partir da 1.2.0). Quem usa a versão portátil, ou ainda está numa versão anterior à 1.2.0, baixa o `.exe` novo e instala por cima (as configurações continuam) |
 | Senha do grupo | Editar `OZAMIGOS_SENHA` no Render (**Environment**) | Digitar a senha nova |
 
 ---

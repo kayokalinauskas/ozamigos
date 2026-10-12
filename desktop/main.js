@@ -3,6 +3,7 @@
 // e sem o próprio app, notificações do Windows, e não ser freado quando fica atrás do jogo.
 
 const { app, BrowserWindow, Menu, desktopCapturer, ipcMain, nativeTheme, session, shell } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -21,6 +22,7 @@ let janela = null;
 let pedidoDeFonte = null; // { responder, fontes } enquanto o seletor está aberto
 let auxiliarDeSom = null; // o OzamigosSom.exe, enquanto alguém transmite com som
 let ligandoAuxiliar = null; // Promise enquanto o auxiliar está abrindo
+let avisoDeAtualizacao = null; // a janelinha "Baixando a versão nova", enquanto baixa
 
 // O som desses programas nunca vai na transmissão: o próprio app (este processo e os filhos dele,
 // que tocam o som das transmissões) e o Discord, para os amigos não ouvirem a própria voz de volta.
@@ -359,6 +361,81 @@ function configurarMenu() {
   );
 }
 
+// ===== Atualização automática (pelas releases do GitHub, ao abrir o app) =====
+
+/** Só o app instalado se atualiza: rodando do código ou na versão portátil, não há o que trocar. */
+function podeAtualizar() {
+  return app.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR;
+}
+
+function comPrazo(promessa, milissegundos) {
+  return Promise.race([
+    promessa,
+    new Promise((_, rejeitar) => setTimeout(() => rejeitar(new Error('demorou demais')), milissegundos)),
+  ]);
+}
+
+/**
+ * Confere se há versão nova. Havendo, baixa mostrando o progresso, instala sem perguntar nada e o app
+ * reabre sozinho já atualizado: resolve true (o app vai fechar). Sem versão nova, sem internet ou com
+ * qualquer erro, resolve false e o app abre normalmente; a próxima abertura tenta de novo.
+ */
+async function atualizarSeHouver() {
+  if (!podeAtualizar()) return false;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  try {
+    // Uma conferência rápida: a internet lenta não pode prender a abertura do app.
+    const resultado = await comPrazo(autoUpdater.checkForUpdates(), 6000);
+    if (!resultado?.isUpdateAvailable) return false;
+
+    mostrarAvisoDeAtualizacao(resultado.updateInfo.version);
+    autoUpdater.on('download-progress', ({ percent }) => mostrarProgresso(percent));
+    await autoUpdater.downloadUpdate();
+    mostrarProgresso(100, 'Instalando… o Ozamigos abre de novo sozinho.');
+    // Sem a tela do instalador (true) e abrindo o app no fim (true).
+    setTimeout(() => autoUpdater.quitAndInstall(true, true), 600);
+    return true;
+  } catch (erro) {
+    console.warn('Atualização não conferida ou não baixada:', erro?.message ?? erro);
+    return false;
+  }
+}
+
+function mostrarAvisoDeAtualizacao(versao) {
+  avisoDeAtualizacao = new BrowserWindow({
+    width: 420,
+    height: 190,
+    frame: false,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    show: false,
+    backgroundColor: '#0b0e0a',
+    title: 'Atualizando o Ozamigos',
+    icon: path.join(__dirname, 'build', 'icone.png'),
+    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
+  });
+  avisoDeAtualizacao.once('ready-to-show', () => avisoDeAtualizacao?.show());
+  void avisoDeAtualizacao.loadFile(path.join(__dirname, 'atualizando.html')).then(() => {
+    mostrarProgresso(0, `Baixando a versão ${versao}…`);
+  });
+}
+
+function mostrarProgresso(porcento, mensagem) {
+  if (!avisoDeAtualizacao || avisoDeAtualizacao.isDestroyed()) return;
+  const largura = `${Math.max(0, Math.min(100, Math.round(porcento)))}%`;
+  const texto = mensagem ? `document.getElementById('mensagem').textContent = ${JSON.stringify(mensagem)};` : '';
+  avisoDeAtualizacao.webContents
+    .executeJavaScript(`document.getElementById('progresso').style.width = '${largura}'; ${texto}`)
+    .catch(() => {});
+}
+
+function fecharAvisoDeAtualizacao() {
+  if (avisoDeAtualizacao && !avisoDeAtualizacao.isDestroyed()) avisoDeAtualizacao.destroy();
+  avisoDeAtualizacao = null;
+}
+
 // ===== Início do app =====
 
 // Um Ozamigos aberto por vez: abrir de novo só traz a janela para a frente.
@@ -375,10 +452,12 @@ if (!app.requestSingleInstanceLock()) {
   nativeTheme.themeSource = 'dark';
 
   app.whenReady().then(async () => {
+    if (await atualizarSeHouver()) return; // o instalador fecha e reabre o app já na versão nova
     await limparCacheSeAtualizou();
     configurarMenu();
     configurarSessao();
     criarJanela();
+    fecharAvisoDeAtualizacao(); // se o download falhou no meio; só depois da janela, senão o app fecharia
   });
 
   app.on('window-all-closed', () => app.quit());

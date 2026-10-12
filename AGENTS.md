@@ -129,6 +129,13 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - **Fallback:** se o auxiliar não subir (Windows antigo), o `main.js` responde com `audio: 'loopback'`, que é o som do sistema inteiro.
   - Os COM do Windows são chamados **por índice da vtable** (`Com.Metodo(obj, i)`), sem a interop embutida do .NET, para o `.exe` poder ser *trimmed*. **Ao acrescentar uma chamada, confira o índice no cabeçalho do Windows** (0–2 são as funções básicas de COM).
   - A lista de exclusão é `SEM_SOM_DE`, em `desktop/main.js`.
+- **Atualização automática** (`atualizarSeHouver()`, com `electron-updater`):
+  - Ao abrir, antes da janela principal, o app confere o `latest.yml` da última release do GitHub (`build.publish` no `desktop/package.json`), com prazo de 6 s.
+  - Havendo versão nova, mostra a janelinha `atualizando.html`, baixa e chama `quitAndInstall(true, true)`: instala sem tela e reabre o app.
+  - Sem internet, sem versão nova ou com erro, segue abrindo normal; a próxima abertura tenta de novo.
+  - Só no app instalado: em desenvolvimento (`!app.isPackaged`) e na versão portátil (`PORTABLE_EXECUTABLE_DIR`) não faz nada.
+  - **Não feche o aviso antes de criar a janela principal**: sem janelas, o `window-all-closed` encerra o app.
+  - O app não é assinado: o updater confere só o SHA-512 do `latest.yml`. Não configure `publisherName`, ou toda atualização vai falhar.
 
 ## Como testar (sem câmera nem jogo)
 
@@ -190,5 +197,6 @@ As janelas que ninguém fotografa rodam a 4 quadros por segundo, e os amigos fic
   3. crie e envie a marca: `git tag vX.Y.Z` e `git push origin vX.Y.Z`.
   - O workflow `.github/workflows/release.yml` (máquina `windows-latest`) confere se a marca bate com a versão, roda `npm ci` e `npm run instalador` em `desktop/` e cria a release com os dois `.exe` (se a release já existir, só troca os arquivos).
   - O `npm run instalador` usa `--publish never`: quem publica é o `gh` do workflow, não o electron-builder.
+  - **A release precisa ter o `latest.yml` e o `Ozamigos-Instalador-X.Y.Z.exe.blockmap`**, além dos `.exe`: sem eles, nenhum app instalado se atualiza. O workflow já envia os quatro.
   - Para refazer os arquivos de uma release que já existe: aba *Actions* → *Release do app* → *Run workflow*, escolhendo a tag em *Use workflow from* (`gh workflow run release.yml --ref vX.Y.Z`).
   - O repositório é público, então o Actions não tem custo. Mesmo assim, não cadastre forma de pagamento: o dono não aceita nenhum risco de cobrança.
