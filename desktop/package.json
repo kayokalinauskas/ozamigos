@@ -7,7 +7,7 @@
   "license": "MIT",
   "main": "main.js",
   "ozamigos": {
-    "servidor": ""
+    "servidor": "https://ozamigos-share-app.onrender.com"
   },
   "scripts": {
     "start": "electron .",
