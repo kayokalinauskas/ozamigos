@@ -6,6 +6,11 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
+## [Não lançado]
+
+### Alterado
+- No logotipo, o "oz" da tecla passa a ter o mesmo tamanho e peso de "amigos" (com as letras do ícone, ficava maior). O ícone do app não muda. No site e na interface já vale; no app, entra na tela de início e na janela de atualização da próxima versão.
+
 ## [1.2.8] - 2026-10-13
 
 ### Alterado

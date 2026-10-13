@@ -193,7 +193,7 @@ code {
 }
 
 /* ===== Logo e avatar ===== */
-/* O logotipo: a tecla "oz" do ícone (o mesmo desenho, a borda verde é a lateral da tecla), seguida de "amigos". */
+/* O logotipo: a tecla do ícone (a borda verde é a lateral da tecla), com "oz" do tamanho de "amigos", que vem logo depois. */
 .logo {
   display: flex;
   align-items: center;

@@ -147,7 +147,7 @@ img {
   margin-inline: auto;
 }
 
-/* ===== Logo (a tecla "oz" do ícone, com o mesmo desenho, seguida de "amigos") ===== */
+/* ===== Logo (a tecla do ícone, com "oz" do tamanho de "amigos", que vem logo depois) ===== */
 .logo {
   display: inline-flex;
   align-items: center;
