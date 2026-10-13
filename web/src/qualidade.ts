@@ -23,3 +23,16 @@ export const QUALIDADE_PADRAO: Qualidade = 'nitida';
 export function ehQualidade(valor: string): valor is Qualidade {
   return Object.hasOwn(QUALIDADES, valor);
 }
+
+/**
+ * Os fps que a captura está entregando, quando ficam abaixo do que a qualidade pede (com folga de 15%),
+ * ou null se está tudo certo ou ainda não há medição (a captura só é medida com alguém assistindo).
+ * Nada a ver com a internet: é o PC de quem transmite copiando a imagem do jogo mais devagar.
+ * Medido com o Path of Exile: ~21 fps de captura numa qualidade de 30, com a placa de vídeo folgada ou não.
+ */
+export function capturaAbaixo(capturas: (number | null)[], qualidade: Qualidade): number | null {
+  const medidas = capturas.filter((fps): fps is number => fps != null);
+  if (medidas.length === 0) return null;
+  const fps = Math.round(Math.max(...medidas));
+  return fps < QUALIDADES[qualidade].fps * 0.85 ? fps : null;
+}

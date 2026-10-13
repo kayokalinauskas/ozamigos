@@ -966,6 +966,26 @@ input[type='range']::-moz-range-thumb {
   gap: 10px;
 }
 
+.aviso-captura {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgb(255 193 69 / 0.4);
+  border-radius: var(--raio-pequeno);
+  background: rgb(255 193 69 / 0.1);
+  color: var(--medio);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.aviso-captura:hover {
+  background: rgb(255 193 69 / 0.18);
+}
+
 .seletor-qualidade {
   display: flex;
   align-items: center;

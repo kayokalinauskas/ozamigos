@@ -1,16 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppWindow, ChartColumn, ChevronUp, Monitor, MonitorUp, MonitorX, RefreshCw } from 'lucide-react';
+import { AppWindow, ChartColumn, ChevronUp, Monitor, MonitorUp, MonitorX, RefreshCw, TriangleAlert } from 'lucide-react';
 import { cliente } from '../cliente';
 import { noApp } from '../ponte';
-import { QUALIDADES, ehQualidade } from '../qualidade';
+import { QUALIDADES, capturaAbaixo, ehQualidade } from '../qualidade';
 import { useCliente } from '../useCliente';
 
 type Props = { estatisticasAbertas: boolean; aoAlternarEstatisticas: () => void };
 
 export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props) {
-  const { minhaTela, qualidade } = useCliente();
+  const { minhaTela, qualidade, metricas } = useCliente();
   const podeCapturar = Boolean(navigator.mediaDevices?.getDisplayMedia);
   const transmitindo = minhaTela !== null;
+  const capturaBaixa = transmitindo
+    ? capturaAbaixo(
+        Object.values(metricas).filter((m) => m.canal === 'envio').map((m) => m.captura),
+        qualidade,
+      )
+    : null;
 
   return (
     <footer className="controles">
@@ -28,6 +34,16 @@ export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props
       </div>
 
       <div className="controles-grupo">
+        {capturaBaixa !== null && (
+          <button
+            type="button"
+            className="aviso-captura"
+            onClick={() => !estatisticasAbertas && aoAlternarEstatisticas()}
+            title={`Seu PC está copiando ${capturaBaixa} fps da imagem do jogo, menos do que a qualidade pede. Os amigos veem no máximo isso. Não é a internet. Clique para ver as estatísticas.`}
+          >
+            <TriangleAlert size={16} aria-hidden="true" /> Captura a {capturaBaixa} fps
+          </button>
+        )}
         <label className="seletor-qualidade">
           <span className="rotulo">Qualidade</span>
           <select

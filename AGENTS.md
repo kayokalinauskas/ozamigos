@@ -212,6 +212,7 @@ As janelas que ninguém fotografa rodam a 4 quadros por segundo, e os amigos fic
 - Na reconexão, a pessoa ganha outro id e é reconhecida pelo nome. Dois amigos com o mesmo nome podem confundir a volta automática.
 - Recarregar a página (Ctrl+R) não é reconexão: é uma entrada nova, e a volta automática a assistir não sobrevive a isso.
 - Salas em memória, num servidor só.
+- **Captura de alguns jogos fica abaixo do fps pedido.** Com o Path of Exile (RX 7800 XT, tela 2560×1440), a captura do Chromium entrega ~21 fps fixos, tanto da janela quanto da tela inteira, enquanto uma janela comum de 1920×1080 sai a 60 fps com o jogo aberto. Cada quadro do jogo custa ~23 ms para copiar, e o Chromium nunca deixa a captura ocupar mais da metade do tempo (`DesktopCaptureDevice`). Testado e **descartado** como causa ou solução: carga da placa de vídeo (95%, 79% e 57% dão os mesmos ~21 fps), limite de fps do jogo, iluminação global e sombras, prioridade de GPU alta (`D3DKMTSetProcessSchedulingPriorityClass`, A/B alternado: 21,5 contra 21,5), prioridade de processo e as chaves `AllowWgc*`. O app avisa (`capturaAbaixo` em `qualidade.ts`: "Captura a N fps" nos controles e a explicação nas estatísticas). Caminhos não testados: o modo de janela do jogo (planos de sobreposição/MPO, formato de 10 bits) e uma captura própria pelo auxiliar C# (Windows Graphics Capture sem o limite do Chromium).
 - O volume é lembrado por nome; dois amigos com o mesmo nome dividem a configuração.
 
 ## Fluxo de versão do app

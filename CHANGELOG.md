@@ -6,6 +6,16 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
+## [Não publicado]
+
+Só na interface: chega a todos no próximo push na `main`, sem versão nova do app.
+
+### Adicionado
+- Aviso "Captura a N fps" ao lado da qualidade quando o PC de quem transmite copia a imagem do jogo mais devagar do que a qualidade pede (os amigos veem no máximo esse fps). Clicar abre as estatísticas, que explicam que não é a internet.
+
+### Corrigido
+- As estatísticas diziam que captura baixa era "o jogo usando a placa de vídeo inteira". Medido com o Path of Exile, a captura ficou em ~21 fps com a placa a 95% e também a 57%.
+
 ## [1.2.3] - 2026-10-12
 
 As melhorias da interface valem também para quem ainda está numa versão anterior (o app carrega a interface

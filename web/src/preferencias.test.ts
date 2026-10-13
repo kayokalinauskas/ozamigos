@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { lembrado, lembradoNumero, lembrar } from './armazenamento';
-import { QUALIDADES, QUALIDADE_PADRAO, ehQualidade } from './qualidade';
+import { QUALIDADES, QUALIDADE_PADRAO, capturaAbaixo, ehQualidade } from './qualidade';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -46,5 +46,15 @@ describe('qualidade', () => {
       expect(opcao.fps).toBeLessThanOrEqual(60);
       expect(opcao.bitrate).toBeLessThanOrEqual(8_000_000);
     }
+  });
+});
+
+describe('capturaAbaixo', () => {
+  it('avisa quando a captura fica abaixo do fps da qualidade', () => {
+    expect(capturaAbaixo([21.4], 'nitida')).toBe(21); // 1080p 30: o caso medido com o Path of Exile
+    expect(capturaAbaixo([29], 'nitida')).toBeNull(); // oscilação normal não avisa
+    expect(capturaAbaixo([45], 'maxima')).toBe(45);
+    expect(capturaAbaixo([null], 'nitida')).toBeNull(); // sem ninguém assistindo, não há medição
+    expect(capturaAbaixo([], 'nitida')).toBeNull();
   });
 });

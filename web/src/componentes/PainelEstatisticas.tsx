@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { cliente, type Metrica } from '../cliente';
+import { QUALIDADES, capturaAbaixo, type Qualidade } from '../qualidade';
 import { useCliente } from '../useCliente';
 
 const LIMITES: Record<string, { texto: string; dica?: string }> = {
@@ -20,9 +21,10 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   );
 }
 
-function Cartao({ m }: { m: Metrica }) {
+function Cartao({ m, qualidade }: { m: Metrica; qualidade: Qualidade }) {
   const enviando = m.canal === 'envio';
   const limite = m.limite ? LIMITES[m.limite] : null;
+  const capturaBaixa = enviando ? capturaAbaixo([m.captura], qualidade) : null;
   return (
     <article className="cartao-metrica">
       <h3>
@@ -38,13 +40,19 @@ function Cartao({ m }: { m: Metrica }) {
         {!enviando && <Linha rotulo="Congelamentos" valor={`${m.congelamentos} · quadros perdidos: ${m.perdidos}`} />}
         <Linha rotulo="Rede" valor={`${REDES[m.rede ?? ''] ?? '?'}${m.idaEVolta != null ? ` · ${m.idaEVolta} ms` : ''}`} />
       </dl>
+      {capturaBaixa !== null && (
+        <p className="dica">
+          Seu PC está copiando só {capturaBaixa} fps da imagem (a qualidade pede {QUALIDADES[qualidade].fps}), e é isso que os amigos veem. Não é a
+          internet: alguns jogos são mais lentos de capturar, mesmo com a placa de vídeo folgada.
+        </p>
+      )}
       {limite?.dica && <p className="dica">{limite.dica}</p>}
     </article>
   );
 }
 
 export function PainelEstatisticas({ aoFechar }: { aoFechar: () => void }) {
-  const { metricas, minhaTela } = useCliente();
+  const { metricas, minhaTela, qualidade } = useCliente();
   const lista = Object.values(metricas).sort((a, b) => a.canal.localeCompare(b.canal));
   return (
     <aside className="painel-estatisticas" aria-label="Estatísticas">
@@ -55,7 +63,7 @@ export function PainelEstatisticas({ aoFechar }: { aoFechar: () => void }) {
         </button>
       </header>
       {lista.map((m) => (
-        <Cartao key={`${m.canal}:${m.id}`} m={m} />
+        <Cartao key={`${m.canal}:${m.id}`} m={m} qualidade={qualidade} />
       ))}
       {lista.length === 0 && (
         <p className="ajuda">
@@ -65,8 +73,8 @@ export function PainelEstatisticas({ aoFechar }: { aoFechar: () => void }) {
         </p>
       )}
       <p className="ajuda">
-        Nos primeiros 15 a 25 segundos, a resolução sobe aos poucos: é o WebRTC medindo a internet. Se a captura estiver baixa, o problema
-        é o jogo usando a placa de vídeo inteira, não a rede.
+        Nos primeiros 15 a 25 segundos, a resolução sobe aos poucos: é o WebRTC medindo a internet. Se a captura estiver abaixo do fps da
+        qualidade, o limite está em copiar a imagem do jogo no PC de quem transmite, não na rede.
       </p>
     </aside>
   );
