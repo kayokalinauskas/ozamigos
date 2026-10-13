@@ -8,8 +8,9 @@
   html, body { margin: 0; background: transparent; }
 
   /* O logotipo: a tecla do ícone, com "oz" do tamanho de "amigos", que vem logo depois. */
-  .logo { display: inline-flex; align-items: center; padding: 6px; font-family: 'Sora'; font-weight: 600; font-size: 96px; letter-spacing: -0.02em; line-height: 1; }
-  .tecla-oz { flex: none; width: 1.65em; height: 1.65em; margin-right: 0.18em; }
+  .logo { display: inline-block; padding: 6px; font-family: 'Sora'; font-weight: 600; font-size: 96px; letter-spacing: -0.02em; line-height: 1; white-space: nowrap; }
+  /* A base do "oz" na base de "amigos" (a mesma regra de web/src/estilo.css). */
+  .tecla-oz { display: inline-block; width: 1.65em; height: 1.65em; margin-right: 0.18em; vertical-align: -0.641em; }
   /* Tema escuro do GitHub: texto claro. */
   .tema-escuro .resto { color: #eef5e4; }
   /* Tema claro: texto quase preto. */

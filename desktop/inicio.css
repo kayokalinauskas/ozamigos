@@ -76,21 +76,24 @@ form {
 }
 
 .logo {
-  display: flex;
-  align-items: center;
+  display: block;
   margin: 0;
+  line-height: 1;
+  white-space: nowrap;
   font-family: 'Sora', sans-serif;
   font-size: 30px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
 
-/* A tecla "oz": o mesmo desenho do ícone. */
+/* A tecla entra na linha do texto, não centralizada pela caixa: a base do "oz" (y = 58,48 de 94 no desenho)
+   fica na base de "amigos", e a tecla desce abaixo da linha como a perna do "g". 0,641em = (95 - 58,48) / 94 × 1,65. */
 .tecla-oz {
-  flex: none;
+  display: inline-block;
   width: 1.65em;
   height: 1.65em;
   margin-right: 0.18em;
+  vertical-align: -0.641em;
 }
 
 p {

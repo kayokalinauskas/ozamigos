@@ -217,8 +217,9 @@ code {
 /* ===== Logo e avatar ===== */
 /* O logotipo: a tecla do ícone (a borda verde é a lateral da tecla), com "oz" do tamanho de "amigos", que vem logo depois. */
 .logo {
-  display: flex;
-  align-items: center;
+  display: block;
+  line-height: 1;
+  white-space: nowrap;
   font-family: 'Sora Variable', 'Inter Variable', sans-serif;
   font-size: 22px;
   font-weight: 600;
@@ -229,11 +230,14 @@ code {
   font-size: 30px;
 }
 
+/* A tecla entra na linha do texto, não centralizada pela caixa: a base do "oz" (y = 58,48 de 94 no desenho)
+   fica na base de "amigos", e a tecla desce abaixo da linha como a perna do "g". 0,641em = (95 - 58,48) / 94 × 1,65. */
 .tecla-oz {
-  flex: none;
+  display: inline-block;
   width: 1.65em;
   height: 1.65em;
   margin-right: 0.18em;
+  vertical-align: -0.641em;
 }
 
 .so-para-leitores {
