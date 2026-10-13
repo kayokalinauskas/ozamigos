@@ -70,6 +70,10 @@
       <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
       <symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
       <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+      <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol>
+      <symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></symbol>
+      <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
       <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
     </svg>
 
@@ -253,42 +257,53 @@
       </section>
 
       <section id="privacy" class="largura secao" aria-labelledby="privacy-title">
-        <h2 id="privacy-title">Privacy</h2>
-        <p class="secao-lead">No sign-up, no ads and no tracking. Neither this site nor the app uses cookies or analytics.</p>
-        <ul class="recursos privacidade">
+        <div class="dupla privacidade">
+          <div>
+            <h2 id="privacy-title">Privacy</h2>
+            <p class="secao-lead">Your data stays with you. Neither this site nor the app uses cookies or analytics.</p>
+            <ul class="garantias">
+            <li><svg class="icone" aria-hidden="true"><use href="#i-check" /></svg> No sign-up</li>
+            <li><svg class="icone" aria-hidden="true"><use href="#i-check" /></svg> No ads</li>
+            <li><svg class="icone" aria-hidden="true"><use href="#i-check" /></svg> No tracking</li>
+            </ul>
+          </div>
+          <ul class="privacidade-lista">
           <li>
-            <h3>On your computer</h3>
-            <p>
-              Your name, the group password and your preferences (volumes, quality and sounds) are stored only in your
-              browser or in the app, so you don't have to type them again.
-            </p>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-monitor" /></svg></span>
+            <div>
+              <h3>On your computer</h3>
+              <p>Your name, the group password and your preferences are stored only in your browser or in the app, so you don't have to type them again.</p>
+            </div>
           </li>
           <li>
-            <h3>On the server</h3>
-            <p>
-              The server checks the password and introduces the people in the room. Rooms live only in memory and disappear
-              when everyone leaves. The technical log keeps the room code and a connection number, with no name and no
-              password.
-            </p>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-server" /></svg></span>
+            <div>
+              <h3>On the server</h3>
+              <p>It checks the password and introduces the people in the room. Rooms live only in memory and disappear when everyone leaves; the technical log has no name and no password.</p>
+            </div>
           </li>
           <li>
-            <h3>Between PCs</h3>
-            <p>
-              Video and audio go straight from one PC to the other, always encrypted (WebRTC). As with any direct
-              connection, people in the room can see each other's IP address: use it with people you know.
-            </p>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-shield-check" /></svg></span>
+            <div>
+              <h3>Between PCs</h3>
+              <p>Video and audio go straight from one PC to the other, always encrypted. As with any direct connection, people in the room can see each other's IP: use it with people you know.</p>
+            </div>
           </li>
-        </ul>
+          </ul>
+        </div>
         <p class="nota">
-          Like any website, the services that host Ozamigos (GitHub and Render) and the Google server that helps PCs find each
-          other (STUN) receive the IP address of whoever connects. The code is open, so you can check all of this
-          <a href="https://github.com/kayokalinauskas/ozamigos">on GitHub</a>.
+          <svg class="icone" aria-hidden="true"><use href="#i-info" /></svg>
+          <span>Like any website, GitHub, Render and the Google server that helps PCs find each other (STUN) receive the IP address of whoever connects. The code is open: <a href="https://github.com/kayokalinauskas/ozamigos">check it on GitHub</a>.</span>
         </p>
       </section>
 
-      <section id="faq" class="largura secao estreita" aria-labelledby="faq-title">
-        <h2 id="faq-title">FAQ</h2>
-        <div class="duvidas">
+      <section id="faq" class="largura secao" aria-labelledby="faq-title">
+        <div class="dupla dupla-topo">
+          <div>
+            <h2 id="faq-title">FAQ</h2>
+            <p class="secao-lead">Didn't find your answer? <a href="https://github.com/kayokalinauskas/ozamigos/issues/new/choose">Ask on GitHub</a>.</p>
+          </div>
+          <div class="duvidas">
           <details>
             <summary>Is the app in English?</summary>
             <p>
@@ -339,6 +354,7 @@
               to a minute; after that, it opens right away.
             </p>
           </details>
+          </div>
         </div>
       </section>
 

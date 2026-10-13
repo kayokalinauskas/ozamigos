@@ -70,6 +70,10 @@
       <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
       <symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
       <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+      <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol>
+      <symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></symbol>
+      <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
       <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
     </svg>
 
@@ -253,43 +257,53 @@
       </section>
 
       <section id="privacidade" class="largura secao" aria-labelledby="titulo-privacidade">
-        <h2 id="titulo-privacidade">Privacidade</h2>
-        <p class="secao-lead">
-          Sem cadastro, sem anúncios e sem rastreamento. Nem este site nem o app usam cookies ou ferramentas de análise.
-        </p>
-        <ul class="recursos privacidade">
+        <div class="dupla privacidade">
+          <div>
+            <h2 id="titulo-privacidade">Privacidade</h2>
+            <p class="secao-lead">Seus dados ficam com você. Nem este site nem o app usam cookies ou ferramentas de análise.</p>
+            <ul class="garantias">
+            <li><svg class="icone" aria-hidden="true"><use href="#i-check" /></svg> Sem cadastro</li>
+            <li><svg class="icone" aria-hidden="true"><use href="#i-check" /></svg> Sem anúncios</li>
+            <li><svg class="icone" aria-hidden="true"><use href="#i-check" /></svg> Sem rastreamento</li>
+            </ul>
+          </div>
+          <ul class="privacidade-lista">
           <li>
-            <h3>No seu computador</h3>
-            <p>
-              O nome, a senha do grupo e as preferências (volumes, qualidade e sons) ficam guardados só no seu navegador ou no
-              app, para você não digitar tudo de novo.
-            </p>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-monitor" /></svg></span>
+            <div>
+              <h3>No seu computador</h3>
+              <p>Nome, senha do grupo e preferências ficam guardados só no seu navegador ou no app, para você não digitar tudo de novo.</p>
+            </div>
           </li>
           <li>
-            <h3>No servidor</h3>
-            <p>
-              O servidor confere a senha e apresenta as pessoas da sala. As salas existem só na memória e somem quando todos
-              saem. O registro técnico guarda o código da sala e um número de conexão, sem nome e sem senha.
-            </p>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-server" /></svg></span>
+            <div>
+              <h3>No servidor</h3>
+              <p>Ele confere a senha e apresenta as pessoas da sala. As salas vivem só na memória e somem quando todos saem; o registro técnico não tem nome nem senha.</p>
+            </div>
           </li>
           <li>
-            <h3>Entre os PCs</h3>
-            <p>
-              O vídeo e o som vão direto de um PC para o outro, sempre criptografados (WebRTC). Como em toda conexão direta,
-              quem está na sala pode ver o endereço IP dos outros: use com quem você conhece.
-            </p>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-shield-check" /></svg></span>
+            <div>
+              <h3>Entre os PCs</h3>
+              <p>Vídeo e som vão direto de um PC para o outro, sempre criptografados. Como em toda conexão direta, quem está na sala vê o IP dos outros: use com quem você conhece.</p>
+            </div>
           </li>
-        </ul>
+          </ul>
+        </div>
         <p class="nota">
-          Como qualquer site, os serviços que hospedam o Ozamigos (GitHub e Render) e o servidor do Google que ajuda os PCs a
-          se encontrarem (STUN) recebem o endereço IP de quem acessa. O código é aberto: dá para conferir tudo isso
-          <a href="https://github.com/kayokalinauskas/ozamigos">no GitHub</a>.
+          <svg class="icone" aria-hidden="true"><use href="#i-info" /></svg>
+          <span>Como qualquer site, o GitHub, o Render e o servidor do Google que ajuda os PCs a se encontrarem (STUN) recebem o IP de quem acessa. O código é aberto: <a href="https://github.com/kayokalinauskas/ozamigos">confira no GitHub</a>.</span>
         </p>
       </section>
 
-      <section id="duvidas" class="largura secao estreita" aria-labelledby="titulo-duvidas">
-        <h2 id="titulo-duvidas">Dúvidas</h2>
-        <div class="duvidas">
+      <section id="duvidas" class="largura secao" aria-labelledby="titulo-duvidas">
+        <div class="dupla dupla-topo">
+          <div>
+            <h2 id="titulo-duvidas">Dúvidas</h2>
+            <p class="secao-lead">Não achou sua resposta? <a href="https://github.com/kayokalinauskas/ozamigos/issues/new/choose">Pergunte no GitHub</a>.</p>
+          </div>
+          <div class="duvidas">
           <details>
             <summary>O Windows disse que protegeu o computador. É seguro?</summary>
             <p>
@@ -333,6 +347,7 @@
               levar até um minuto; depois disso, abre na hora.
             </p>
           </details>
+          </div>
         </div>
       </section>
 
