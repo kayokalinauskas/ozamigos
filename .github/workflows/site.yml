@@ -26,6 +26,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # O Pages deixa o navegador guardar cada arquivo por 10 min. Sem isto, uma página guardada podia
+      # abrir com o CSS novo (de outra página) e quebrar o layout. Com a versão no endereço, cada HTML
+      # pede exatamente o CSS e o script com que foi publicado. A versão é o hash do conteúdo: se
+      # nada mudou, o cache continua valendo.
+      - name: Versionar o CSS e o script nas páginas
+        run: |
+          versao=$(cat site/estilo.css site/site.js | sha256sum | cut -c1-10)
+          find site -name '*.html' -exec sed -i -E "s/(estilo\.css|site\.js)\"/\1?v=$versao\"/g" {} +
+          grep -rhoE '(estilo\.css|site\.js)\?v=[0-9a-f]+' site --include='*.html' | sort | uniq -c
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

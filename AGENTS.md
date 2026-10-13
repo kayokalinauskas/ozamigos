@@ -113,6 +113,8 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - fora do Windows, põe "Usar no navegador" como botão principal;
   - faz um pedido pequeno ao Render para acordar o servidor gratuito.
 - Duas línguas: `site/index.html` (português) e `site/en/index.html` (inglês, com caminhos `../`). **Mudou o texto de uma, mude a outra.** As duas se ligam por `hreflang` e pelo botão PT/EN; o `site.js` lê o `lang` da página. O app em si continua só em português (o FAQ em inglês avisa).
+- **Confira as duas línguas antes de dizer que terminou**: abra `/` e `/en/` (ou tire foto das duas) depois de qualquer mudança no site.
+- Cache: o Pages guarda cada arquivo por 10 min no navegador. O `site.yml` põe `?v=<hash>` no `estilo.css` e no `site.js` de cada HTML na publicação, para uma página guardada nunca abrir com o CSS de outra versão. No código-fonte, os links ficam sem `?v=`. Ao conferir o site publicado, recarregue com Ctrl+F5 ou use `?nc=<número>` no endereço.
 - Seção de privacidade: se o servidor passar a registrar ou guardar algo novo (nome, IP, mensagens), atualize o texto nas duas línguas.
 - Imagens em WebP (640, 800, 1200 e 1600 px, com `srcset`), geradas de `docs/imagens/*.png`. Fontes Inter e Sora (só latin) em `site/fontes/`, com as licenças OFL. Ícones: sprite SVG do Lucide no próprio HTML.
 - Mudou a captura de tela? Gere de novo o WebP; não coloque PNG grande no site.
