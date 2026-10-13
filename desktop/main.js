@@ -12,6 +12,11 @@ const path = require('node:path');
 // e cada um perderia o servidor, o nome, a senha e os volumes: por isso a pasta continua a antiga.
 app.setPath('userData', path.join(app.getPath('appData'), 'Ozamigos Share'));
 
+// O codificador de vídeo da placa passa um pouco do alvo em cenas cheias de efeito, e o WebRTC respondia
+// jogando fora os quadros seguintes: a transmissão engasgava (5 a 9 fps por um segundo) com a captura em 21.
+// Medido com o Path of Exile: sem esse descarte, os fps enviados acompanham a captura.
+app.commandLine.appendSwitch('force-fieldtrials', 'WebRTC-FrameDropper/Disabled/');
+
 const SERVIDOR_PADRAO = process.env.OZAMIGOS_SERVIDOR || require('./package.json').ozamigos.servidor || '';
 // Endereços oficiais que já foram desligados. Quem os tiver guardado volta sozinho para o padrão.
 const SERVIDORES_APOSENTADOS = new Set(['https://ozamigos-share-app.onrender.com']);

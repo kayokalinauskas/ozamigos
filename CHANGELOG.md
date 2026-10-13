@@ -8,13 +8,15 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não publicado]
 
-Só na interface: chega a todos no próximo push na `main`, sem versão nova do app.
+A interface chega a todos no próximo push na `main`; o descarte de quadros depende de uma versão nova do app.
 
 ### Adicionado
 - **Relatório da sessão.** Nas estatísticas, "Salvar relatório" baixa um arquivo com as medidas de cada segundo (fps, resolução, Mbps, captura, congelamentos, rede) e o que aconteceu na sessão (quem entrou, quedas, trocas de qualidade, conexões refeitas). Serve para entender depois um travamento.
 - Aviso "Captura a N fps" ao lado da qualidade quando o PC de quem transmite copia a imagem do jogo mais devagar do que a qualidade pede (os amigos veem no máximo esse fps). Clicar abre as estatísticas, que explicam que não é a internet.
 
 ### Corrigido
+- **Engasgos de 1 segundo em 1080p.** Em cenas pesadas, o codificador da placa passava um pouco do alvo e o WebRTC jogava fora os quadros seguintes: quem assistia via 5 a 9 fps por um instante, com a captura estável em 21. O app não descarta mais esses quadros (só no app, não no navegador).
+- A "1080p · 30 fps" caía para 720p numa queda curta da internet (comum no Wi-Fi) e demorava quase dois minutos para voltar. Agora fica sempre em 1080p; se a internet apertar, a imagem perde um pouco de nitidez, mas não de tamanho.
 - As estatísticas diziam que captura baixa era "o jogo usando a placa de vídeo inteira". Medido com o Path of Exile, a captura ficou em ~21 fps com a placa a 95% e também a 57%.
 
 ## [1.2.3] - 2026-10-12
