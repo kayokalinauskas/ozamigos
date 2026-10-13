@@ -1,6 +1,6 @@
 # Etapa 1: monta a interface (React + TypeScript) com o Node.
 # O build grava em ../src/main/resources/static, a pasta que o Spring serve.
-FROM node:22-alpine AS interface
+FROM node:26-alpine AS interface
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
