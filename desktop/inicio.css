@@ -67,19 +67,12 @@ form {
   letter-spacing: -0.02em;
 }
 
-/* "O" e "Z" em teclas de teclado, como no ícone. */
-.tecla {
-  display: inline-grid;
-  place-items: center;
-  min-width: 1.2em;
-  height: 1.3em;
-  margin-right: 0.12em;
-  padding: 0 0.14em;
-  border-bottom: 0.14em solid var(--destaque);
-  border-radius: 0.26em;
-  background: var(--painel-3);
-  line-height: 1;
-  letter-spacing: 0;
+/* A tecla "Oz": o mesmo desenho do ícone. */
+.tecla-oz {
+  flex: none;
+  width: 1.5em;
+  height: 1.48em;
+  margin-right: 0.16em;
 }
 
 p {

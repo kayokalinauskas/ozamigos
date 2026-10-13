@@ -193,7 +193,7 @@ code {
 }
 
 /* ===== Logo e avatar ===== */
-/* O logotipo: "O" e "Z" em teclas de teclado (a borda verde é a lateral da tecla), seguidos de "amigos". */
+/* O logotipo: a tecla "Oz" do ícone (o mesmo desenho, a borda verde é a lateral da tecla), seguida de "amigos". */
 .logo {
   display: flex;
   align-items: center;
@@ -207,22 +207,11 @@ code {
   font-size: 30px;
 }
 
-.tecla {
-  display: inline-grid;
-  place-items: center;
-  min-width: 1.2em;
-  height: 1.3em;
-  margin-right: 0.12em;
-  padding: 0 0.14em;
-  border-bottom: 0.14em solid var(--destaque);
-  border-radius: 0.26em;
-  background: var(--painel-3);
-  line-height: 1;
-  letter-spacing: 0;
-}
-
-.tecla + span:not(.tecla) {
-  margin-left: 0.04em;
+.tecla-oz {
+  flex: none;
+  width: 1.5em;
+  height: 1.48em;
+  margin-right: 0.16em;
 }
 
 .so-para-leitores {
