@@ -11,6 +11,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 Só na interface: chega a todos no próximo push na `main`, sem versão nova do app.
 
 ### Adicionado
+- **Relatório da sessão.** Nas estatísticas, "Salvar relatório" baixa um arquivo com as medidas de cada segundo (fps, resolução, Mbps, captura, congelamentos, rede) e o que aconteceu na sessão (quem entrou, quedas, trocas de qualidade, conexões refeitas). Serve para entender depois um travamento.
 - Aviso "Captura a N fps" ao lado da qualidade quando o PC de quem transmite copia a imagem do jogo mais devagar do que a qualidade pede (os amigos veem no máximo esse fps). Clicar abre as estatísticas, que explicam que não é a internet.
 
 ### Corrigido

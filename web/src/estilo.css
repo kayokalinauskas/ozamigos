@@ -1096,6 +1096,10 @@ input[type='range']::-moz-range-thumb {
   font-variant-numeric: tabular-nums;
 }
 
+.salvar-relatorio {
+  align-self: flex-start;
+}
+
 .dica {
   margin-top: 8px;
   color: #ffd98a;

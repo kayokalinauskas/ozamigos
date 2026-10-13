@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { Download, X } from 'lucide-react';
 import { cliente, type Metrica } from '../cliente';
 import { QUALIDADES, capturaAbaixo, type Qualidade } from '../qualidade';
 import { useCliente } from '../useCliente';
@@ -51,6 +51,18 @@ function Cartao({ m, qualidade }: { m: Metrica; qualidade: Qualidade }) {
   );
 }
 
+/** Baixa o relatório da sessão (medidas de cada segundo e acontecimentos) num arquivo JSON. */
+function salvarRelatorio() {
+  const relatorio = cliente.relatorio();
+  const quando = relatorio.geradoEm.slice(0, 16).replace(/[T:]/g, '-');
+  const arquivo = new Blob([JSON.stringify(relatorio, null, 1)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(arquivo);
+  link.download = `ozamigos-relatorio-${relatorio.eu}-${quando}.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+}
+
 export function PainelEstatisticas({ aoFechar }: { aoFechar: () => void }) {
   const { metricas, minhaTela, qualidade } = useCliente();
   const lista = Object.values(metricas).sort((a, b) => a.canal.localeCompare(b.canal));
@@ -72,6 +84,13 @@ export function PainelEstatisticas({ aoFechar }: { aoFechar: () => void }) {
             : 'Os números aparecem quando você assiste ou transmite.'}
         </p>
       )}
+      <button type="button" className="botao botao-secundario botao-pequeno salvar-relatorio" onClick={salvarRelatorio}>
+        <Download size={14} /> Salvar relatório
+      </button>
+      <p className="ajuda">
+        O relatório traz as medidas de cada segundo e o que aconteceu na sessão (quem entrou, quedas, trocas de qualidade). Serve para
+        entender depois um travamento.
+      </p>
       <p className="ajuda">
         Nos primeiros 15 a 25 segundos, a resolução sobe aos poucos: é o WebRTC medindo a internet. Se a captura estiver abaixo do fps da
         qualidade, o limite está em copiar a imagem do jogo no PC de quem transmite, não na rede.

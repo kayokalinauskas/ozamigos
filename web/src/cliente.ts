@@ -4,7 +4,7 @@
 import { lembrado, lembrar } from './armazenamento';
 import { QUALIDADES, QUALIDADE_PADRAO, ehQualidade, type Qualidade } from './qualidade';
 import { tocar } from './sons';
-import { noApp, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';
+import { noApp, ponte, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';
 import { pararSomDoApp, trilhaDoSomDoApp } from './somDoApp';
 
 // STUN: servidores públicos que dizem ao navegador qual é o seu endereço visto da internet.
@@ -76,6 +76,11 @@ const SILENCIO_MAXIMO = 70_000;
 const JANELA_DE_VOLTA = 120_000;
 // Conexão de vídeo "desconectada" por mais que isso é refeita (antes ficava congelada até desistir).
 const ESPERA_DESCONECTADO = 2_000;
+// O relatório guarda as últimas linhas (medidas de cada segundo e acontecimentos): umas 2 horas com 2 conexões.
+const LIMITE_DO_RELATORIO = 15_000;
+
+/** Uma linha do relatório: uma medida de uma conexão, ou um acontecimento. */
+export type LinhaDoRelatorio = { momento: string } & ({ evento: string } | ({ medida: string } & Omit<Metrica, 'id'>));
 
 export function codigoValido(codigo: string): boolean {
   return /^[A-Za-z0-9]{6,20}$/.test(codigo);
@@ -121,6 +126,7 @@ class Cliente {
   private readonly anteriores = new Map<string, { bytes: number; momento: number }>();
   private readonly historicoDeCongelamentos = new Map<string, number[]>();
   private readonly tentativasDeVideo = new Map<string, number>(); // id -> conexões de vídeo refeitas seguidas
+  private readonly linhasDoRelatorio: LinhaDoRelatorio[] = [];
 
   constructor() {
     const daUrl = new URLSearchParams(location.search).get('sala');
@@ -183,6 +189,7 @@ class Cliente {
   // ===== Avisos (os "toasts" do canto da tela) =====
 
   avisar(texto: string, tipo: Aviso['tipo'] = 'info', acao?: Aviso['acao']) {
+    this.registrar(tipo === 'erro' ? `erro: ${texto}` : texto); // todo aviso da tela também vai para o relatório
     const aviso: Aviso = { id: this.proximoAviso++, texto, tipo, acao };
     this.mudar({ avisos: [...this.estado.avisos, aviso].slice(-4) });
     setTimeout(() => this.dispensar(aviso.id), acao ? 10_000 : 5_000);
@@ -190,6 +197,32 @@ class Cliente {
 
   dispensar(id: number) {
     this.mudar({ avisos: this.estado.avisos.filter((a) => a.id !== id) });
+  }
+
+  // ===== Relatório (para entender depois o que aconteceu numa sessão com os amigos) =====
+
+  private registrar(evento: string) {
+    this.guardarLinha({ momento: new Date().toISOString(), evento });
+  }
+
+  private guardarLinha(linha: LinhaDoRelatorio) {
+    this.linhasDoRelatorio.push(linha);
+    if (this.linhasDoRelatorio.length > LIMITE_DO_RELATORIO) this.linhasDoRelatorio.shift();
+  }
+
+  /** Tudo o que foi medido e aconteceu nesta sessão, com o contexto para ler depois. */
+  relatorio() {
+    return {
+      geradoEm: new Date().toISOString(),
+      sala: this.estado.sala,
+      eu: this.estado.meuNome,
+      app: noApp ? `app ${ponte?.versao ?? '?'}` : 'navegador',
+      navegador: navigator.userAgent,
+      tela: `${screen.width}x${screen.height} @${devicePixelRatio}`,
+      qualidade: this.estado.qualidade,
+      transmitindo: this.estado.minhaTela ? this.descreverFonte() : null,
+      linhas: this.linhasDoRelatorio,
+    };
   }
 
   /** Notificação do Windows, só quando a janela não está em foco (senão o aviso na tela basta). */
@@ -267,6 +300,7 @@ class Cliente {
       antiga.close();
     }
     if (!this.estado.conexaoPerdida) {
+      this.registrar('caiu a conexão com o servidor');
       this.tentativas = 0;
       this.mudar({ conexaoPerdida: true });
     }
@@ -356,6 +390,7 @@ class Cliente {
           this.voltei(msg);
           break;
         }
+        this.registrar(`entrei na sala ${this.estado.sala} como ${this.estado.meuNome}`);
         lembrar('ozamigos-nome', this.nome);
         lembrar('ozamigos-senha', this.senha);
         this.mudar({
@@ -489,11 +524,13 @@ class Cliente {
 
   assistir(id: string) {
     if (this.estado.assistindo.includes(id)) return;
+    this.registrar(`assistir ${this.nomeDe(id)}`);
     this.mudar({ assistindo: [...this.estado.assistindo, id] });
     this.enviar({ tipo: 'assistir', para: id });
   }
 
   deixarDeAssistir(id: string) {
+    this.registrar(`parar de assistir ${this.nomeDe(id)}`);
     this.mudar({ assistindo: this.estado.assistindo.filter((outro) => outro !== id) });
     this.fecharConexao('recebimento', id);
     this.enviar({ tipo: 'deixar', para: id });
@@ -567,6 +604,8 @@ class Cliente {
     tela.getAudioTracks().forEach((audio) => (audio.contentHint = 'music'));
     video.onended = () => this.pararDeTransmitir(true); // botão "Parar compartilhamento" do navegador
     this.mudar({ minhaTela: tela });
+    const { width, height, frameRate } = video.getSettings();
+    this.registrar(`transmitindo: ${this.descreverFonte()}, captura ${width}x${height} @${frameRate}`);
   }
 
   // Troca o que está sendo transmitido sem refazer as conexões:
@@ -592,6 +631,7 @@ class Cliente {
   pararDeTransmitir(avisarServidor: boolean) {
     const { minhaTela, meuId } = this.estado;
     if (!minhaTela) return;
+    this.registrar('parei de transmitir');
     minhaTela.getTracks().forEach((trilha) => trilha.stop());
     if (noApp) pararSomDoApp();
     for (const { canal, id } of [...this.conexoes.values()]) {
@@ -619,6 +659,7 @@ class Cliente {
   // ===== Qualidade =====
 
   async mudarQualidade(qualidade: Qualidade) {
+    this.registrar(`qualidade: ${qualidade}`);
     lembrar('ozamigos-qualidade', qualidade);
     this.mudar({ qualidade });
     await this.aplicarQualidade();
@@ -693,6 +734,7 @@ class Cliente {
     let espera: ReturnType<typeof setTimeout> | undefined;
     pc.onconnectionstatechange = () => {
       console.log(`Conexão de ${canal} com ${idRemoto}: ${pc.connectionState}`);
+      this.registrar(`conexão de ${canal} com ${this.nomeDe(idRemoto)}: ${pc.connectionState}`);
       if (canal !== 'recebimento') return;
       clearTimeout(espera);
       if (pc.connectionState === 'connected') {
@@ -732,6 +774,7 @@ class Cliente {
       return;
     }
     this.tentativasDeVideo.set(id, tentativas);
+    this.registrar(`refazendo o vídeo de ${this.nomeDe(id)} (tentativa ${tentativas})`);
     this.pedirVideoDeNovo(id);
   }
 
@@ -904,6 +947,8 @@ class Cliente {
       });
     }
     this.mudar({ metricas });
+    const momento = new Date().toISOString();
+    for (const { id, ...medida } of Object.values(metricas)) this.guardarLinha({ momento, medida: this.nomeDe(id), ...medida });
   }
 }
 
