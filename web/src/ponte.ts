@@ -44,3 +44,18 @@ export function responderFonte(escolha: EscolhaDeFonte | null) {
 export function resultadoDaUltimaEscolha() {
   return ultimaEscolha;
 }
+
+// O app leva uns 0,4 s para listar janelas e telas. O seletor abre já no clique, com espaços
+// reservados, e as miniaturas entram quando chegam: o botão nunca parece não ter respondido.
+const ouvintesDoCarregamento = new Set<(carregando: boolean) => void>();
+
+export function seletorCarregando(carregando: boolean) {
+  ouvintesDoCarregamento.forEach((ouvinte) => ouvinte(carregando));
+}
+
+export function aoCarregarSeletor(ouvinte: (carregando: boolean) => void) {
+  ouvintesDoCarregamento.add(ouvinte);
+  return () => {
+    ouvintesDoCarregamento.delete(ouvinte);
+  };
+}

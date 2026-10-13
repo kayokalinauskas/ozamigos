@@ -6,6 +6,20 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
+## [Não publicado]
+
+As melhorias da interface chegam a todos no próximo push na `main` (o app carrega a interface do servidor);
+só as miniaturas em JPEG dependem de uma versão nova do app.
+
+### Alterado
+- O seletor de janelas e telas abre já no clique em Transmitir, com espaços reservados, e as miniaturas entram quando o app termina de listar (cerca de 0,5 s). As miniaturas agora são JPEG: 10 vezes mais rápidas de gerar e um terço do tamanho.
+- A captura já sai no tamanho da qualidade escolhida (por exemplo, 1280×720 em "720p"). Antes, cada amigo assistindo tinha o seu codificador reduzindo a mesma imagem, e o tamanho ficava errado se a janela do jogo mudasse no meio da transmissão.
+- O som da transmissão pelo navegador vai sem cancelamento de eco, redução de ruído e controle de volume, que são feitos para voz e estragam som de jogo.
+
+### Corrigido
+- Quem transmitia congelava por até 1,6 s quando o primeiro amigo clicava em Assistir (o WebRTC consultava a placa de vídeo na hora), e o som do PC picotava nesse momento. Agora essa consulta é feita logo ao entrar na sala.
+- Uma transmissão que caía por oscilação de rede ficava congelada para sempre. Agora quem assiste pede o vídeo de novo sozinho (até 3 vezes) e, se a rede não deixar conectar, o aviso traz o botão "Tentar de novo".
+
 ## [1.2.2] - 2026-10-12
 
 ### Corrigido

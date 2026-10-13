@@ -4,11 +4,12 @@
 import { lembrado, lembrar } from './armazenamento';
 import { QUALIDADES, QUALIDADE_PADRAO, ehQualidade, type Qualidade } from './qualidade';
 import { tocar } from './sons';
-import { noApp, resultadoDaUltimaEscolha } from './ponte';
+import { noApp, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';
 import { pararSomDoApp, trilhaDoSomDoApp } from './somDoApp';
 
-// STUN: um servidor público que diz ao navegador qual é o seu endereço visto da internet.
-const SERVIDORES_ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+// STUN: servidores públicos que dizem ao navegador qual é o seu endereço visto da internet.
+// Dois de empresas diferentes: se uma rede bloquear um, o outro responde.
+const SERVIDORES_ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
 
 export const LIMITE_POR_SALA = 5;
 
@@ -73,6 +74,8 @@ const ESPERAS_PARA_RECONECTAR = [1_000, 2_000, 5_000, 10_000];
 const SILENCIO_MAXIMO = 70_000;
 // Quem volta dentro desse tempo com o mesmo nome é tratado como a mesma pessoa reconectando.
 const JANELA_DE_VOLTA = 120_000;
+// Conexão de vídeo "desconectada" por mais que isso é refeita (antes ficava congelada até desistir).
+const ESPERA_DESCONECTADO = 2_000;
 
 export function codigoValido(codigo: string): boolean {
   return /^[A-Za-z0-9]{6,20}$/.test(codigo);
@@ -117,6 +120,7 @@ class Cliente {
   private proximoAviso = 1;
   private readonly anteriores = new Map<string, { bytes: number; momento: number }>();
   private readonly historicoDeCongelamentos = new Map<string, number[]>();
+  private readonly tentativasDeVideo = new Map<string, number>(); // id -> conexões de vídeo refeitas seguidas
 
   constructor() {
     const daUrl = new URLSearchParams(location.search).get('sala');
@@ -364,6 +368,7 @@ class Cliente {
         if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
           void Notification.requestPermission().catch(() => undefined);
         }
+        aquecerWebRtc();
         break;
       }
       case 'entrou': {
@@ -513,7 +518,9 @@ class Cliente {
   }
 
   private async capturar(fonte: Fonte): Promise<MediaStream | null> {
+    if (noApp) seletorCarregando(true);
     const tela = await this.capturarDoNavegador(fonte);
+    if (noApp) seletorCarregando(false); // se o app recusou antes de mostrar as fontes, o seletor fecha
     if (!tela || !noApp) return tela;
     // No app, o som do PC vem do auxiliar do Windows (sem o Discord e sem o próprio Ozamigos).
     const { somDoApp } = await resultadoDaUltimaEscolha();
@@ -533,17 +540,15 @@ class Cliente {
   }
 
   private async capturarDoNavegador(fonte: Fonte): Promise<MediaStream | null> {
-    const { fps } = QUALIDADES[this.estado.qualidade];
     const superficie = fonte === 'aplicativo' ? 'window' : fonte === 'tela' ? 'monitor' : undefined;
     try {
       return await navigator.mediaDevices.getDisplayMedia({
         video: {
           ...(superficie ? { displaySurface: superficie } : {}), // abre o seletor já na aba certa
-          width: { max: 1920 },
-          height: { max: 1080 },
-          frameRate: { ideal: fps, max: fps },
+          ...this.tamanhoDaCaptura(),
         },
-        audio: true, // áudio, se a pessoa marcar a opção
+        // Som de jogo é música, não voz: nada de cancelar eco, tirar ruído ou mexer no volume.
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
         // Opções que só o Chrome e o Edge conhecem (os outros ignoram):
         ...{
           monitorTypeSurfaces: fonte === 'aplicativo' ? 'exclude' : 'include',
@@ -559,6 +564,7 @@ class Cliente {
   private usarTela(tela: MediaStream) {
     const [video] = tela.getVideoTracks();
     video.contentHint = 'motion'; // jogo: priorizar movimento fluido em vez de nitidez de texto
+    tela.getAudioTracks().forEach((audio) => (audio.contentHint = 'music'));
     video.onended = () => this.pararDeTransmitir(true); // botão "Parar compartilhamento" do navegador
     this.mudar({ minhaTela: tela });
   }
@@ -618,31 +624,39 @@ class Cliente {
     await this.aplicarQualidade();
   }
 
-  // Os parâmetros do codificador para a qualidade escolhida. A escala é calculada pela altura
-  // real da captura: uma tela 1080p em "720p" é reduzida 1,5 vez; uma captura já pequena não é reduzida.
+  /**
+   * A captura já sai no tamanho e no fps da qualidade (o navegador reduz a imagem uma vez só, na placa
+   * de vídeo). Antes, cada amigo assistindo tinha o seu codificador reduzindo a mesma imagem, e a escala
+   * ficava errada se a janela do jogo mudasse de tamanho no meio da transmissão.
+   */
+  private tamanhoDaCaptura(): MediaTrackConstraints {
+    const { altura, fps } = QUALIDADES[this.estado.qualidade];
+    return {
+      width: { max: Math.round((altura * 16) / 9) },
+      height: { max: altura },
+      frameRate: { ideal: fps, max: fps },
+    };
+  }
+
+  // Os parâmetros do codificador para a qualidade escolhida (o tamanho vem da captura, sem escala aqui).
   private codificacao(): RTCRtpEncodingParameters {
     const qualidade = QUALIDADES[this.estado.qualidade];
-    const alturaCapturada = this.estado.minhaTela?.getVideoTracks()[0].getSettings().height ?? 1080;
     return {
       maxBitrate: qualidade.bitrate,
       maxFramerate: qualidade.fps,
-      scaleResolutionDownBy: Math.max(1, alturaCapturada / qualidade.altura),
+      scaleResolutionDownBy: 1,
     };
   }
 
   private async aplicarQualidade() {
     const qualidade = QUALIDADES[this.estado.qualidade];
-    // A captura acompanha o fps escolhido: a 30 fps, o navegador copia a tela metade das vezes.
+    // A captura acompanha a qualidade: a 30 fps, o navegador copia a tela metade das vezes; em 720p, já sai menor.
     const [trilha] = this.estado.minhaTela?.getVideoTracks() ?? [];
     if (trilha) {
       try {
-        await trilha.applyConstraints({
-          width: { max: 1920 },
-          height: { max: 1080 },
-          frameRate: { ideal: qualidade.fps, max: qualidade.fps },
-        });
+        await trilha.applyConstraints(this.tamanhoDaCaptura());
       } catch (erro) {
-        console.warn('Não foi possível mudar o fps da captura', erro);
+        console.warn('Não foi possível mudar o tamanho e o fps da captura', erro);
       }
     }
     for (const { pc, canal } of this.conexoes.values()) {
@@ -664,7 +678,8 @@ class Cliente {
   // ===== Conexões WebRTC =====
 
   private novaConexao(canal: Canal, idRemoto: string): Conexao {
-    const pc = new RTCPeerConnection({ iceServers: SERVIDORES_ICE });
+    // max-bundle: vídeo e som pelo mesmo caminho de rede (menos candidatos, conexão mais rápida).
+    const pc = new RTCPeerConnection({ iceServers: SERVIDORES_ICE, bundlePolicy: 'max-bundle' });
     const conexao: Conexao = { pc, pendentes: [], canal, id: idRemoto };
     this.conexoes.set(chave(canal, idRemoto), conexao);
 
@@ -673,13 +688,59 @@ class Cliente {
     pc.onicecandidate = (evento) => {
       if (evento.candidate) this.enviar({ tipo: 'candidato', para: idRemoto, canal, candidato: evento.candidate });
     };
+    // Quem assiste cuida de refazer a conexão que caiu; quem transmite só responde ao pedido novo.
+    let conectou = false;
+    let espera: ReturnType<typeof setTimeout> | undefined;
     pc.onconnectionstatechange = () => {
       console.log(`Conexão de ${canal} com ${idRemoto}: ${pc.connectionState}`);
-      if (pc.connectionState === 'failed') {
-        this.avisar(`Não foi possível conectar direto com ${this.nomeDe(idRemoto)}. Algumas redes exigem um servidor TURN.`, 'erro');
+      if (canal !== 'recebimento') return;
+      clearTimeout(espera);
+      if (pc.connectionState === 'connected') {
+        conectou = true;
+        this.tentativasDeVideo.delete(idRemoto);
+      } else if (pc.connectionState === 'disconnected') {
+        // Uma oscilação curta volta sozinha; parada por mais tempo, a imagem congelaria até o "failed" (uns 30 s).
+        espera = setTimeout(() => this.refazerVideo(idRemoto, pc, conectou), ESPERA_DESCONECTADO);
+      } else if (pc.connectionState === 'failed') {
+        this.refazerVideo(idRemoto, pc, conectou);
       }
     };
     return conexao;
+  }
+
+  /**
+   * A conexão de vídeo caiu (a rede de alguém oscilou): pede a transmissão de novo, sem ninguém clicar.
+   * Se nunca chegou a conectar, é a rede que não deixa (falta TURN): tenta uma vez só e avisa.
+   */
+  private refazerVideo(id: string, pc: RTCPeerConnection, conectou: boolean) {
+    if (this.conexoes.get(chave('recebimento', id))?.pc !== pc) return; // já foi trocada ou fechada
+    if (pc.connectionState !== 'disconnected' && pc.connectionState !== 'failed') return; // voltou sozinha
+    if (!this.estado.assistindo.includes(id) || !this.estado.transmitindo.includes(id)) return;
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      // Sem o servidor não dá para pedir de novo; e a conexão velha ainda pode voltar sozinha.
+      setTimeout(() => this.refazerVideo(id, pc, conectou), ESPERA_DESCONECTADO);
+      return;
+    }
+    const tentativas = (this.tentativasDeVideo.get(id) ?? 0) + 1;
+    this.fecharConexao('recebimento', id);
+    if (tentativas > (conectou ? 3 : 1)) {
+      this.tentativasDeVideo.delete(id);
+      this.avisar(`Não foi possível conectar direto com ${this.nomeDe(id)}. Algumas redes exigem um servidor TURN.`, 'erro', {
+        rotulo: 'Tentar de novo',
+        executar: () => this.pedirVideoDeNovo(id),
+      });
+      return;
+    }
+    this.tentativasDeVideo.set(id, tentativas);
+    this.pedirVideoDeNovo(id);
+  }
+
+  /** "deixar" e "assistir" seguidos: quem transmite fecha a conexão velha e manda uma oferta nova. */
+  private pedirVideoDeNovo(id: string) {
+    if (!this.estado.assistindo.includes(id)) return;
+    this.fecharConexao('recebimento', id);
+    this.enviar({ tipo: 'deixar', para: id });
+    this.enviar({ tipo: 'assistir', para: id });
   }
 
   private fecharConexao(canal: Canal, idRemoto: string) {
@@ -856,6 +917,22 @@ function opusEstereo(sdp: string): string {
   return sdp.replace(new RegExp(`(a=fmtp:${tipo} [^\\r\\n]*)`), (linha) =>
     linha.includes('stereo=1') ? linha : `${linha};stereo=1;sprop-stereo=1;maxaveragebitrate=128000`,
   );
+}
+
+/**
+ * O primeiro uso do WebRTC na página pergunta à placa de vídeo quais codecs ela tem, e isso trava a
+ * página por até 1,6 s (medido numa Radeon RX 7800 XT). Sem isto, a trava caía na hora em que o
+ * primeiro amigo clicava em Assistir: a interface congelava e o som do PC picotava logo no começo.
+ * Feito logo depois de entrar na sala, ninguém percebe, e as conexões seguintes já saem prontas.
+ */
+function aquecerWebRtc() {
+  setTimeout(() => {
+    try {
+      RTCRtpReceiver.getCapabilities('video');
+    } catch {
+      // navegador sem WebRTC completo: a conexão de verdade mostra o erro
+    }
+  }, 300);
 }
 
 // H.264 é o codec que quase toda placa de vídeo codifica em hardware.

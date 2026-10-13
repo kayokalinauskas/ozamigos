@@ -1215,6 +1215,43 @@ input[type='range']::-moz-range-thumb {
   white-space: nowrap;
 }
 
+/* Espaços reservados enquanto o app lista janelas e telas (o seletor abre já no clique). */
+.fonte-reservada {
+  cursor: default;
+}
+
+.fonte-reservada:hover {
+  background: var(--painel-2);
+}
+
+.fonte-reservada-imagem,
+.fonte-reservada-nome {
+  display: block;
+  border-radius: 6px;
+  background: var(--painel-3);
+  animation: pulsar 1.6s ease-in-out infinite;
+}
+
+.fonte-reservada-imagem {
+  aspect-ratio: 16 / 9;
+}
+
+.fonte-reservada-nome {
+  width: 60%;
+  height: 14px;
+  margin: 2px 0;
+}
+
+/* Lido pelo leitor de tela, invisível na tela. */
+.visualmente-escondido {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .caixa {
   display: flex;
   align-items: flex-start;
