@@ -90,10 +90,14 @@ async function transmitir(w, estilo) {
 
 const assistirPeloCodigo = (w, nome) => js(w, `document.querySelector('[aria-label="Assistir ${nome}"]')?.click();`);
 
+// Espera o elemento aparecer (até 6 s): com o PC ocupado, o aviso de "começou a transmitir" pode demorar.
 async function centro(w, seletor) {
-  const r = await js(w, `const e = document.querySelector(${JSON.stringify(seletor)}); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, l: b.left, w: b.width };`);
-  if (!r) throw new Error('não achei ' + seletor);
-  return r;
+  for (let tentativa = 0; tentativa < 30; tentativa++) {
+    const r = await js(w, `const e = document.querySelector(${JSON.stringify(seletor)}); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, l: b.left, w: b.width };`);
+    if (r) return r;
+    await espera(200);
+  }
+  throw new Error('não achei ' + seletor);
 }
 
 // Mouse de verdade (para :hover funcionar) e o cursor desenhado por cima, para o GIF.

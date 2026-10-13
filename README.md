@@ -492,6 +492,6 @@ O workflow [CI](.github/workflows/ci.yml) roda tudo isso em cada push na `main` 
 
 Distribuído sob a [licença MIT](LICENSE): pode usar, copiar, modificar e distribuir, inclusive para fins comerciais, desde que o aviso de copyright e a licença acompanhem as cópias. O software é fornecido sem garantia.
 
-**Marca:** a licença MIT vale para o código, não para a marca. O nome **Ozamigos**, o ícone "Tecla OZ" e o logotipo pertencem a kayokalinauskas. Se você publicar uma versão modificada, use outro nome e outro ícone, para ninguém confundir com o app original.
+**Marca:** a licença MIT vale para o código, não para a marca. O nome **Ozamigos**, o ícone "Tecla oz" e o logotipo pertencem a kayokalinauskas. Se você publicar uma versão modificada, use outro nome e outro ícone, para ninguém confundir com o app original.
 
 A fonte Sora, usada no logotipo, é distribuída sob a [SIL Open Font License 1.1](desktop/build/sora-licenca-OFL.txt).

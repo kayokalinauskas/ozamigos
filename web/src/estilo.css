@@ -193,12 +193,12 @@ code {
 }
 
 /* ===== Logo e avatar ===== */
-/* O logotipo: a tecla "Oz" do ícone (o mesmo desenho, a borda verde é a lateral da tecla), seguida de "amigos". */
+/* O logotipo: a tecla "oz" do ícone (o mesmo desenho, a borda verde é a lateral da tecla), seguida de "amigos". */
 .logo {
   display: flex;
   align-items: center;
   font-family: 'Sora Variable', 'Inter Variable', sans-serif;
-  font-size: 19px;
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -209,9 +209,9 @@ code {
 
 .tecla-oz {
   flex: none;
-  width: 1.5em;
-  height: 1.48em;
-  margin-right: 0.16em;
+  width: 1.65em;
+  height: 1.63em;
+  margin-right: 0.18em;
 }
 
 .so-para-leitores {

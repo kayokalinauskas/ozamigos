@@ -67,12 +67,12 @@ form {
   letter-spacing: -0.02em;
 }
 
-/* A tecla "Oz": o mesmo desenho do ícone. */
+/* A tecla "oz": o mesmo desenho do ícone. */
 .tecla-oz {
   flex: none;
-  width: 1.5em;
-  height: 1.48em;
-  margin-right: 0.16em;
+  width: 1.65em;
+  height: 1.63em;
+  margin-right: 0.18em;
 }
 
 p {

@@ -147,12 +147,12 @@ img {
   margin-inline: auto;
 }
 
-/* ===== Logo (a tecla "Oz" do ícone, com o mesmo desenho, seguida de "amigos") ===== */
+/* ===== Logo (a tecla "oz" do ícone, com o mesmo desenho, seguida de "amigos") ===== */
 .logo {
   display: inline-flex;
   align-items: center;
   font-family: var(--titulos);
-  font-size: 19px;
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--texto);
@@ -160,9 +160,9 @@ img {
 
 .tecla-oz {
   flex: none;
-  width: 1.5em;
-  height: 1.48em;
-  margin-right: 0.16em;
+  width: 1.65em;
+  height: 1.63em;
+  margin-right: 0.18em;
 }
 
 /* ===== Botões ===== */

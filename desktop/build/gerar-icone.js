@@ -1,5 +1,5 @@
-// Gera o ícone do app, o mesmo desenho de web/public/icone.svg: a tecla "OZ".
-// Uma tecla com a lateral verde-limão ocupando o ícone todo, o "O" claro e o "z" verde no canto.
+// Gera o ícone do app, o mesmo desenho de web/public/icone.svg: a tecla "oz".
+// Uma tecla com a lateral verde-limão ocupando o ícone todo e "oz" na fonte Sora (peso 700): o "o" claro e o "z" verde.
 // - build/icone.png (256x256): imagem de referência.
 // - build/icone.ico: cada tamanho que o Windows usa desenhado direto naquele tamanho. Encolher o PNG
 //   de 256 para os 16 pixels da barra de título deixava o desenho torto.
@@ -20,27 +20,59 @@ const retanguloArredondado = (x0, y0, largura, altura, raio) => (x, y) => {
   return (x - cx) ** 2 + (y - cy) ** 2 <= raio * raio;
 };
 
-const dentroDaElipse = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
-// Contorno de elipse com espessura constante: dentro da elipse de fora e fora da de dentro.
-const anelEliptico = (cx, cy, rx, ry, espessura) => (x, y) =>
-  dentroDaElipse(x, y, cx, cy, rx + espessura / 2, ry + espessura / 2) &&
-  !dentroDaElipse(x, y, cx, cy, rx - espessura / 2, ry - espessura / 2);
+// As letras "o" e "z" da Sora, peso 700, já em coordenadas do quadro de 96x96 (tamanho 50, centradas na tecla).
+// São os mesmos caminhos do icone.svg. Para refazer: contornos da fonte com o fontTools.
+const LETRA_O = 'M35.94 59.98Q32.32 59.98 29.52 58.85Q26.72 57.73 24.79 55.77Q22.85 53.81 21.85 51.29Q20.85 48.76 20.85 45.95V44.83Q20.85 41.94 21.89 39.37Q22.94 36.8 24.9 34.84Q26.86 32.89 29.66 31.77Q32.46 30.65 35.94 30.65Q39.45 30.65 42.23 31.77Q45.01 32.89 46.98 34.84Q48.94 36.8 49.98 39.37Q51.02 41.94 51.02 44.83V45.95Q51.02 48.76 50.02 51.29Q49.02 53.81 47.09 55.77Q45.15 57.73 42.35 58.85Q39.55 59.98 35.94 59.98ZM35.94 53.2Q38.26 53.2 39.83 52.19Q41.39 51.19 42.19 49.41Q43 47.62 43 45.39Q43 43.06 42.17 41.28Q41.34 39.5 39.76 38.46Q38.17 37.42 35.94 37.42Q33.71 37.42 32.12 38.46Q30.54 39.5 29.71 41.28Q28.88 43.06 28.88 45.39Q28.88 47.62 29.68 49.41Q30.49 51.19 32.07 52.19Q33.65 53.2 35.94 53.2Z';
+const LETRA_Z = 'M53.83 59V53.42L66.65 38V38.8L65.47 37.3L66.39 37.75H53.85V31.62H75.4V37.2L62.58 52.62V51.85L63.78 53.36L62.85 52.88H75.83V59Z';
 
-const distanciaAoSegmento = (x, y, [ax, ay], [bx, by]) => {
-  const t = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2)));
-  return Math.hypot(x - (ax + t * (bx - ax)), y - (ay + t * (by - ay)));
+/** Transforma um caminho SVG (só M, L, H, V, Q e Z absolutos) em polígonos, com as curvas em retas curtas. */
+function poligonos(caminho) {
+  const lista = [];
+  let atual = null;
+  let [x, y] = [0, 0];
+  for (const [, comando, numeros] of caminho.matchAll(/([MLHVQZ])([^MLHVQZ]*)/g)) {
+    const n = numeros.trim() ? numeros.trim().split(/[\s,]+/).map(Number) : [];
+    if (comando === 'M') lista.push((atual = [[(x = n[0]), (y = n[1])]]));
+    else if (comando === 'L') atual.push([(x = n[0]), (y = n[1])]);
+    else if (comando === 'H') atual.push([(x = n[0]), y]);
+    else if (comando === 'V') atual.push([x, (y = n[0])]);
+    else if (comando === 'Q') {
+      for (let t = 1; t <= 8; t++) {
+        const u = t / 8;
+        atual.push([(1 - u) ** 2 * x + 2 * (1 - u) * u * n[0] + u * u * n[2], (1 - u) ** 2 * y + 2 * (1 - u) * u * n[1] + u * u * n[3]]);
+      }
+      [x, y] = [n[2], n[3]];
+    }
+  }
+  return lista;
+}
+
+// Preenchimento "nonzero", como o do SVG: o furo do "o" tem o sentido contrário e fica de fora.
+const preenchido = (caminho) => {
+  const lista = poligonos(caminho);
+  return (px, py) => {
+    let voltas = 0;
+    for (const p of lista) {
+      for (let i = 0; i < p.length; i++) {
+        const [ax, ay] = p[i];
+        const [bx, by] = p[(i + 1) % p.length];
+        if ((ay <= py) !== (by <= py)) {
+          const xCruza = ax + ((py - ay) / (by - ay)) * (bx - ax);
+          if (xCruza > px) voltas += by > ay ? 1 : -1;
+        }
+      }
+    }
+    return voltas !== 0;
+  };
 };
-// Linha com pontas e cantos redondos passando pelos pontos (o "z").
-const traco = (pontos, espessura) => (x, y) =>
-  pontos.slice(1).some((ponto, i) => distanciaAoSegmento(x, y, pontos[i], ponto) <= espessura / 2);
 
 // Camadas de baixo para cima; a cor de cada amostra é a da camada mais alta que a cobre.
 // A tecla ocupa o ícone inteiro, sem placa de fundo: na barra de tarefas ela fica do tamanho dos outros ícones.
 const CAMADAS = [
   [retanguloArredondado(4, 5, 88, 87, 20), hex('#b6f24a')], // lateral da tecla
   [retanguloArredondado(9, 8, 78, 70, 16), hex('#2a3326')], // topo da tecla
-  [anelEliptico(37.6, 41.7, 15, 17.5, 8.5), hex('#eef9dc')], // "O"
-  [traco([[61, 52], [76.6, 52], [61, 66.4], [76.6, 66.4]], 4.7), hex('#b6f24a')], // "z"
+  [preenchido(LETRA_O), hex('#eef9dc')], // "o"
+  [preenchido(LETRA_Z), hex('#b6f24a')], // "z"
 ];
 
 function bloco(tipo, dados) {

@@ -6,6 +6,12 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
+## [1.2.7] - 2026-10-13
+
+### Alterado
+- Ícone e logotipo novos: a tecla agora traz "oz" em minúsculas, na mesma fonte de "amigos", com o "z" verde. O "z" pequeno no canto fazia o ícone parecer "O₂". Muda o ícone do atalho, da barra de tarefas, da janela e do instalador.
+- O logotipo ficou maior no site e na sala, para as letras da tecla não sumirem.
+
 ## [1.2.6] - 2026-10-13
 
 ### Alterado
@@ -110,6 +116,7 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
+[1.2.7]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.5...v1.2.6
 [1.2.5]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.4...v1.2.5
 [1.2.4]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.3...v1.2.4
