@@ -6,6 +6,11 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
+## [1.2.8] - 2026-10-13
+
+### Alterado
+- Ícone maior na barra de tarefas: a tecla passa a ocupar o quadro inteiro, sem cortar nada, e o "oz" cresceu. O Windows dá o mesmo espaço a todos os apps, e o ícone usava só o miolo dele.
+
 ## [1.2.7] - 2026-10-13
 
 ### Alterado
@@ -116,6 +121,7 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
+[1.2.8]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.7...v1.2.8
 [1.2.7]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.5...v1.2.6
 [1.2.5]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.4...v1.2.5
