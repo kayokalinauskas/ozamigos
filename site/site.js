@@ -6,6 +6,7 @@
   const API = 'https://api.github.com/repos/kayokalinauskas/ozamigos/releases/latest';
   const SERVIDOR = 'https://ozamigos.onrender.com/';
   const CHAVE = 'ozamigos-instalador';
+  const EM_INGLES = document.documentElement.lang.startsWith('en'); // a página em inglês (en/) usa o mesmo script
 
   const lerGuardado = () => {
     try {
@@ -64,7 +65,7 @@
         });
       });
       document.querySelectorAll('[data-versao]').forEach((campo) => {
-        campo.textContent = `Versão ${dados.versao} · ${dados.megabytes} MB · `;
+        campo.textContent = `${EM_INGLES ? 'Version' : 'Versão'} ${dados.versao} · ${dados.megabytes} MB · `;
       });
     })
     .catch(() => {

@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://kayokalinauskas.github.io/ozamigos/</loc>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://kayokalinauskas.github.io/ozamigos/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://kayokalinauskas.github.io/ozamigos/en/" />
+  </url>
+  <url>
+    <loc>https://kayokalinauskas.github.io/ozamigos/en/</loc>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://kayokalinauskas.github.io/ozamigos/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://kayokalinauskas.github.io/ozamigos/en/" />
   </url>
 </urlset>

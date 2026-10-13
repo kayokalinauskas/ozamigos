@@ -40,8 +40,8 @@ Deploy: Render (Docker). O `Dockerfile` tem 3 etapas: Node monta `web/`, o JDK c
 ```powershell
 # Interface (sempre que mexer em web/)
 cd web; npm install; npm run build; cd ..
-# Verificar tipos
-cd web; npm run typecheck; cd ..
+# Verificar tipos e rodar os testes da interface (Vitest, DOM simulado com happy-dom)
+cd web; npm run typecheck; npm test; cd ..
 # Servidor local
 $env:OZAMIGOS_SENHA = "teste"
 .\mvnw.cmd spring-boot:run
@@ -112,7 +112,9 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - troca o link pelo instalador direto, com versão e tamanho (API do GitHub, guardado 10 min no `sessionStorage`);
   - fora do Windows, põe "Usar no navegador" como botão principal;
   - faz um pedido pequeno ao Render para acordar o servidor gratuito.
-- Imagens em WebP (800 e 1600 px, com `srcset`), geradas de `docs/imagens/*.png`. Fontes Inter e Sora (só latin) em `site/fontes/`, com as licenças OFL. Ícones: sprite SVG do Lucide no próprio HTML.
+- Duas línguas: `site/index.html` (português) e `site/en/index.html` (inglês, com caminhos `../`). **Mudou o texto de uma, mude a outra.** As duas se ligam por `hreflang` e pelo botão PT/EN; o `site.js` lê o `lang` da página. O app em si continua só em português (o FAQ em inglês avisa).
+- Seção de privacidade: se o servidor passar a registrar ou guardar algo novo (nome, IP, mensagens), atualize o texto nas duas línguas.
+- Imagens em WebP (640, 800, 1200 e 1600 px, com `srcset`), geradas de `docs/imagens/*.png`. Fontes Inter e Sora (só latin) em `site/fontes/`, com as licenças OFL. Ícones: sprite SVG do Lucide no próprio HTML.
 - Mudou a captura de tela? Gere de novo o WebP; não coloque PNG grande no site.
 
 ### App Electron (`desktop/`)

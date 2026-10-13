@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ozamigos: stream your game to your friends</title>
+    <meta
+      name="description"
+      content="Stream your game to your friends in up to 1080p, straight from one PC to another. Password-protected rooms, several streams at once and game audio without the Discord echo. Free, for Windows and the browser."
+    />
+    <link rel="canonical" href="https://kayokalinauskas.github.io/ozamigos/en/" />
+    <link rel="alternate" hreflang="pt-BR" href="https://kayokalinauskas.github.io/ozamigos/" />
+    <link rel="alternate" hreflang="en" href="https://kayokalinauskas.github.io/ozamigos/en/" />
+    <link rel="alternate" hreflang="x-default" href="https://kayokalinauskas.github.io/ozamigos/" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0b0e0a" />
+
+    <link rel="icon" href="../icone.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="../imagens/icone-180.png" />
+
+    <!-- Same assets as the Portuguese page (one folder up). -->
+    <link rel="preload" href="../fontes/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="../fontes/sora.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preconnect" href="https://ozamigos.onrender.com" />
+    <link rel="preconnect" href="https://api.github.com" crossorigin />
+    <link rel="stylesheet" href="../estilo.css" />
+    <script src="../site.js" defer></script>
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Ozamigos" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="pt_BR" />
+    <meta property="og:url" content="https://kayokalinauskas.github.io/ozamigos/en/" />
+    <meta property="og:title" content="Ozamigos: stream your game to your friends" />
+    <meta
+      property="og:description"
+      content="Up to 1080p, straight from one PC to another. Password-protected rooms and game audio without the Discord echo. Free, for Windows and the browser."
+    />
+    <meta property="og:image" content="https://kayokalinauskas.github.io/ozamigos/imagens/social.png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Ozamigos logo" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Ozamigos",
+        "description": "Stream your game to your friends in up to 1080p, straight from one PC to another.",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Windows 10, Windows 11",
+        "inLanguage": "pt-BR",
+        "url": "https://kayokalinauskas.github.io/ozamigos/en/",
+        "downloadUrl": "https://github.com/kayokalinauskas/ozamigos/releases/latest",
+        "image": "https://kayokalinauskas.github.io/ozamigos/imagens/sala-destaque-1600.webp",
+        "license": "https://opensource.org/licenses/MIT",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+      <symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></symbol>
+      <symbol id="i-volume-2" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></symbol>
+      <symbol id="i-picture-in-picture-2" viewBox="0 0 24 24"><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"/><rect width="10" height="7" x="12" y="13" rx="2"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+      <symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+      <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    </svg>
+
+    <a class="pular" href="#content">Skip to content</a>
+
+    <header class="topo">
+      <div class="largura topo-conteudo">
+        <a href="./" class="marca" aria-label="Ozamigos, home">
+          <span class="logo" aria-hidden="true"><span class="tecla">O</span><span class="tecla">Z</span><span>amigos</span></span>
+        </a>
+        <nav class="nav" aria-label="Sections">
+          <a href="#features">Features</a>
+          <a href="#how-it-works">How it works</a>
+          <a href="#faq">FAQ</a>
+        </nav>
+        <a class="idioma" href="../" hreflang="pt-BR" lang="pt-BR" aria-label="PT, versão em português">PT</a>
+        <a class="botao botao-secundario botao-pequeno" href="https://ozamigos.onrender.com/">
+          <svg class="icone" aria-hidden="true"><use href="#i-globe" /></svg> Open in browser
+        </a>
+      </div>
+    </header>
+
+    <main id="content">
+      <section class="largura heroi" aria-labelledby="hero-title">
+        <div class="heroi-texto">
+          <p class="selo">Free and open source</p>
+          <h1 id="hero-title">Stream your game <span class="realce">to your friends.</span></h1>
+          <p class="lead">
+            Up to 1080p at 60 fps, straight from one PC to another. Password-protected rooms, everyone streaming at the same
+            time and game audio without the Discord echo.
+          </p>
+          <div class="chamada">
+            <div class="chamada-botoes">
+              <a class="botao botao-grande botao-primario" data-baixar href="https://github.com/kayokalinauskas/ozamigos/releases/latest">
+                <svg class="icone" aria-hidden="true"><use href="#i-download" /></svg> Download for Windows
+              </a>
+              <a class="botao botao-grande botao-secundario" data-navegador href="https://ozamigos.onrender.com/">
+                <svg class="icone" aria-hidden="true"><use href="#i-globe" /></svg> Use in the browser
+              </a>
+            </div>
+            <p class="detalhes"><span data-versao></span>Windows 10 and 11, 64-bit</p>
+            <p class="depois" data-depois role="status" hidden>
+              Open the downloaded file. If Windows shows <b>“Windows protected your PC”</b>, click <b>More info</b> and then
+              <b>Run anyway</b>.
+            </p>
+          </div>
+        </div>
+        <figure class="moldura">
+          <div class="moldura-barra" aria-hidden="true"><span></span><span></span><span></span></div>
+          <img
+            src="../imagens/sala-destaque-1200.webp"
+            srcset="../imagens/sala-destaque-640.webp 640w, ../imagens/sala-destaque-800.webp 800w, ../imagens/sala-destaque-1200.webp 1200w, ../imagens/sala-destaque-1600.webp 1600w"
+            sizes="(max-width: 960px) calc(100vw - 32px), 640px"
+            width="1600"
+            height="900"
+            fetchpriority="high"
+            alt="An Ozamigos room: one stream in focus, the others on the side and who is live in the sidebar"
+          />
+        </figure>
+      </section>
+
+      <section id="features" class="largura secao" aria-labelledby="features-title">
+        <h2 id="features-title">Made for playing together</h2>
+        <p class="secao-lead">Everything your group needs to watch each other's matches, without the hassle.</p>
+        <ul class="recursos">
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-gauge" /></svg></span>
+            <h3>Up to 1080p at 60 fps</h3>
+            <p>Quality you can change live, with a health indicator and stats for every connection.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-users" /></svg></span>
+            <h3>Everyone streams at once</h3>
+            <p>Rooms of up to 5 people. Watch one or several streams, in a grid or with one in focus.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-volume-2" /></svg></span>
+            <h3>Audio without echo</h3>
+            <p>The app sends your PC audio without Discord, so your friends don't hear their own voices back.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-picture-in-picture-2" /></svg></span>
+            <h3>Floating window</h3>
+            <p>Pop a stream out into a small window that stays on top of your game.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-lock" /></svg></span>
+            <h3>Just for your group</h3>
+            <p>Rooms protected by the group password. Video goes straight from one PC to the other.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-refresh-cw" /></svg></span>
+            <h3>Always up to date</h3>
+            <p>The app updates itself when it opens and rejoins the room if your connection drops.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="largura secao dupla" aria-labelledby="compare-title">
+        <div>
+          <h2 id="compare-title">App or browser?</h2>
+          <p class="secao-lead">
+            Both join the same rooms. The Windows app does what the browser can't: it sends the game audio without your
+            Discord call mixed in.
+          </p>
+        </div>
+        <div class="tabela-rolagem">
+          <table class="tabela">
+            <thead>
+              <tr>
+                <th scope="col"><span class="so-para-leitores">Feature</span></th>
+                <th scope="col">Windows app</th>
+                <th scope="col">Browser</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Watch and stream in up to 1080p</th>
+                <td><svg class="icone sim" role="img" aria-label="Yes"><use href="#i-check" /></svg></td>
+                <td><svg class="icone sim" role="img" aria-label="Yes"><use href="#i-check" /></svg></td>
+              </tr>
+              <tr>
+                <th scope="row">Several streams at the same time</th>
+                <td><svg class="icone sim" role="img" aria-label="Yes"><use href="#i-check" /></svg></td>
+                <td><svg class="icone sim" role="img" aria-label="Yes"><use href="#i-check" /></svg></td>
+              </tr>
+              <tr>
+                <th scope="row">PC audio without Discord, no echo</th>
+                <td><svg class="icone sim" role="img" aria-label="Yes"><use href="#i-check" /></svg></td>
+                <td><svg class="icone nao" role="img" aria-label="No"><use href="#i-minus" /></svg></td>
+              </tr>
+              <tr>
+                <th scope="row">Window picker with thumbnails</th>
+                <td><svg class="icone sim" role="img" aria-label="Yes"><use href="#i-check" /></svg></td>
+                <td><svg class="icone nao" role="img" aria-label="No"><use href="#i-minus" /></svg></td>
+              </tr>
+              <tr>
+                <th scope="row">No stutter with the game in front</th>
+                <td><svg class="icone sim" role="img" aria-label="Yes"><use href="#i-check" /></svg></td>
+                <td><svg class="icone nao" role="img" aria-label="No"><use href="#i-minus" /></svg></td>
+              </tr>
+              <tr>
+                <th scope="row">Works without installing anything</th>
+                <td><svg class="icone nao" role="img" aria-label="No"><use href="#i-minus" /></svg></td>
+                <td><svg class="icone sim" role="img" aria-label="Yes"><use href="#i-check" /></svg></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="how-it-works" class="largura secao" aria-labelledby="how-title">
+        <h2 id="how-title">How it works</h2>
+        <ol class="passos">
+          <li>
+            <h3>Install the app</h3>
+            <p>Download the installer and open it. From then on, it updates itself.</p>
+          </li>
+          <li>
+            <h3>Join with the group password</h3>
+            <p>Pick the name your friends know you by and use the password from whoever invited you.</p>
+          </li>
+          <li>
+            <h3>Share the room link</h3>
+            <p>Create a room, copy the link and drop it in the chat. Click Transmitir (Stream) and pick the game window.</p>
+          </li>
+        </ol>
+        <figure class="moldura moldura-larga">
+          <div class="moldura-barra" aria-hidden="true"><span></span><span></span><span></span></div>
+          <img
+            src="../imagens/sala-grade-1200.webp"
+            srcset="../imagens/sala-grade-640.webp 640w, ../imagens/sala-grade-800.webp 800w, ../imagens/sala-grade-1200.webp 1200w, ../imagens/sala-grade-1600.webp 1600w"
+            sizes="(max-width: 1272px) calc(100vw - 32px), 1240px"
+            width="1600"
+            height="900"
+            loading="lazy"
+            decoding="async"
+            alt="A room in grid view with four live streams side by side"
+          />
+        </figure>
+      </section>
+
+      <section id="privacy" class="largura secao" aria-labelledby="privacy-title">
+        <h2 id="privacy-title">Privacy</h2>
+        <p class="secao-lead">No sign-up, no ads and no tracking. Neither this site nor the app uses cookies or analytics.</p>
+        <ul class="recursos privacidade">
+          <li>
+            <h3>On your computer</h3>
+            <p>
+              Your name, the group password and your preferences (volumes, quality and sounds) are stored only in your
+              browser or in the app, so you don't have to type them again.
+            </p>
+          </li>
+          <li>
+            <h3>On the server</h3>
+            <p>
+              The server checks the password and introduces the people in the room. Rooms live only in memory and disappear
+              when everyone leaves. The technical log keeps the room code and a connection number, with no name and no
+              password.
+            </p>
+          </li>
+          <li>
+            <h3>Between PCs</h3>
+            <p>
+              Video and audio go straight from one PC to the other, always encrypted (WebRTC). As with any direct
+              connection, people in the room can see each other's IP address: use it with people you know.
+            </p>
+          </li>
+        </ul>
+        <p class="nota">
+          Like any website, the services that host Ozamigos (GitHub and Render) and the Google server that helps PCs find each
+          other (STUN) receive the IP address of whoever connects. The code is open, so you can check all of this
+          <a href="https://github.com/kayokalinauskas/ozamigos">on GitHub</a>.
+        </p>
+      </section>
+
+      <section id="faq" class="largura secao estreita" aria-labelledby="faq-title">
+        <h2 id="faq-title">FAQ</h2>
+        <div class="duvidas">
+          <details>
+            <summary>Is the app in English?</summary>
+            <p>
+              Not yet: the app interface is in Brazilian Portuguese. It's simple to use, and the main buttons are
+              <b>Entrar na sala</b> (join the room), <b>Transmitir</b> (stream) and <b>Assistir</b> (watch).
+            </p>
+          </details>
+          <details>
+            <summary>Windows said it protected my PC. Is it safe?</summary>
+            <p>
+              The warning appears because the installer has no paid digital signature. Click <b>More info</b> and then
+              <b>Run anyway</b>. The code is open, and every installer is built by GitHub from it, with a public history of
+              every version.
+            </p>
+          </details>
+          <details>
+            <summary>Do I need a password?</summary>
+            <p>Yes, the group password. Ask whoever invited you: it keeps strangers out of the rooms.</p>
+          </details>
+          <details>
+            <summary>Is it free?</summary>
+            <p>Yes. Ozamigos is free and open source, under the MIT license.</p>
+          </details>
+          <details>
+            <summary>Can I use it without installing?</summary>
+            <p>
+              Yes. The portable version opens with a double click and is on the
+              <a href="https://github.com/kayokalinauskas/ozamigos/releases/latest">downloads page</a>. Or
+              <a href="https://ozamigos.onrender.com/">use it in the browser</a> (Chrome or Edge), without the separate
+              Discord audio.
+            </p>
+          </details>
+          <details>
+            <summary>Does it work on Mac, Linux or phones?</summary>
+            <p>The app is Windows 10 and 11 only. On other systems, use it in Chrome or Edge on a computer.</p>
+          </details>
+          <details>
+            <summary>Does my video go through a server?</summary>
+            <p>
+              No. The server only introduces the people in the room and checks the password. Video and audio go straight
+              from the streamer to the viewers, over WebRTC, and only to those who clicked <b>Assistir</b> (watch).
+            </p>
+          </details>
+          <details>
+            <summary>Why does the browser version sometimes take a while to open?</summary>
+            <p>
+              The server runs on a free plan that “naps” when nobody is using it. The first visit after a while can take up
+              to a minute; after that, it opens right away.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="largura final" aria-labelledby="final-title">
+        <h2 id="final-title">Ready to play together?</h2>
+        <div class="chamada">
+          <div class="chamada-botoes">
+            <a class="botao botao-grande botao-primario" data-baixar href="https://github.com/kayokalinauskas/ozamigos/releases/latest">
+              <svg class="icone" aria-hidden="true"><use href="#i-download" /></svg> Download for Windows
+            </a>
+            <a class="botao botao-grande botao-secundario" data-navegador href="https://ozamigos.onrender.com/">
+              <svg class="icone" aria-hidden="true"><use href="#i-globe" /></svg> Use in the browser
+            </a>
+          </div>
+          <p class="detalhes"><span data-versao></span>Windows 10 and 11, 64-bit</p>
+          <p class="depois" data-depois role="status" hidden>
+            Open the downloaded file. If Windows shows <b>“Windows protected your PC”</b>, click <b>More info</b> and then
+            <b>Run anyway</b>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="rodape">
+      <div class="largura rodape-conteudo">
+        <span class="logo" aria-hidden="true"><span class="tecla">O</span><span class="tecla">Z</span><span>amigos</span></span>
+        <nav aria-label="Project links">
+          <a href="#privacy">Privacy</a>
+          <a href="https://github.com/kayokalinauskas/ozamigos">Code on GitHub</a>
+          <a href="https://github.com/kayokalinauskas/ozamigos/blob/main/CHANGELOG.md">Changelog (PT)</a>
+          <a href="https://github.com/kayokalinauskas/ozamigos/releases">All versions</a>
+          <a href="https://github.com/kayokalinauskas/ozamigos/issues/new/choose">Report a problem</a>
+        </nav>
+        <p>Open source, MIT license.</p>
+      </div>
+    </footer>
+  </body>
+</html>

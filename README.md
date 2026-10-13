@@ -183,7 +183,7 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │       ├── somDoApp.ts               Faixa de áudio do auxiliar de som (AudioWorklet)
 │       ├── ponte.ts                  Contrato com o app Electron
 │       └── componentes/              Entrada, Sala, BarraLateral, Palco, Transmissao, ...
-├── site/                   Site de apresentação (HTML e CSS puros), publicado no GitHub Pages
+├── site/                   Site de apresentação em português e inglês (en/), publicado no GitHub Pages
 ├── desktop/                App para Windows (Electron 44)
 │   ├── main.js                       Janela, permissões, seletor de fontes e auxiliar de som
 │   ├── preload.js                    Ponte segura entre a página e o app
@@ -448,9 +448,14 @@ Os testes cobrem:
 - a senha do grupo;
 - a subida da aplicação.
 
-Para verificar os tipos da interface: `cd web` e depois `npm run typecheck`.
+Na interface (`cd web`):
 
-O workflow [CI](.github/workflows/ci.yml) roda tudo isso em cada push na `main` e em cada pull request: o build da interface, os testes do servidor e a checagem dos scripts do app. O workflow [Site](.github/workflows/site.yml) publica a pasta `site/` no [GitHub Pages](https://kayokalinauskas.github.io/ozamigos/) sempre que ela muda. O site não tem build: é HTML, CSS e um script pequeno que só melhora a página (link direto do instalador, versão e tamanho). Sem JavaScript, os botões continuam funcionando. O [Dependabot](.github/dependabot.yml) abre pull requests quando sai versão nova das dependências.
+```powershell
+npm test           # Vitest: código e link da sala, preferências guardadas e opções de qualidade
+npm run typecheck  # tipos
+```
+
+O workflow [CI](.github/workflows/ci.yml) roda tudo isso em cada push na `main` e em cada pull request: os testes e o build da interface, os testes do servidor e a checagem dos scripts do app. O workflow [Site](.github/workflows/site.yml) publica a pasta `site/` no [GitHub Pages](https://kayokalinauskas.github.io/ozamigos/) sempre que ela muda. O site não tem build: é HTML, CSS e um script pequeno que só melhora a página (link direto do instalador, versão e tamanho). Sem JavaScript, os botões continuam funcionando. O [Dependabot](.github/dependabot.yml) abre pull requests quando sai versão nova das dependências.
 
 ---
 

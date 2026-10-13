@@ -9,6 +9,9 @@
       content="Transmita seu jogo para os amigos em até 1080p, direto de um PC para o outro. Salas com senha, várias transmissões ao mesmo tempo e som sem o eco do Discord. Grátis, para Windows e navegador."
     />
     <link rel="canonical" href="https://kayokalinauskas.github.io/ozamigos/" />
+    <link rel="alternate" hreflang="pt-BR" href="https://kayokalinauskas.github.io/ozamigos/" />
+    <link rel="alternate" hreflang="en" href="https://kayokalinauskas.github.io/ozamigos/en/" />
+    <link rel="alternate" hreflang="x-default" href="https://kayokalinauskas.github.io/ozamigos/" />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0b0e0a" />
 
@@ -68,8 +71,6 @@
       <symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
       <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
       <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
-      <symbol id="i-external-link" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
-      <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
     </svg>
 
     <a class="pular" href="#conteudo">Pular para o conteúdo</a>
@@ -84,6 +85,7 @@
           <a href="#como-funciona">Como funciona</a>
           <a href="#duvidas">Dúvidas</a>
         </nav>
+        <a class="idioma" href="en/" hreflang="en" lang="en" aria-label="EN, English version">EN</a>
         <a class="botao botao-secundario botao-pequeno" href="https://ozamigos.onrender.com/">
           <svg class="icone" aria-hidden="true"><use href="#i-globe" /></svg> Abrir no navegador
         </a>
@@ -118,8 +120,8 @@
         <figure class="moldura">
           <div class="moldura-barra" aria-hidden="true"><span></span><span></span><span></span></div>
           <img
-            src="imagens/sala-destaque-1600.webp"
-            srcset="imagens/sala-destaque-800.webp 800w, imagens/sala-destaque-1600.webp 1600w"
+            src="imagens/sala-destaque-1200.webp"
+            srcset="imagens/sala-destaque-640.webp 640w, imagens/sala-destaque-800.webp 800w, imagens/sala-destaque-1200.webp 1200w, imagens/sala-destaque-1600.webp 1600w"
             sizes="(max-width: 960px) calc(100vw - 32px), 640px"
             width="1600"
             height="900"
@@ -238,8 +240,8 @@
         <figure class="moldura moldura-larga">
           <div class="moldura-barra" aria-hidden="true"><span></span><span></span><span></span></div>
           <img
-            src="imagens/sala-grade-1600.webp"
-            srcset="imagens/sala-grade-800.webp 800w, imagens/sala-grade-1600.webp 1600w"
+            src="imagens/sala-grade-1200.webp"
+            srcset="imagens/sala-grade-640.webp 640w, imagens/sala-grade-800.webp 800w, imagens/sala-grade-1200.webp 1200w, imagens/sala-grade-1600.webp 1600w"
             sizes="(max-width: 1272px) calc(100vw - 32px), 1240px"
             width="1600"
             height="900"
@@ -248,6 +250,41 @@
             alt="Sala em grade com quatro transmissões ao vivo lado a lado"
           />
         </figure>
+      </section>
+
+      <section id="privacidade" class="largura secao" aria-labelledby="titulo-privacidade">
+        <h2 id="titulo-privacidade">Privacidade</h2>
+        <p class="secao-lead">
+          Sem cadastro, sem anúncios e sem rastreamento. Nem este site nem o app usam cookies ou ferramentas de análise.
+        </p>
+        <ul class="recursos privacidade">
+          <li>
+            <h3>No seu computador</h3>
+            <p>
+              O nome, a senha do grupo e as preferências (volumes, qualidade e sons) ficam guardados só no seu navegador ou no
+              app, para você não digitar tudo de novo.
+            </p>
+          </li>
+          <li>
+            <h3>No servidor</h3>
+            <p>
+              O servidor confere a senha e apresenta as pessoas da sala. As salas existem só na memória e somem quando todos
+              saem. O registro técnico guarda o código da sala e um número de conexão, sem nome e sem senha.
+            </p>
+          </li>
+          <li>
+            <h3>Entre os PCs</h3>
+            <p>
+              O vídeo e o som vão direto de um PC para o outro, sempre criptografados (WebRTC). Como em toda conexão direta,
+              quem está na sala pode ver o endereço IP dos outros: use com quem você conhece.
+            </p>
+          </li>
+        </ul>
+        <p class="nota">
+          Como qualquer site, os serviços que hospedam o Ozamigos (GitHub e Render) e o servidor do Google que ajuda os PCs a
+          se encontrarem (STUN) recebem o endereço IP de quem acessa. O código é aberto: dá para conferir tudo isso
+          <a href="https://github.com/kayokalinauskas/ozamigos">no GitHub</a>.
+        </p>
       </section>
 
       <section id="duvidas" class="largura secao estreita" aria-labelledby="titulo-duvidas">
@@ -323,6 +360,7 @@
       <div class="largura rodape-conteudo">
         <span class="logo" aria-hidden="true"><span class="tecla">O</span><span class="tecla">Z</span><span>amigos</span></span>
         <nav aria-label="Links do projeto">
+          <a href="#privacidade">Privacidade</a>
           <a href="https://github.com/kayokalinauskas/ozamigos">Código no GitHub</a>
           <a href="https://github.com/kayokalinauskas/ozamigos/blob/main/CHANGELOG.md">Novidades</a>
           <a href="https://github.com/kayokalinauskas/ozamigos/releases">Todas as versões</a>
