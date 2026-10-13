@@ -5,6 +5,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const versao = process.argv.find((arg) => arg.startsWith('--ozamigos-versao='))?.split('=')[1] ?? '';
 
+// Em tela cheia o Windows esconde os botões da janela: a página deixa de reservar espaço para eles.
+ipcRenderer.on('tela-cheia', (_evento, cheia) => {
+  document.documentElement.classList.toggle('janela-em-tela-cheia', Boolean(cheia));
+});
+
 contextBridge.exposeInMainWorld('ozamigos', {
   versao,
   aoPedirFonte(ouvinte) {
@@ -25,6 +30,10 @@ contextBridge.exposeInMainWorld('ozamigos', {
   },
   trocarServidor() {
     ipcRenderer.send('trocar-servidor');
+  },
+  /** Pinta os botões da janela (minimizar, maximizar, fechar) com a cor do que está embaixo deles. */
+  corDaBarra(cor) {
+    ipcRenderer.send('cor-da-barra', String(cor));
   },
   // Usadas só pela tela de início (o main.js recusa se o pedido vier de outro lugar).
   servidorAtual: () => ipcRenderer.invoke('servidor-atual'),

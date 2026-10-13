@@ -31,13 +31,31 @@ body {
 body {
   display: grid;
   place-items: center;
-  padding: 24px 16px;
+  padding: calc(24px + var(--barra-da-janela)) 16px 24px;
   background:
     radial-gradient(1000px 600px at 15% 10%, rgb(182 242 74 / 0.1), transparent 60%),
     radial-gradient(900px 600px at 90% 90%, rgb(182 242 74 / 0.05), transparent 60%),
     var(--fundo);
   color: var(--texto);
   font: 14px/1.45 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* A janela não tem barra de título: a faixa de cima (a altura dos botões do Windows) arrasta a janela.
+   Em tela cheia os botões somem, e o main.js marca a página com .janela-em-tela-cheia. */
+:root {
+  --barra-da-janela: env(titlebar-area-height, 0px);
+}
+
+.janela-em-tela-cheia {
+  --barra-da-janela: 0px;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--barra-da-janela);
+  -webkit-app-region: drag;
 }
 
 /* Sem largura própria, o main crescia até o tamanho do texto mais longo e o cartão ficava à esquerda. */

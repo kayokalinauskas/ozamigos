@@ -6,10 +6,12 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
-## [Não lançado]
+## [1.2.9] - 2026-10-13
 
 ### Alterado
-- No logotipo, o "oz" da tecla passa a ter o mesmo tamanho e peso de "amigos" (com as letras do ícone, ficava maior). O ícone do app não muda. No site e na interface já vale; no app, entra na tela de início e na janela de atualização da próxima versão.
+- A janela não tem mais a barra de título cinza do Windows: o app ocupa a janela toda, como o Discord, e só os botões de minimizar, maximizar e fechar ficam no canto, na cor do app. Arraste a janela pela faixa de cima. O encaixe de janelas do Windows 11 continua funcionando.
+- Sem a barra, o menu da tecla Alt deixa de existir: recarregar (Ctrl+R), tela cheia (F11) e "Trocar o servidor" (ícone de servidor na sala e na entrada) continuam.
+- No logotipo, o "oz" da tecla passa a ter o mesmo tamanho e peso de "amigos" (com as letras do ícone, ficava maior). O ícone do app não muda.
 
 ## [1.2.8] - 2026-10-13
 
@@ -126,6 +128,7 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
+[1.2.9]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.8...v1.2.9
 [1.2.8]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.7...v1.2.8
 [1.2.7]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.5...v1.2.6

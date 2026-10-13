@@ -110,6 +110,9 @@ function abrirServidorOuInicio(erro) {
   }
 }
 
+// Os botões da janela (minimizar, maximizar, fechar) desenhados pelo Windows, por cima da página.
+const BARRA_DA_JANELA = { color: '#0b0e0a', symbolColor: '#c9d4bb', height: 32 };
+
 /** atualizando: resolve true se o app vai fechar para instalar uma versão nova (a janela nem aparece). */
 function criarJanela(atualizando) {
   const { posicao = {} } = lerConfiguracao();
@@ -121,8 +124,12 @@ function criarJanela(atualizando) {
     minWidth: 1024,
     minHeight: 640,
     show: false,
-    backgroundColor: '#0b0d12',
-    autoHideMenuBar: true, // o menu aparece com Alt
+    backgroundColor: '#0b0e0a',
+    // Sem a barra de título do Windows: a página ocupa a janela toda e só os botões de minimizar, maximizar
+    // e fechar ficam por cima, na cor do app. A interface reserva essa faixa (env(titlebar-area-height)) e
+    // arrasta a janela por ela.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: BARRA_DA_JANELA,
     title: 'Ozamigos',
     icon: ICONE,
     webPreferences: {
@@ -150,6 +157,20 @@ function criarJanela(atualizando) {
   });
 
   const conteudo = janela.webContents;
+  // Dentro do evento, isFullScreen() ainda pode responder o estado antigo: cada evento manda o seu.
+  janela.on('enter-full-screen', () => conteudo.send('tela-cheia', true));
+  janela.on('leave-full-screen', () => conteudo.send('tela-cheia', false));
+  conteudo.on('did-finish-load', () => conteudo.send('tela-cheia', janela.isFullScreen()));
+  // Sem barra de título, o menu não aparece: os atalhos dele são tratados aqui, sem depender do menu.
+  conteudo.on('before-input-event', (evento, tecla) => {
+    if (tecla.type !== 'keyDown') return;
+    const ctrl = tecla.control || tecla.meta;
+    if ((ctrl && !tecla.shift && tecla.key.toLowerCase() === 'r') || tecla.key === 'F5') conteudo.reload();
+    else if (tecla.key === 'F11') janela.setFullScreen(!janela.isFullScreen());
+    else if ((ctrl && tecla.shift && tecla.key.toLowerCase() === 'i') || tecla.key === 'F12') conteudo.toggleDevTools();
+    else return;
+    evento.preventDefault();
+  });
   // A janela só navega dentro do servidor; qualquer outro link abre no navegador de verdade.
   conteudo.on('will-navigate', (evento, url) => {
     if (url.startsWith('file:') || origemDe(url) === origemDoServidor()) return;
@@ -333,6 +354,11 @@ ipcMain.handle('salvar-servidor', (evento, texto) => {
   return null;
 });
 
+ipcMain.on('cor-da-barra', (evento, cor) => {
+  if (origemDe(evento.senderFrame?.url) !== origemDoServidor() || !/^#[0-9a-f]{6}$/i.test(cor)) return;
+  janela?.setTitleBarOverlay({ ...BARRA_DA_JANELA, color: cor });
+});
+
 ipcMain.on('trocar-servidor', (evento) => {
   if (origemDe(evento.senderFrame?.url) === origemDoServidor()) trocarServidor();
 });
@@ -341,7 +367,7 @@ function trocarServidor() {
   janela?.loadFile(path.join(__dirname, 'inicio.html'));
 }
 
-// ===== Menu (escondido; aparece com Alt) =====
+// ===== Menu (sem barra de título, ele não aparece: fica pelos atalhos de teclado) =====
 
 function configurarMenu() {
   Menu.setApplicationMenu(

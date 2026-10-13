@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RefreshCw, WifiOff } from 'lucide-react';
 import { lembrado, lembrar } from '../armazenamento';
 import { cliente } from '../cliente';
+import { pintarBarraDaJanela } from '../ponte';
 import { useCliente } from '../useCliente';
 import { BarraLateral } from './BarraLateral';
 import { Controles } from './Controles';
@@ -13,6 +14,12 @@ export function Sala() {
   const [modo, setModo] = useState<Modo>(() => (lembrado('ozamigos-modo') === 'destaque' ? 'destaque' : 'grade'));
   const [foco, setFoco] = useState<string | null>(null);
   const [estatisticasAbertas, setEstatisticasAbertas] = useState(false);
+
+  // No app, os botões da janela ficam no canto de cima à direita: sobre o painel de estatísticas, quando aberto.
+  useEffect(() => {
+    pintarBarraDaJanela(estatisticasAbertas ? '--painel' : '--fundo');
+    return () => pintarBarraDaJanela('--fundo');
+  }, [estatisticasAbertas]);
 
   function mudarModo(novo: Modo) {
     lembrar('ozamigos-modo', novo);

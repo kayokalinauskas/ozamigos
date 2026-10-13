@@ -22,7 +22,15 @@ export type PonteOzamigos = {
   pararSom(): void;
   /** Volta para a tela de escolher o servidor. */
   trocarServidor(): void;
+  /** Cor dos botões da janela, para combinar com o que está embaixo deles (app 1.2.9 em diante). */
+  corDaBarra?(cor: string): void;
 };
+
+/** Pinta os botões da janela do app com a cor de uma variável do CSS (ex.: '--painel'). */
+export function pintarBarraDaJanela(variavel: string) {
+  const cor = getComputedStyle(document.documentElement).getPropertyValue(variavel).trim();
+  if (cor) ponte?.corDaBarra?.(cor);
+}
 
 declare global {
   interface Window {

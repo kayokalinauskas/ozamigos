@@ -44,6 +44,28 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* App para Windows a partir da 1.2.9: a janela não tem barra de título, e os botões do Windows ficam por cima
+   da página. --barra-da-janela é a altura dessa faixa (0 no navegador, nas versões antigas do app e em tela
+   cheia). As colunas sobem até o topo, como no Discord: cada uma só desce o conteúdo, e a faixa arrasta a janela. */
+:root {
+  --barra-da-janela: env(titlebar-area-height, 0px);
+}
+
+/* Em tela cheia (F11), o Windows esconde os botões, mas o env() continua valendo a altura deles: o app marca
+   a página com esta classe enquanto a janela está em tela cheia. */
+.janela-em-tela-cheia {
+  --barra-da-janela: 0px;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 1000;
+  height: var(--barra-da-janela);
+  -webkit-app-region: drag;
+}
+
 h1,
 h2,
 h3,
@@ -273,7 +295,7 @@ code {
   display: grid;
   place-items: center;
   min-height: 100%;
-  padding: 24px 16px;
+  padding: calc(24px + var(--barra-da-janela)) 16px 24px;
   background:
     radial-gradient(1000px 600px at 15% 10%, rgb(182 242 74 / 0.1), transparent 60%),
     radial-gradient(900px 600px at 90% 90%, rgb(182 242 74 / 0.05), transparent 60%),
@@ -372,7 +394,7 @@ code {
   flex-direction: column;
   gap: 20px;
   min-height: 0;
-  padding: 20px 16px 16px;
+  padding: calc(20px + var(--barra-da-janela)) 16px 16px;
   border-right: 1px solid var(--borda);
   background: var(--painel);
 }
@@ -548,7 +570,7 @@ code {
   flex: 1;
   gap: 16px;
   min-width: 0;
-  padding: 20px 24px 16px;
+  padding: calc(20px + var(--barra-da-janela)) 24px 16px;
 }
 
 .palco-topo {
@@ -1051,7 +1073,7 @@ input[type='range']::-moz-range-thumb {
   gap: 12px;
   width: 340px;
   flex: none;
-  padding: 20px 16px;
+  padding: calc(20px + var(--barra-da-janela)) 16px 20px;
   overflow-y: auto;
   border-left: 1px solid var(--borda);
   background: var(--painel);
