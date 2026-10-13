@@ -12,6 +12,8 @@ static class Programa
 {
     static int Main(string[] argumentos)
     {
+        if (argumentos.Contains("--contadores")) return Contadores.Rodar(); // teste de desempenho (veja Contadores.cs)
+
         var pidsExcluidos = new HashSet<uint> { (uint)Environment.ProcessId };
         var nomesExcluidos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < argumentos.Length - 1; i++)

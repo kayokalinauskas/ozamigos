@@ -1383,3 +1383,692 @@ input[type='range']::-moz-range-thumb {
     padding: 12px 16px;
   }
 }
+
+/* ===== Teste de desempenho (tela cheia sobre a sala) ===== */
+.abrir-teste {
+  align-self: flex-start;
+}
+
+.teste {
+  --roxo: #b38cff;
+  --azul: #5fb4ff;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--barra-da-janela);
+  overflow: auto;
+  background: var(--fundo);
+  font-variant-numeric: tabular-nums;
+}
+
+.teste h1 {
+  font-size: 20px;
+}
+
+.teste h2 {
+  font-size: 15px;
+}
+
+.teste h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.teste h3 .pilula {
+  margin-left: auto;
+}
+
+.teste .pilula {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.teste .pilula.bom {
+  background: rgb(61 220 132 / 0.12);
+  color: var(--bom);
+}
+
+.teste .pilula.medio {
+  background: rgb(255 193 69 / 0.12);
+  color: var(--medio);
+}
+
+.teste .pilula.ruim {
+  background: rgb(255 84 112 / 0.12);
+  color: var(--ruim);
+}
+
+.teste .pilula.neutra {
+  background: var(--painel-3);
+  color: var(--texto-2);
+}
+
+.teste-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 14px 32px 16px;
+}
+
+.teste-topo > .botao-icone {
+  margin-left: auto;
+}
+
+.teste-topo-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.gravando {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgb(255 59 92 / 0.12);
+  color: var(--ao-vivo);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.gravando .ponto,
+.teste .eventos .ponto {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.gravando .ponto {
+  box-shadow: 0 0 0 4px rgb(255 59 92 / 0.2);
+  animation: pulsar 1.6s ease-in-out infinite;
+}
+
+@keyframes pulsar {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.cartao-teste {
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--painel);
+}
+
+/* Começo */
+.teste-inicio {
+  width: min(880px, 100%);
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+.teste-inicio .teste-topo {
+  padding: 24px 16px 8px;
+}
+
+.teste-intro {
+  margin: 0 16px 20px;
+  color: var(--texto-2);
+  font-size: 15px;
+}
+
+.teste-modos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 0 16px;
+}
+
+.teste-modo {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 18px 20px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--painel);
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.teste-modo svg {
+  color: var(--texto-3);
+}
+
+.teste-modo b {
+  font-family: 'Sora Variable', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.teste-modo span {
+  color: var(--texto-2);
+  font-size: 13px;
+}
+
+.teste-modo:hover {
+  border-color: #33402c;
+}
+
+.teste-modo[aria-checked='true'] {
+  border-color: var(--destaque);
+  background: linear-gradient(180deg, rgb(182 242 74 / 0.08), var(--painel));
+}
+
+.teste-modo[aria-checked='true'] svg {
+  color: var(--destaque);
+}
+
+.teste-modo:focus-visible,
+.teste-roteiros input:focus-visible {
+  outline: none;
+  box-shadow: var(--foco);
+}
+
+.teste-roteiros {
+  display: grid;
+  gap: 8px;
+  margin: 16px 16px 0;
+}
+
+.teste-roteiros label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.teste-roteiros input {
+  accent-color: var(--destaque);
+}
+
+.teste-roteiros span {
+  color: var(--texto-3);
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.teste-dicas {
+  display: grid;
+  gap: 6px;
+  margin: 20px 16px 0;
+  padding-left: 18px;
+  color: var(--texto-2);
+  font-size: 13px;
+}
+
+.teste-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin: 24px 16px 0;
+}
+
+.teste-inicio .ajuda-erro {
+  margin: 16px 16px 0;
+}
+
+/* Ao vivo */
+.teste-ao-vivo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.teste-etapas {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0 32px 18px;
+  list-style: none;
+}
+
+.teste-etapa {
+  position: relative;
+  overflow: hidden;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  background: var(--painel);
+}
+
+.teste-etapa b {
+  display: block;
+  padding-right: 52px;
+  font-size: 13px;
+}
+
+.teste-etapa small {
+  color: var(--texto-3);
+  font-size: 11px;
+}
+
+.teste-etapa .nota {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  padding: 1px 6px;
+}
+
+.teste-etapa .barra {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--destaque);
+  transition: width 1s linear;
+}
+
+.teste-etapa.feita b {
+  color: var(--texto-2);
+}
+
+.teste-etapa.atual {
+  border-color: var(--destaque);
+  background: linear-gradient(180deg, rgb(182 242 74 / 0.08), var(--painel));
+}
+
+.teste-etapa.futura {
+  opacity: 0.55;
+}
+
+.teste-corpo {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) 500px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 20px;
+  min-height: 0;
+  padding: 0 32px 24px;
+}
+
+.teste-esquerda,
+.teste-direita {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.teste-direita {
+  overflow: hidden;
+}
+
+.teste-video {
+  position: relative;
+  flex: 1 1 0;
+  overflow: hidden;
+  min-height: 220px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: #000;
+}
+
+.teste-video > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.teste-video-vazio {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: var(--texto-3);
+}
+
+.teste-video-hud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.teste-video-hud span,
+.teste-video-quem {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgb(8 10 7 / 0.75);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.teste-video-quem {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  color: var(--texto-2);
+  font-weight: 400;
+}
+
+.teste-video-quem b {
+  color: var(--texto);
+}
+
+/* Os outros simulados ficam pequenos, mas visíveis: o navegador só mede o ritmo de vídeo que está na tela. */
+.teste-miniaturas {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+.teste-miniaturas video {
+  width: 96px;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  background: #000;
+  object-fit: cover;
+}
+
+.teste-ritmo {
+  padding: 14px 18px 10px;
+}
+
+.teste-ritmo header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-bottom: 4px;
+}
+
+.teste-ritmo header p {
+  margin: 0;
+  color: var(--texto-3);
+  font-size: 12px;
+}
+
+.grafico-ritmo {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.estabilizando {
+  margin-left: 6px;
+  color: var(--medio);
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.teste-amigos {
+  padding: 16px 18px;
+  overflow-x: auto;
+}
+
+.teste-amigos h2 {
+  margin-bottom: 12px;
+}
+
+.teste-amigos table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.teste-amigos th {
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--borda);
+  color: var(--texto-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.teste-amigos td {
+  padding: 10px;
+  border-bottom: 1px solid var(--painel-3);
+}
+
+.teste-kpis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.teste .kpi {
+  padding: 14px 16px;
+}
+
+.teste .kpi .valor {
+  margin: 4px 0 2px;
+  font: 600 30px 'Sora Variable', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.teste .kpi .valor small {
+  margin-left: 4px;
+  color: var(--texto-2);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.teste .kpi p {
+  margin: 0;
+  color: var(--texto-2);
+  font-size: 12px;
+}
+
+.teste .bloco {
+  padding: 14px 16px;
+}
+
+.funil {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.funil div {
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: var(--painel-2);
+}
+
+.funil b {
+  display: block;
+  font: 600 19px 'Sora Variable', sans-serif;
+}
+
+.funil b.destaque {
+  color: var(--destaque);
+}
+
+.funil small {
+  color: var(--texto-3);
+  font-size: 11px;
+}
+
+.atraso-barra {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--painel-2);
+}
+
+.atraso-itens {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 6px;
+  color: var(--texto-3);
+  font-size: 11px;
+}
+
+.atraso-itens b {
+  display: block;
+  color: var(--texto);
+  font-size: 13px;
+}
+
+.atraso-itens i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  border-radius: 2px;
+}
+
+.teste .linhas {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 7px 12px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.teste .linhas dt {
+  color: var(--texto-3);
+}
+
+.teste .linhas dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.minigrafico {
+  width: 110px;
+  height: 22px;
+}
+
+.teste .eventos {
+  flex: 1;
+  min-height: 90px;
+  padding: 14px 16px;
+  overflow: hidden;
+}
+
+.teste .eventos ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  font-size: 12.5px;
+  list-style: none;
+}
+
+.teste .eventos li {
+  display: grid;
+  grid-template-columns: 44px 10px 1fr;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.teste .eventos time {
+  color: var(--texto-3);
+}
+
+.teste .eventos li > span:last-child {
+  color: var(--texto-2);
+}
+
+.teste .eventos .ponto {
+  color: var(--destaque);
+}
+
+.teste .eventos .ponto.congelamento,
+.teste .eventos .ponto.resolucao,
+.teste .eventos .ponto.limite {
+  color: var(--ruim);
+}
+
+.teste .eventos .ponto.tarefa-longa,
+.teste .eventos .ponto.espectador {
+  color: var(--medio);
+}
+
+/* Relatório */
+.teste-relatorio {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.teste-pagina {
+  flex: 1;
+  min-height: 400px;
+  border: 0;
+  border-top: 1px solid var(--borda);
+  background: var(--fundo);
+}
+
+.teste-copiar-dica {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 32px;
+  border-top: 1px solid var(--borda);
+  color: var(--texto-3);
+  font-size: 12px;
+}
+
+@media (max-width: 1100px) {
+  .teste-corpo {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .teste-video {
+    flex: none;
+    aspect-ratio: 16 / 9;
+  }
+
+  .teste-etapas {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .teste-topo,
+  .teste-etapas,
+  .teste-corpo {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .teste-modos,
+  .teste-kpis {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { RefreshCw, WifiOff } from 'lucide-react';
 import { lembrado, lembrar } from '../armazenamento';
 import { cliente } from '../cliente';
@@ -9,17 +9,47 @@ import { Controles } from './Controles';
 import { PainelEstatisticas } from './PainelEstatisticas';
 import { Palco, type Modo } from './Palco';
 
+// O teste de desempenho é grande e pouca gente abre: só é baixado na primeira vez que alguém abrir.
+// Se saiu uma versão nova com a página aberta, o arquivo antigo não existe mais: avisa em vez de quebrar a sala.
+const TesteDesempenho = lazy<(props: { aoFechar: () => void }) => React.ReactNode>(() =>
+  import('./TesteDesempenho').then(
+    (m) => ({ default: m.TesteDesempenho }),
+    () => ({ default: SemOTeste }),
+  ),
+);
+
+function SemOTeste({ aoFechar }: { aoFechar: () => void }) {
+  useEffect(() => {
+    cliente.avisar('Não foi possível abrir o teste: saiu uma versão nova do Ozamigos. Recarregue a página (Ctrl+R) e tente de novo.', 'erro');
+    aoFechar();
+  }, [aoFechar]);
+  return null;
+}
+
 export function Sala() {
   const { conexaoPerdida } = useCliente();
   const [modo, setModo] = useState<Modo>(() => (lembrado('ozamigos-modo') === 'destaque' ? 'destaque' : 'grade'));
   const [foco, setFoco] = useState<string | null>(null);
   const [estatisticasAbertas, setEstatisticasAbertas] = useState(false);
+  const [testeAberto, setTesteAberto] = useState(false);
+
+  // Ctrl+Shift+D abre o teste de desempenho (também fica no painel de estatísticas).
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        setTesteAberto(true);
+      }
+    };
+    addEventListener('keydown', tecla);
+    return () => removeEventListener('keydown', tecla);
+  }, []);
 
   // No app, os botões da janela ficam no canto de cima à direita: sobre o painel de estatísticas, quando aberto.
   useEffect(() => {
-    pintarBarraDaJanela(estatisticasAbertas ? '--painel' : '--fundo');
+    pintarBarraDaJanela(estatisticasAbertas && !testeAberto ? '--painel' : '--fundo');
     return () => pintarBarraDaJanela('--fundo');
-  }, [estatisticasAbertas]);
+  }, [estatisticasAbertas, testeAberto]);
 
   function mudarModo(novo: Modo) {
     lembrar('ozamigos-modo', novo);
@@ -47,13 +77,18 @@ export function Sala() {
         )}
         <div className="palco-e-painel">
           <Palco modo={modo} aoMudarModo={mudarModo} foco={foco} aoDestacar={destacar} />
-          {estatisticasAbertas && <PainelEstatisticas aoFechar={() => setEstatisticasAbertas(false)} />}
+          {estatisticasAbertas && <PainelEstatisticas aoFechar={() => setEstatisticasAbertas(false)} aoAbrirTeste={() => setTesteAberto(true)} />}
         </div>
         <Controles
           estatisticasAbertas={estatisticasAbertas}
           aoAlternarEstatisticas={() => setEstatisticasAbertas(!estatisticasAbertas)}
         />
       </main>
+      {testeAberto && (
+        <Suspense fallback={null}>
+          <TesteDesempenho aoFechar={() => setTesteAberto(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

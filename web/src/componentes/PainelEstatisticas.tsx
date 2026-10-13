@@ -1,4 +1,4 @@
-import { Download, X } from 'lucide-react';
+import { Download, Gauge, X } from 'lucide-react';
 import { cliente, type Metrica } from '../cliente';
 import { QUALIDADES, capturaAbaixo, type Qualidade } from '../qualidade';
 import { useCliente } from '../useCliente';
@@ -63,7 +63,7 @@ function salvarRelatorio() {
   setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
 }
 
-export function PainelEstatisticas({ aoFechar }: { aoFechar: () => void }) {
+export function PainelEstatisticas({ aoFechar, aoAbrirTeste }: { aoFechar: () => void; aoAbrirTeste: () => void }) {
   const { metricas, minhaTela, qualidade } = useCliente();
   const lista = Object.values(metricas).sort((a, b) => a.canal.localeCompare(b.canal));
   return (
@@ -74,6 +74,9 @@ export function PainelEstatisticas({ aoFechar }: { aoFechar: () => void }) {
           <X size={18} />
         </button>
       </header>
+      <button type="button" className="botao botao-secundario botao-pequeno abrir-teste" onClick={aoAbrirTeste} title="Ctrl+Shift+D">
+        <Gauge size={14} /> Teste de desempenho
+      </button>
       {lista.map((m) => (
         <Cartao key={`${m.canal}:${m.id}`} m={m} qualidade={qualidade} />
       ))}

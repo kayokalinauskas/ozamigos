@@ -24,6 +24,37 @@ export type PonteOzamigos = {
   trocarServidor(): void;
   /** Cor dos botões da janela, para combinar com o que está embaixo deles (app 1.2.9 em diante). */
   corDaBarra?(cor: string): void;
+  /** Teste de desempenho (app 1.2.10 em diante): o que o navegador não mede. */
+  desempenho?: {
+    pc(): Promise<InfoDoPc | null>;
+    /** Liga ou desliga os contadores do Windows (processador do PC e motores da placa de vídeo). */
+    ligar(ligado: boolean): Promise<boolean>;
+    amostra(): Promise<AmostraDoPc | null>;
+  };
+};
+
+export type InfoDoPc = {
+  sistema: string;
+  processador: string;
+  nucleos: number;
+  memoriaGB: number;
+  placa: { nome: string | null; driver: string | null; fabricante: number | null } | null;
+  telas: { tamanho: string; escala: number; hz: number; principal: boolean }[];
+  electron: string;
+  chrome: string;
+  contadoresDoWindows: boolean;
+};
+
+/** Uso em %. Motores da placa pelo nome do Windows: "3D", "VideoEncode", "Video Codec Engine" (AMD), "Copy"… */
+export type AmostraDoPc = {
+  processos: Record<string, { cpu: number; memoriaMB: number }>; // por tipo de processo do app (Browser, GPU, Tab…)
+  cpuDoPc: number | null;
+  placa: {
+    total: Record<string, number>;
+    doApp: Record<string, number>;
+    outros: Record<string, number>;
+    memoriaMB: number | null;
+  } | null;
 };
 
 /** Pinta os botões da janela do app com a cor de uma variável do CSS (ex.: '--painel'). */

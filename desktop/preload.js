@@ -35,6 +35,12 @@ contextBridge.exposeInMainWorld('ozamigos', {
   corDaBarra(cor) {
     ipcRenderer.send('cor-da-barra', String(cor));
   },
+  /** Teste de desempenho (app 1.2.10 em diante): o PC, a placa de vídeo e o processador, que o navegador não mede. */
+  desempenho: {
+    pc: () => ipcRenderer.invoke('desempenho-pc'),
+    ligar: (ligado) => ipcRenderer.invoke('desempenho-ligar', Boolean(ligado)),
+    amostra: () => ipcRenderer.invoke('desempenho-amostra'),
+  },
   // Usadas só pela tela de início (o main.js recusa se o pedido vier de outro lugar).
   servidorAtual: () => ipcRenderer.invoke('servidor-atual'),
   salvarServidor: (endereco) => ipcRenderer.invoke('salvar-servidor', String(endereco)),

@@ -6,10 +6,17 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
-## [Não lançado]
+## [1.2.10] - 2026-10-13
+
+### Adicionado
+- **Teste de desempenho** (painel de Estatísticas ou Ctrl+Shift+D). Grava tudo o que acontece com a imagem do seu jogo, da captura até a tela de quem assiste, e mostra onde está o gargalo:
+  - com **espectadores simulados** no seu PC, num roteiro automático pelas 4 qualidades e por 1, 3 e 7 pessoas assistindo (~4 min, ou ~1 min no rápido);
+  - ou **com os amigos assistindo de verdade**: cada amigo manda como a imagem chega no PC dele (fps na tela, engasgos, perdas, ida e volta).
+- O relatório traz a recomendação (qualidade e quantas pessoas o PC aguenta), os achados com as evidências e gráficos. Ele sai em três formatos: página HTML, JSON e um texto **para colar numa IA** e pedir melhorias no app, com o contexto do Ozamigos, as regras de cada conclusão e os dados de cada segundo.
+- No app, o teste mede também o processador e a placa de vídeo, incluindo o motor de codificação de vídeo, pelos mesmos contadores do Gerenciador de Tarefas.
 
 ### Alterado
-- Logotipo alinhado: o "oz" da tecla passa a apoiar na mesma base de "amigos" (antes ficava um pouco acima, porque a tecla era centralizada pela caixa). No site e na interface já vale; no app, entra na tela de início e na janela de atualização da próxima versão.
+- Logotipo alinhado: o "oz" da tecla passa a apoiar na mesma base de "amigos" (antes ficava um pouco acima, porque a tecla era centralizada pela caixa). No app, vale também na tela de início e na janela de atualização.
 
 ## [1.2.9] - 2026-10-13
 
@@ -133,6 +140,7 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
+[1.2.10]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.9...v1.2.10
 [1.2.9]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.8...v1.2.9
 [1.2.8]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.7...v1.2.8
 [1.2.7]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.6...v1.2.7

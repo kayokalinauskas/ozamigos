@@ -61,7 +61,9 @@ export type Estado = {
 };
 
 type Canal = 'envio' | 'recebimento';
-type Conexao = { pc: RTCPeerConnection; pendentes: RTCIceCandidateInit[]; canal: Canal; id: string };
+// medidas: canal de dados que vai junto com o vídeo. Quem assiste manda por ele o que recebe, quando quem
+// transmite grava um teste de desempenho com os amigos (veja desempenho/).
+type Conexao = { pc: RTCPeerConnection; pendentes: RTCIceCandidateInit[]; canal: Canal; id: string; medidas?: RTCDataChannel };
 type Fonte = 'aplicativo' | 'tela' | 'escolher';
 
 type Mensagem = Record<string, any> & { tipo: string };
@@ -86,6 +88,23 @@ const FOLGA_DE_REDE = 200;
 const FPS_MINIMO_DA_CAPTURA = 10;
 // O relatório guarda as últimas linhas (medidas de cada segundo e acontecimentos): umas 2 horas com 2 conexões.
 const LIMITE_DO_RELATORIO = 15_000;
+
+/** Os ajustes de transmissão desta versão, como estão no código: vão no relatório do teste de desempenho. */
+export const AJUSTES_DA_TRANSMISSAO = {
+  servidoresIce: SERVIDORES_ICE.map((s) => s.urls).flat(),
+  turn: false,
+  topologia: 'malha P2P: uma RTCPeerConnection e uma codificação por pessoa assistindo',
+  codecPreferido: 'H264 (setCodecPreferences), depois os outros',
+  folgaDeRedeMs: FOLGA_DE_REDE,
+  fpsMinimoDaCaptura: FPS_MINIMO_DA_CAPTURA,
+  contentHint: 'motion',
+  bundlePolicy: 'max-bundle',
+  audio: 'Opus estéreo até 128 kbps, sem cancelamento de eco/ruído',
+  escalaNoCodificador: 'scaleResolutionDownBy 1 (a captura já sai no tamanho da qualidade)',
+};
+
+/** Quem assiste, visto por quem transmite. */
+export type Envio = { id: string; nome: string; pc: RTCPeerConnection; medidas: RTCDataChannel | null };
 
 /** Uma linha do relatório: uma medida de uma conexão, ou um acontecimento. */
 export type LinhaDoRelatorio = { momento: string } & ({ evento: string } | ({ medida: string } & Omit<Metrica, 'id'>));
@@ -135,6 +154,10 @@ class Cliente {
   private readonly historicoDeCongelamentos = new Map<string, number[]>();
   private readonly tentativasDeVideo = new Map<string, number>(); // id -> conexões de vídeo refeitas seguidas
   private readonly linhasDoRelatorio: LinhaDoRelatorio[] = [];
+  // Conexões de envio que não são de ninguém da sala: os espectadores simulados do teste de desempenho.
+  private readonly enviosExtras = new Set<RTCPeerConnection>();
+  /** Chamado quando abre o canal de medidas de uma transmissão que eu assisto (desempenho/). */
+  aoAbrirCanalDeMedidas: ((idTransmissor: string, canal: RTCDataChannel, pc: RTCPeerConnection) => void) | null = null;
 
   constructor() {
     const daUrl = new URLSearchParams(location.search).get('sala');
@@ -209,7 +232,7 @@ class Cliente {
 
   // ===== Relatório (para entender depois o que aconteceu numa sessão com os amigos) =====
 
-  private registrar(evento: string) {
+  registrar(evento: string) {
     this.guardarLinha({ momento: new Date().toISOString(), evento });
   }
 
@@ -624,8 +647,7 @@ class Cliente {
     this.usarTela(nova);
     const [video] = nova.getVideoTracks();
     const [audio] = nova.getAudioTracks();
-    for (const { pc, canal } of this.conexoes.values()) {
-      if (canal !== 'envio') continue;
+    for (const pc of this.pcsDeEnvio()) {
       for (const transceptor of pc.getTransceivers()) {
         const tipo = transceptor.receiver.track.kind;
         await transceptor.sender.replaceTrack(tipo === 'video' ? video : (audio ?? null));
@@ -666,6 +688,13 @@ class Cliente {
   }
 
   // ===== Qualidade =====
+
+  /** Troca a qualidade sem guardar a escolha: o teste de desempenho passa por todas e volta para a da pessoa. */
+  async qualidadeTemporaria(qualidade: Qualidade) {
+    this.registrar(`qualidade (teste): ${qualidade}`);
+    this.mudar({ qualidade });
+    await this.aplicarQualidade();
+  }
 
   async mudarQualidade(qualidade: Qualidade) {
     this.registrar(`qualidade: ${qualidade}`);
@@ -710,8 +739,7 @@ class Cliente {
         console.warn('Não foi possível mudar o tamanho e o fps da captura', erro);
       }
     }
-    for (const { pc, canal } of this.conexoes.values()) {
-      if (canal !== 'envio') continue;
+    for (const pc of this.pcsDeEnvio()) {
       const remetente = pc.getSenders().find((s) => s.track?.kind === 'video');
       if (!remetente) continue;
       const parametros = remetente.getParameters() as RTCRtpSendParameters & { degradationPreference?: RTCDegradationPreference };
@@ -822,7 +850,20 @@ class Cliente {
     const tela = this.estado.minhaTela;
     if (!tela) return;
     this.fecharConexao('envio', idEspectador);
-    const { pc } = this.novaConexao('envio', idEspectador);
+    const conexao = this.novaConexao('envio', idEspectador);
+    const { pc } = conexao;
+    this.montarEnvio(pc);
+    // Criado antes da oferta, o canal entra na mesma negociação; fica parado até alguém gravar um teste.
+    conexao.medidas = pc.createDataChannel('medidas', { ordered: true });
+    const oferta = await pc.createOffer();
+    await pc.setLocalDescription({ type: 'offer', sdp: opusEstereo(oferta.sdp ?? '') });
+    this.enviar({ tipo: 'oferta', para: idEspectador, sdp: pc.localDescription });
+  }
+
+  /** Vídeo e som da minha tela numa conexão de envio, com a qualidade de agora. Serve também aos espectadores simulados. */
+  montarEnvio(pc: RTCPeerConnection) {
+    const tela = this.estado.minhaTela;
+    if (!tela) throw new Error('Ninguém está transmitindo');
     const [video] = tela.getVideoTracks();
     const transceptor = pc.addTransceiver(video, {
       direction: 'sendonly',
@@ -833,18 +874,11 @@ class Cliente {
     // Sempre cria o canal de áudio, mesmo sem áudio agora: assim a troca de fonte não precisa renegociar.
     const [audio] = tela.getAudioTracks();
     pc.addTransceiver(audio ?? 'audio', { direction: 'sendonly', streams: [tela] });
-    const oferta = await pc.createOffer();
-    await pc.setLocalDescription({ type: 'offer', sdp: opusEstereo(oferta.sdp ?? '') });
-    this.enviar({ tipo: 'oferta', para: idEspectador, sdp: pc.localDescription });
   }
 
-  private async receberResposta(idEspectador: string, sdp: RTCSessionDescriptionInit) {
-    const conexao = this.conexoes.get(chave('envio', idEspectador));
-    if (!conexao) return;
-    await conexao.pc.setRemoteDescription(sdp);
-    await this.aplicarCandidatosPendentes(conexao);
-    // Se a rede ou o PC apertarem, o que sacrificar depende da qualidade escolhida (veja QUALIDADES).
-    const remetente = conexao.pc.getSenders().find((s) => s.track?.kind === 'video');
+  /** O que sacrificar quando faltar banda ou placa de vídeo, conforme a qualidade (veja QUALIDADES). */
+  async aplicarPreferencia(pc: RTCPeerConnection) {
+    const remetente = pc.getSenders().find((s) => s.track?.kind === 'video');
     if (!remetente) return;
     const parametros = remetente.getParameters() as RTCRtpSendParameters & { degradationPreference?: RTCDegradationPreference };
     parametros.degradationPreference = QUALIDADES[this.estado.qualidade].preferencia;
@@ -855,11 +889,46 @@ class Cliente {
     }
   }
 
+  /** Os espectadores simulados acompanham as trocas de qualidade e de fonte, como os de verdade. */
+  registrarEnvioExtra(pc: RTCPeerConnection) {
+    this.enviosExtras.add(pc);
+  }
+
+  removerEnvioExtra(pc: RTCPeerConnection) {
+    this.enviosExtras.delete(pc);
+  }
+
+  private pcsDeEnvio(): RTCPeerConnection[] {
+    const reais = [...this.conexoes.values()].filter((c) => c.canal === 'envio').map((c) => c.pc);
+    return [...reais, ...this.enviosExtras];
+  }
+
+  /** Quem está me assistindo agora (só os da sala). */
+  envios(): Envio[] {
+    return [...this.conexoes.values()]
+      .filter((c) => c.canal === 'envio')
+      .map((c) => ({ id: c.id, nome: this.nomeDe(c.id), pc: c.pc, medidas: c.medidas ?? null }));
+  }
+
+  private async receberResposta(idEspectador: string, sdp: RTCSessionDescriptionInit) {
+    const conexao = this.conexoes.get(chave('envio', idEspectador));
+    if (!conexao) return;
+    await conexao.pc.setRemoteDescription(sdp);
+    await this.aplicarCandidatosPendentes(conexao);
+    // Se a rede ou o PC apertarem, o que sacrificar depende da qualidade escolhida (veja QUALIDADES).
+    await this.aplicarPreferencia(conexao.pc);
+  }
+
   // Lado de quem assiste: responde à oferta e entrega o vídeo para a interface.
   private async receberOferta(idTransmissor: string, sdp: RTCSessionDescriptionInit) {
     if (!this.estado.assistindo.includes(idTransmissor)) return; // desisti de assistir no meio do caminho
     this.fecharConexao('recebimento', idTransmissor);
     const conexao = this.novaConexao('recebimento', idTransmissor);
+    conexao.pc.ondatachannel = ({ channel }) => {
+      if (channel.label !== 'medidas') return;
+      conexao.medidas = channel;
+      this.aoAbrirCanalDeMedidas?.(idTransmissor, channel, conexao.pc);
+    };
     conexao.pc.ontrack = (evento) => {
       // Folga contra soluços do Wi-Fi de quem assiste (veja FOLGA_DE_REDE); vale para vídeo e som, que andam juntos.
       try {

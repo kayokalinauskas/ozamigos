@@ -1,0 +1,738 @@
+// Transforma a gravação em conclusões: médias de cada trecho, diagnósticos com as evidências e uma
+// recomendação. As regras ficam todas aqui, com os limites explícitos, para que a IA que ler o relatório
+// saiba exatamente por que cada conclusão foi tirada (e possa discordar).
+
+import { QUALIDADES, type Qualidade } from '../qualidade';
+import { FAIXAS, type AmostraRecepcao, type Gravacao, type Trecho } from './tipos';
+
+export type Resultado = 'otimo' | 'bom' | 'atencao' | 'ruim';
+
+export type ResumoDoTrecho = {
+  trecho: Trecho;
+  segundos: number; // analisados (sem os descartados)
+  alvoFps: number;
+  conteudoFps: number; // o que dá para mostrar: o menor entre o alvo e a captura
+  captura: { fps: number | null; altura: number | null };
+  envio: {
+    fpsCodificados: number | null;
+    mbps: number | null; // por espectador
+    alvoMbps: number | null;
+    msCodificacao: number | null;
+    msCodificacaoMax: number | null;
+    qp: number | null;
+    alturaMaisComum: number | null;
+    mudancasDeResolucao: number;
+    limites: Record<string, number>; // % do tempo em cada qualityLimitationReason
+    quadrosChavePorMin: number | null;
+    plisPorMin: number | null;
+    msFilaDeEnvio: number | null;
+    rttMs: number | null;
+    bandaMbps: number | null;
+    codificador: string | null;
+    codificadorDaPlaca: boolean | null;
+    rede: string | null;
+  };
+  recepcao: {
+    fpsRecebidos: number | null;
+    fpsDecodificados: number | null;
+    fpsExibidos: number | null;
+    fluidez: number | null; // % dos quadros exibidos no tempo
+    p99Ms: number | null;
+    piorMs: number | null;
+    engasgos: number; // intervalos acima de 2x o esperado
+    congelamentos: number;
+    msCongelado: number;
+    descartados: number;
+    perdaPct: number | null;
+    jitterMs: number | null;
+    msBuffer: number | null;
+    msDecodificacao: number | null;
+    intervaloDesvioMs: number | null;
+    msRecebidoAteTela: number | null;
+    msCapturaAteTela: number | null;
+    segundosSemTela: number; // sem medir o ritmo: janela escondida/minimizada
+    decodificador: string | null;
+    porEspectador: { nome: string; fpsExibidos: number | null; fluidez: number | null; congelamentos: number; perdaPct: number | null; rttMs: number | null }[];
+  };
+  atraso: { codificacao: number; fila: number; rede: number; buffer: number; decodificacao: number; total: number; medido: number | null };
+  pc: {
+    cpuApp: number | null;
+    cpuAppMax: number | null;
+    cpuPc: number | null;
+    placa3dTotal: number | null;
+    placa3dTotalMax: number | null;
+    placaVideoTotal: number | null;
+    placaVideoTotalMax: number | null;
+    placa3dOutros: number | null;
+    memoriaPlacaMB: number | null;
+  };
+  pagina: { tarefasLongas: number; msTarefaMaior: number; segundosComTarefaLonga: number; engasgosJuntoComTarefaLonga: number; segundosComEngasgo: number };
+  resultado: Resultado;
+};
+
+export type Diagnostico = {
+  gravidade: 'alta' | 'media' | 'baixa' | 'ok';
+  codigo: string;
+  titulo: string;
+  detalhe: string;
+  evidencias: string[];
+  paraVoce?: string;
+  paraOApp?: string;
+  /** Onde mexer no código do Ozamigos, para quem for corrigir. */
+  ondeNoCodigo?: string[];
+};
+
+export type Analise = {
+  trechos: ResumoDoTrecho[];
+  diagnosticos: Diagnostico[];
+  recomendacao: { titulo: string; texto: string };
+  principal: { fluidez: number | null; p99Ms: number | null; atraso: number | null; gargalo: string };
+};
+
+// ===== Contas =====
+
+const valores = (lista: (number | null | undefined)[]) => lista.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+const media = (lista: (number | null | undefined)[], casas = 1) => {
+  const v = valores(lista);
+  return v.length ? arred(v.reduce((a, b) => a + b, 0) / v.length, casas) : null;
+};
+const maximo = (lista: (number | null | undefined)[]) => {
+  const v = valores(lista);
+  return v.length ? Math.max(...v) : null;
+};
+const mediana = (lista: (number | null | undefined)[]) => {
+  const v = valores(lista).sort((a, b) => a - b);
+  return v.length ? v[Math.floor(v.length / 2)] : null;
+};
+const soma = (lista: (number | null | undefined)[]) => valores(lista).reduce((a, b) => a + b, 0);
+const arred = (v: number, casas = 1) => Math.round(v * 10 ** casas) / 10 ** casas;
+const maisComum = <T,>(lista: T[]): T | null => {
+  const contagem = new Map<T, number>();
+  for (const v of lista) if (v != null) contagem.set(v, (contagem.get(v) ?? 0) + 1);
+  let melhor: T | null = null;
+  let vezes = 0;
+  for (const [v, n] of contagem) if (n > vezes) [melhor, vezes] = [v, n];
+  return melhor;
+};
+const fmt = (v: number | null | undefined, unidade = '', casas = 1) => (v == null ? '?' : `${arred(v, casas).toString().replace('.', ',')}${unidade}`);
+
+/** Soma as faixas de intervalos de várias amostras. */
+export function juntarFaixas(amostras: AmostraRecepcao[]): number[] {
+  const total = FAIXAS.map(() => 0);
+  for (const a of amostras) a.ritmo?.faixas.forEach((n, i) => (total[i] += n));
+  return total;
+}
+
+/**
+ * % dos quadros exibidos "no tempo": intervalo até 1,5x o esperado para o fps do conteúdo.
+ * Com a captura a 60 fps, até 25 ms; a 30 fps, até 50 ms. Conta pelas faixas (FAIXAS).
+ */
+export function fluidez(faixas: number[], conteudoFps: number): number | null {
+  const total = faixas.reduce((a, b) => a + b, 0);
+  if (!total) return null;
+  const limite = (1000 / conteudoFps) * 1.5;
+  const noTempo = faixas.reduce((acc, n, i) => acc + (FAIXAS[i] <= limite + 0.5 ? n : 0), 0);
+  return arred((noTempo / total) * 100);
+}
+
+/** Intervalos acima de 2x o esperado: o engasgo que se sente. */
+export function engasgos(faixas: number[], conteudoFps: number): number {
+  const limite = (1000 / conteudoFps) * 2;
+  return faixas.reduce((acc, n, i) => acc + ((i === 0 ? 0 : FAIXAS[i - 1]) >= limite - 0.5 ? n : 0), 0);
+}
+
+/** O percentil p pelas faixas, interpolando dentro da faixa. */
+export function percentilDasFaixas(faixas: number[], p: number): number | null {
+  const total = faixas.reduce((a, b) => a + b, 0);
+  if (!total) return null;
+  let acumulado = 0;
+  for (let i = 0; i < faixas.length; i++) {
+    if (acumulado + faixas[i] >= p * total) {
+      const baixo = i === 0 ? 0 : FAIXAS[i - 1];
+      const alto = Number.isFinite(FAIXAS[i]) ? FAIXAS[i] : baixo * 2;
+      const dentro = faixas[i] ? (p * total - acumulado) / faixas[i] : 0;
+      return arred(baixo + (alto - baixo) * dentro);
+    }
+    acumulado += faixas[i];
+  }
+  return null;
+}
+
+// ===== Trechos =====
+
+export function resumirTrecho(g: Gravacao, trecho: Trecho): ResumoDoTrecho {
+  const dentro = <T extends { t: number }>(lista: T[]) => lista.filter((a) => a.t > trecho.descartarAte && a.t <= trecho.fim);
+  const envio = dentro(g.envio);
+  const recepcao = dentro(g.recepcao);
+  const captura = dentro(g.captura);
+  const pcs = dentro(g.pcAmostras);
+  const pagina = dentro(g.pagina);
+  const alvoFps = QUALIDADES[trecho.qualidade].fps;
+  const capturaFps = mediana(captura.map((c) => c.fps));
+  const conteudoFps = Math.max(1, Math.min(alvoFps, capturaFps ?? alvoFps));
+  const segundos = new Set([...envio, ...recepcao].map((a) => a.t)).size;
+
+  const limites: Record<string, number> = {};
+  for (const e of envio) if (e.limite) limites[e.limite] = (limites[e.limite] ?? 0) + 1;
+  for (const k of Object.keys(limites)) limites[k] = arred((limites[k] / Math.max(1, envio.length)) * 100);
+  let mudancas = 0;
+  const ultimaAltura = new Map<string, number | null>();
+  for (const e of envio) {
+    const antes = ultimaAltura.get(e.espectador);
+    if (antes && e.altura && antes !== e.altura) mudancas++;
+    ultimaAltura.set(e.espectador, e.altura);
+  }
+  const minutosDeEnvio = envio.length / 60 || 1;
+
+  const faixas = juntarFaixas(recepcao);
+  const comRitmo = recepcao.filter((r) => r.ritmo);
+  const nomes = [...new Set(recepcao.map((r) => r.espectador))];
+  const porEspectador = nomes.map((nome) => {
+    const dele = recepcao.filter((r) => r.espectador === nome);
+    return {
+      nome,
+      fpsExibidos: media(dele.map((r) => r.fpsExibidos)),
+      fluidez: fluidez(juntarFaixas(dele), conteudoFps),
+      congelamentos: soma(dele.map((r) => r.congelamentos)),
+      perdaPct: media(dele.map((r) => r.perdaPct), 2),
+      rttMs: media(dele.map((r) => r.rttMs), 0),
+    };
+  });
+
+  // Mediana: quadros-chave e a entrada de espectadores novos dão picos de 100+ ms que distorcem a média.
+  const msCodificacao = mediana(envio.map((e) => e.msCodificacao));
+  const msFila = media(envio.map((e) => e.msFilaDeEnvio));
+  const rtt = media([...envio.map((e) => e.rttMs), ...recepcao.map((r) => r.rttMs)], 0);
+  const msBuffer = media(recepcao.map((r) => r.msBuffer));
+  const msDecodificacao = media(recepcao.map((r) => r.msDecodificacao));
+  const atraso = {
+    codificacao: msCodificacao ?? 0,
+    fila: msFila ?? 0,
+    rede: rtt != null ? arred(rtt / 2) : 0,
+    buffer: msBuffer ?? 0,
+    decodificacao: msDecodificacao ?? 0,
+    total: 0,
+    medido: media(comRitmo.map((r) => r.ritmo!.msCapturaAteTela), 0),
+  };
+  atraso.total = arred(atraso.codificacao + atraso.fila + atraso.rede + atraso.buffer + atraso.decodificacao, 0);
+
+  // Engasgo junto com travada da interface: o mesmo segundo (ou o vizinho) tem tarefa longa na página.
+  const segundosComEngasgo = new Set(
+    recepcao.filter((r) => r.ritmo && r.ritmo.maxMs > (1000 / conteudoFps) * 2).map((r) => r.t),
+  );
+  const segundosComTarefa = new Set(pagina.filter((p) => p.tarefasLongas > 0).map((p) => p.t));
+  let juntos = 0;
+  for (const t of segundosComEngasgo) if (segundosComTarefa.has(t) || segundosComTarefa.has(t - 1)) juntos++;
+
+  const resumo: ResumoDoTrecho = {
+    trecho,
+    segundos,
+    alvoFps,
+    conteudoFps: arred(conteudoFps),
+    captura: { fps: media(captura.map((c) => c.fps)), altura: maisComum(captura.map((c) => c.altura)) },
+    envio: {
+      fpsCodificados: media(envio.map((e) => e.fpsCodificados)),
+      mbps: media(envio.map((e) => e.mbps), 2),
+      alvoMbps: media(envio.map((e) => e.alvoMbps), 2),
+      msCodificacao,
+      msCodificacaoMax: maximo(envio.map((e) => e.msCodificacao)),
+      qp: media(envio.map((e) => e.qp)),
+      alturaMaisComum: maisComum(envio.map((e) => e.altura)),
+      mudancasDeResolucao: mudancas,
+      limites,
+      quadrosChavePorMin: envio.length ? arred(soma(envio.map((e) => e.quadrosChave)) / minutosDeEnvio) : null,
+      plisPorMin: envio.length ? arred(soma(envio.map((e) => e.plis)) / minutosDeEnvio) : null,
+      msFilaDeEnvio: msFila,
+      rttMs: media(envio.map((e) => e.rttMs), 0),
+      bandaMbps: media(envio.map((e) => e.bandaMbps), 2),
+      codificador: maisComum(envio.map((e) => e.codificador)),
+      codificadorDaPlaca: maisComum(envio.map((e) => e.codificadorDaPlaca)),
+      rede: maisComum(envio.map((e) => e.rede)),
+    },
+    recepcao: {
+      fpsRecebidos: media(recepcao.map((r) => r.fpsRecebidos)),
+      fpsDecodificados: media(recepcao.map((r) => r.fpsDecodificados)),
+      fpsExibidos: media(recepcao.map((r) => r.fpsExibidos)),
+      fluidez: fluidez(faixas, conteudoFps),
+      p99Ms: percentilDasFaixas(faixas, 0.99),
+      piorMs: maximo(comRitmo.map((r) => r.ritmo!.maxMs)),
+      engasgos: engasgos(faixas, conteudoFps),
+      congelamentos: soma(recepcao.map((r) => r.congelamentos)),
+      msCongelado: soma(recepcao.map((r) => r.msCongelado)),
+      descartados: soma(recepcao.map((r) => r.descartados)),
+      perdaPct: media(recepcao.map((r) => r.perdaPct), 2),
+      jitterMs: media(recepcao.map((r) => r.jitterMs)),
+      msBuffer,
+      msDecodificacao,
+      intervaloDesvioMs: media(recepcao.map((r) => r.intervaloDesvioMs)),
+      msRecebidoAteTela: media(comRitmo.map((r) => r.ritmo!.msRecebidoAteTela), 0),
+      msCapturaAteTela: atraso.medido,
+      segundosSemTela: new Set(recepcao.filter((r) => !r.ritmo).map((r) => r.t)).size,
+      decodificador: maisComum(recepcao.map((r) => r.decodificador)),
+      porEspectador,
+    },
+    atraso,
+    pc: {
+      cpuApp: media(pcs.map((p) => p.cpuApp)),
+      cpuAppMax: maximo(pcs.map((p) => p.cpuApp)),
+      cpuPc: media(pcs.map((p) => p.cpuPc)),
+      placa3dTotal: media(pcs.map((p) => p.placa3dTotal)),
+      placa3dTotalMax: maximo(pcs.map((p) => p.placa3dTotal)),
+      placaVideoTotal: media(pcs.map((p) => p.placaVideoTotal)),
+      placaVideoTotalMax: maximo(pcs.map((p) => p.placaVideoTotal)),
+      placa3dOutros: media(pcs.map((p) => p.placa3dOutros)),
+      memoriaPlacaMB: media(pcs.map((p) => p.memoriaPlacaMB), 0),
+    },
+    pagina: {
+      tarefasLongas: soma(pagina.map((p) => p.tarefasLongas)),
+      msTarefaMaior: maximo(pagina.map((p) => p.msTarefaMaior)) ?? 0,
+      segundosComTarefaLonga: segundosComTarefa.size,
+      engasgosJuntoComTarefaLonga: juntos,
+      segundosComEngasgo: segundosComEngasgo.size,
+    },
+    resultado: 'bom',
+  };
+  resumo.resultado = classificar(resumo);
+  return resumo;
+}
+
+/** Ótimo / bom / atenção / ruim. Os limites estão aqui e no glossário do relatório para IA. */
+export function classificar(r: ResumoDoTrecho): Resultado {
+  const fps = r.recepcao.fpsExibidos ?? r.recepcao.fpsDecodificados ?? r.envio.fpsCodificados;
+  const proporcao = fps != null ? fps / r.conteudoFps : 1;
+  const fl = r.recepcao.fluidez;
+  const limitado = Object.entries(r.envio.limites).some(([motivo, pct]) => motivo !== 'none' && pct > 20);
+  if ((fl != null && fl < 90) || proporcao < 0.8 || r.recepcao.congelamentos > 2) return 'ruim';
+  if ((fl != null && fl < 97) || proporcao < 0.93 || limitado || r.recepcao.congelamentos > 0) return 'atencao';
+  if ((fl != null && fl < 99) || proporcao < 0.97) return 'bom';
+  return 'otimo';
+}
+
+// ===== Diagnósticos =====
+
+const CODIGO = {
+  qualidades: 'web/src/qualidade.ts (QUALIDADES: bitrate, fps, altura e degradationPreference de cada opção)',
+  captura: 'web/src/cliente.ts (tamanhoDaCaptura, FPS_MINIMO_DA_CAPTURA, usarTela) e desktop/main.js (desktopCapturer, setDisplayMediaRequestHandler)',
+  codificador: 'web/src/cliente.ts (montarEnvio, codificacao, preferirH264, aplicarQualidade) e desktop/main.js (force-fieldtrials WebRTC-FrameDropper/Disabled)',
+  buffer: 'web/src/cliente.ts (FOLGA_DE_REDE = jitterBufferTarget de quem assiste, em receberOferta)',
+  rede: 'web/src/cliente.ts (SERVIDORES_ICE: só STUN, sem TURN; refazerVideo)',
+  interface: 'web/src/cliente.ts (medir(): getStats de todas as conexões a cada 1 s e mudar() que re-renderiza o React) e web/src/componentes/',
+  malha: 'web/src/cliente.ts (enviarOferta: uma RTCPeerConnection e uma codificação por espectador)',
+};
+
+export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostico[] {
+  const lista: Diagnostico[] = [];
+  const validos = trechos.filter((t) => t.segundos > 0 && !t.trecho.aquecimento);
+  if (!validos.length) {
+    return [
+      {
+        gravidade: 'media',
+        codigo: 'sem-dados',
+        titulo: 'O teste foi curto demais para tirar conclusões',
+        detalhe: `Cada trecho descarta os primeiros segundos (o WebRTC ainda está subindo a banda) e não sobrou nenhum segundo medido.`,
+        evidencias: [`Duração: ${g.duracao} s; trechos: ${trechos.length}`],
+        paraVoce: 'Rode o teste até o fim, ou grave com os amigos por pelo menos 1 minuto.',
+      },
+    ];
+  }
+
+  // Captura
+  const capturaBaixa = validos.filter((t) => t.captura.fps != null && t.captura.fps < t.alvoFps * 0.85);
+  if (capturaBaixa.length) {
+    const pior = capturaBaixa.reduce((a, b) => ((a.captura.fps ?? 99) < (b.captura.fps ?? 99) ? a : b));
+    lista.push({
+      gravidade: 'alta',
+      codigo: 'captura-lenta',
+      titulo: `A captura do jogo entrega só ${fmt(pior.captura.fps, ' fps', 0)} (a qualidade pede ${pior.alvoFps})`,
+      detalhe:
+        'O Windows está copiando a imagem do jogo mais devagar do que a qualidade pede, antes de qualquer codificação ou rede. Tudo depois disso herda esse limite.',
+      evidencias: capturaBaixa.map((t) => `${t.trecho.nome} (${t.trecho.espectadores} esp.): captura ${fmt(t.captura.fps, ' fps')} de ${t.alvoFps}`),
+      paraVoce: 'Teste o jogo em janela sem bordas, limite o fps do jogo a 60 e confira se o jogo não está com a placa a 100%.',
+      paraOApp: 'Investigar o caminho de captura (Windows Graphics Capture vs. DXGI) e o piso de fps.',
+      ondeNoCodigo: [CODIGO.captura],
+    });
+  } else {
+    lista.push({
+      gravidade: 'ok',
+      codigo: 'captura-ok',
+      titulo: 'A captura do jogo acompanhou a qualidade',
+      detalhe: 'O Windows entregou os quadros no ritmo pedido em todos os trechos.',
+      evidencias: validos.map((t) => `${t.trecho.nome} (${t.trecho.espectadores} esp.): ${fmt(t.captura.fps, ' fps')} de ${t.alvoFps}`),
+    });
+  }
+
+  // Codificador
+  const software = validos.find((t) => t.envio.codificadorDaPlaca === false || /openh264|libvpx|libaom/i.test(t.envio.codificador ?? ''));
+  if (software) {
+    lista.push({
+      gravidade: 'alta',
+      codigo: 'codificador-software',
+      titulo: 'O vídeo está sendo codificado pelo processador, não pela placa de vídeo',
+      detalhe: `O codificador em uso é "${software.envio.codificador}". Codificar por software pesa muito no processador e limita fps e resolução.`,
+      evidencias: [`encoderImplementation=${software.envio.codificador}; powerEfficientEncoder=${software.envio.codificadorDaPlaca}`],
+      paraVoce: 'Atualize o driver da placa de vídeo.',
+      paraOApp: 'Conferir se o H.264 de hardware foi negociado (preferirH264) e se o Chromium tem o codificador da placa liberado.',
+      ondeNoCodigo: [CODIGO.codificador],
+    });
+  }
+  const saturados = validos.filter((t) => {
+    const orcamento = 1000 / t.conteudoFps;
+    const cpuLimitado = (t.envio.limites.cpu ?? 0) > 20;
+    return cpuLimitado || (t.envio.msCodificacao ?? 0) > orcamento * 0.8 || (t.envio.fpsCodificados ?? t.conteudoFps) < t.conteudoFps * 0.9;
+  });
+  if (saturados.length) {
+    const pior = saturados.reduce((a, b) => ((a.envio.msCodificacao ?? 0) > (b.envio.msCodificacao ?? 0) ? a : b));
+    lista.push({
+      gravidade: 'alta',
+      codigo: 'codificador-saturado',
+      titulo: `O codificador não deu conta em ${saturados.length === 1 ? '1 trecho' : `${saturados.length} trechos`}`,
+      detalhe:
+        'Cada pessoa assistindo é uma codificação separada da mesma imagem (malha P2P). Quando o tempo por quadro chega perto do intervalo entre quadros, o WebRTC passa a baixar fps ou resolução (qualityLimitationReason = cpu).',
+      evidencias: saturados.map(
+        (t) =>
+          `${t.trecho.nome} (${t.trecho.espectadores} esp.): ${fmt(t.envio.msCodificacao, ' ms')}/quadro (orçamento ${fmt(1000 / t.conteudoFps, ' ms')}), ${fmt(t.envio.fpsCodificados, ' fps')} codificados de ${t.conteudoFps}, limite cpu ${fmt(t.envio.limites.cpu ?? 0, '%')} do tempo, motor de vídeo da placa ${fmt(t.pc.placaVideoTotal, '%')}`,
+      ),
+      paraVoce: `Com ${pior.trecho.espectadores} pessoas assistindo, use uma qualidade mais leve.`,
+      paraOApp:
+        'Opções: codificar uma vez só e repassar para todos (exige um servidor SFU, foge do P2P), simulcast/SVC, ou baixar a qualidade sozinho conforme o número de espectadores.',
+      ondeNoCodigo: [CODIGO.malha, CODIGO.qualidades],
+    });
+  } else {
+    lista.push({
+      gravidade: 'ok',
+      codigo: 'codificador-ok',
+      titulo: 'O codificador deu conta em todos os trechos',
+      detalhe: 'O tempo por quadro ficou abaixo do intervalo entre quadros, sem limite de processador.',
+      evidencias: validos.map((t) => `${t.trecho.nome} (${t.trecho.espectadores} esp.): ${fmt(t.envio.msCodificacao, ' ms')}/quadro, ${t.envio.codificador ?? '?'}`),
+    });
+  }
+
+  // Escala com o número de espectadores (mesma qualidade, quantidades diferentes)
+  const porQualidade = new Map<Qualidade, ResumoDoTrecho[]>();
+  for (const t of validos) porQualidade.set(t.trecho.qualidade, [...(porQualidade.get(t.trecho.qualidade) ?? []), t]);
+  for (const [qualidade, lista2] of porQualidade) {
+    const quantidades = [...new Set(lista2.map((t) => t.trecho.espectadores))];
+    if (quantidades.length < 2) continue;
+    const ordenados = [...lista2].sort((a, b) => a.trecho.espectadores - b.trecho.espectadores);
+    const primeiro = ordenados[0];
+    const ultimo = ordenados[ordenados.length - 1];
+    const custo =
+      primeiro.envio.msCodificacao != null && ultimo.envio.msCodificacao != null
+        ? (ultimo.envio.msCodificacao - primeiro.envio.msCodificacao) / (ultimo.trecho.espectadores - primeiro.trecho.espectadores)
+        : null;
+    lista.push({
+      gravidade: 'baixa',
+      codigo: 'escala',
+      titulo:
+        custo != null && custo >= 0.2
+          ? `Em ${QUALIDADES[qualidade].rotulo}, cada espectador a mais custa ${fmt(custo, ' ms', 2)} de codificação por quadro`
+          : `Em ${QUALIDADES[qualidade].rotulo}, o tempo de codificação não subiu com mais espectadores`,
+      detalhe: 'Comparação do mesmo jogo e da mesma qualidade com quantidades diferentes de pessoas assistindo.',
+      evidencias: ordenados.map(
+        (t) =>
+          `${t.trecho.espectadores} esp.: ${fmt(t.envio.msCodificacao, ' ms')}/quadro, ${fmt(t.recepcao.fpsExibidos ?? t.recepcao.fpsDecodificados, ' fps')} na tela, fluidez ${fmt(t.recepcao.fluidez, '%')}, motor de vídeo ${fmt(t.pc.placaVideoTotal, '%')}, processador do app ${fmt(t.pc.cpuApp, '%')}`,
+      ),
+      ondeNoCodigo: [CODIGO.malha],
+    });
+  }
+
+  // Banda (no modo simulado não existe internet no caminho: banda limitada é o próprio WebRTC)
+  const banda = validos.filter((t) => (t.envio.limites.bandwidth ?? 0) > 20);
+  if (banda.length) {
+    lista.push({
+      gravidade: g.modo === 'simulado' ? 'media' : 'alta',
+      codigo: 'banda',
+      titulo: g.modo === 'simulado' ? 'O controle de banda do WebRTC segurou a qualidade mesmo sem internet no caminho' : 'A internet de quem transmite limitou a qualidade',
+      detalhe:
+        g.modo === 'simulado'
+          ? 'Os espectadores simulados estão no mesmo PC: limite por banda aqui vem da estimativa do WebRTC (subida lenta ou pacing), não da internet.'
+          : 'O WebRTC estimou menos banda de upload do que a qualidade pede e baixou bitrate ou resolução.',
+      evidencias: banda.map((t) => `${t.trecho.nome} (${t.trecho.espectadores} esp.): limite banda ${fmt(t.envio.limites.bandwidth, '%')} do tempo, banda estimada ${fmt(t.envio.bandaMbps, ' Mbps')}, alvo ${fmt(t.envio.alvoMbps, ' Mbps')}`),
+      paraVoce: g.modo === 'simulado' ? undefined : 'Use cabo em vez de Wi-Fi ou baixe a qualidade; cada amigo usa o upload inteiro de novo.',
+      paraOApp: 'Conferir a subida de banda das conexões novas (começa em ~300 kbps) e o bitrate de cada qualidade.',
+      ondeNoCodigo: [CODIGO.qualidades],
+    });
+  }
+
+  // Rede (amigos)
+  const perda = validos.filter((t) => (t.recepcao.perdaPct ?? 0) > 1 || (t.envio.plisPorMin ?? 0) > 6);
+  if (perda.length) {
+    const local = g.modo === 'simulado';
+    lista.push({
+      gravidade: 'alta',
+      codigo: 'perda-de-pacotes',
+      titulo: local ? 'Pacotes se perderam mesmo sem internet: o PC ficou sobrecarregado' : 'Pacotes perdidos no caminho fizeram a imagem travar',
+      detalhe: local
+        ? 'No modo simulado tudo fica no mesmo PC: perda aqui quer dizer que o processo não deu conta de ler os pacotes a tempo (filas locais transbordaram). Cada perda faz quem assiste pedir um quadro-chave (PLI).'
+        : 'Cada perda que não dá para recuperar faz quem assiste pedir um quadro-chave (PLI), que é grande e atrasa a imagem.',
+      evidencias: perda.map((t) => `${t.trecho.nome}: perda ${fmt(t.recepcao.perdaPct, '%', 2)}, ${fmt(t.envio.plisPorMin, ' PLI/min')}, rtt ${fmt(t.envio.rttMs, ' ms', 0)}`),
+      paraVoce: local ? undefined : 'Quem perde pacotes deve usar cabo ou chegar mais perto do roteador.',
+      paraOApp: local ? 'Ver o que ocupa o processo nesses segundos (codificação, getStats, interface).' : 'Avaliar FEC (ulpfec/flexfec), RED e a folga do jitter buffer.',
+      ondeNoCodigo: [CODIGO.buffer],
+    });
+  }
+  const longe = validos.filter((t) => (t.envio.rttMs ?? 0) > 120 || t.envio.rede === 'relay');
+  if (longe.length) {
+    lista.push({
+      gravidade: 'media',
+      codigo: 'rede-lenta',
+      titulo: g.modo === 'simulado' ? 'A ida e volta subiu mesmo sem internet: o PC demorou a responder' : 'A ida e volta pela internet ficou alta',
+      detalhe:
+        g.modo === 'simulado'
+          ? 'Entre conexões no mesmo PC a ida e volta fica perto de 0 ms; acima de 120 ms, o processo estava ocupado demais para responder.'
+          : 'Atraso alto não trava a imagem, mas faz a reação demorar e deixa o controle de banda mais lento.',
+      evidencias: longe.map((t) => `${t.trecho.nome}: rtt ${fmt(t.envio.rttMs, ' ms', 0)}, caminho ${t.envio.rede ?? '?'}`),
+      ondeNoCodigo: [CODIGO.rede],
+    });
+  }
+
+  // Quem assiste: decodificação e exibição
+  const decodLenta = validos.filter((t) => (t.recepcao.msDecodificacao ?? 0) > (1000 / t.conteudoFps) * 0.5);
+  if (decodLenta.length) {
+    lista.push({
+      gravidade: 'media',
+      codigo: 'decodificacao-lenta',
+      titulo: 'A decodificação de quem assiste ficou lenta',
+      detalhe: `Decodificador: ${decodLenta[0].recepcao.decodificador ?? '?'}. Acima de metade do intervalo entre quadros, sobra pouco para desenhar na tela.`,
+      evidencias: decodLenta.map((t) => `${t.trecho.nome}: ${fmt(t.recepcao.msDecodificacao, ' ms')}/quadro`),
+      paraOApp: g.modo === 'simulado' ? 'No modo simulado, os espectadores decodificam no mesmo PC do jogo: parte disso não acontece com amigos de verdade.' : undefined,
+    });
+  }
+  const perdeNaTela = validos.filter(
+    (t) => t.recepcao.fpsExibidos != null && t.recepcao.fpsDecodificados != null && t.recepcao.fpsExibidos < t.recepcao.fpsDecodificados * 0.93,
+  );
+  if (perdeNaTela.length) {
+    lista.push({
+      gravidade: 'media',
+      codigo: 'perde-na-tela',
+      titulo: 'Quadros decodificados que não chegaram à tela',
+      detalhe: 'A imagem chega e é decodificada, mas a página não mostra todos os quadros: o navegador estava ocupado ou a tela tem outra frequência.',
+      evidencias: perdeNaTela.map((t) => `${t.trecho.nome}: ${fmt(t.recepcao.fpsDecodificados, ' fps')} decodificados, ${fmt(t.recepcao.fpsExibidos, ' fps')} na tela`),
+      ondeNoCodigo: [CODIGO.interface],
+    });
+  }
+
+  // Engasgos e congelamentos
+  const congelou = validos.filter((t) => t.recepcao.congelamentos > 0);
+  if (congelou.length) {
+    lista.push({
+      gravidade: 'alta',
+      codigo: 'congelamentos',
+      titulo: `A imagem congelou ${soma(congelou.map((t) => t.recepcao.congelamentos))} ${soma(congelou.map((t) => t.recepcao.congelamentos)) === 1 ? 'vez' : 'vezes'}${congelou.length === 1 ? ` (${congelou[0].trecho.nome}, ${congelou[0].trecho.espectadores} ${congelou[0].trecho.espectadores === 1 ? 'espectador' : 'espectadores'})` : ''}`,
+      detalhe: 'Congelamento (freezeCount do WebRTC): um intervalo entre quadros acima de 3x a média recente ou de 150 ms.',
+      evidencias: congelou.map((t) => `${t.trecho.nome} (${t.trecho.espectadores} esp.): ${t.recepcao.congelamentos} congelamentos, ${t.recepcao.msCongelado} ms no total`),
+    });
+  }
+
+  // Quem já assistia congela quando alguém novo começa a assistir (codificador novo, quadro-chave)
+  const entradas = g.acontecimentos.filter((e) => (e.tipo === 'etapa' && /com [2-9]/.test(e.texto)) || (e.tipo === 'espectador' && /está assistindo/.test(e.texto)));
+  const congelamentosNaEntrada = g.acontecimentos.filter(
+    (c) => c.tipo === 'congelamento' && entradas.some((e) => c.t >= e.t - 6 && c.t <= e.t + 6),
+  );
+  if (congelamentosNaEntrada.length) {
+    lista.push({
+      gravidade: 'media',
+      codigo: 'congela-ao-entrar',
+      titulo: 'Quem já assistia congelou quando alguém começou a assistir',
+      detalhe:
+        'Cada pessoa nova abre uma conexão e um codificador novos, que começam com um quadro-chave. Nesse momento, a imagem de quem já estava assistindo travou. Estes segundos ficam fora das médias dos trechos.',
+      evidencias: [
+        ...entradas.map((e) => `${e.t} s: ${e.texto}`),
+        ...congelamentosNaEntrada.map((c) => `${c.t} s: ${c.texto}`),
+      ].slice(0, 12),
+      paraOApp:
+        'Investigar se criar o codificador de hardware (ou o quadro-chave inicial) segura a codificação das outras conexões; testar abrir as conexões novas uma de cada vez, com intervalo, e conferir o quadro-chave/PLI de quem já assistia.',
+      ondeNoCodigo: [CODIGO.malha, CODIGO.codificador],
+    });
+  }
+
+  // A interface de quem transmite causando engasgo
+  const comTarefas = validos.filter((t) => t.pagina.engasgosJuntoComTarefaLonga > 0);
+  const engasgosTotal = soma(validos.map((t) => t.pagina.segundosComEngasgo));
+  const juntos = soma(validos.map((t) => t.pagina.engasgosJuntoComTarefaLonga));
+  if (comTarefas.length && engasgosTotal) {
+    lista.push({
+      gravidade: juntos / engasgosTotal >= 0.4 ? 'media' : 'baixa',
+      codigo: 'interface-trava',
+      titulo: `${juntos} de ${engasgosTotal} segundos com engasgo coincidiram com uma travada da interface`,
+      detalhe:
+        g.modo === 'simulado'
+          ? 'Os espectadores simulados vivem na mesma página que transmite: quando ela trava (tarefa acima de 50 ms), o quadro sai atrasado. Amigos de verdade não sofrem com as travadas desta página, mas a captura e o envio rodam no mesmo processo.'
+          : 'Tarefas acima de 50 ms na página de quem transmite atrasam o envio dos quadros.',
+      evidencias: comTarefas.map((t) => `${t.trecho.nome}: ${t.pagina.tarefasLongas} tarefas longas (maior ${t.pagina.msTarefaMaior} ms), ${t.pagina.engasgosJuntoComTarefaLonga} de ${t.pagina.segundosComEngasgo} s com engasgo coincidem`),
+      paraOApp: 'Descobrir o que roda nessas tarefas (perfil do DevTools): getStats de muitas conexões, re-render do React a cada segundo, áudio do PC.',
+      ondeNoCodigo: [CODIGO.interface],
+    });
+  }
+
+  // Atraso
+  const comAtraso = validos.filter((t) => t.atraso.total > 0);
+  const recomendado = comAtraso.find((t) => t.trecho.qualidade === g.qualidadeDaPessoa) ?? comAtraso[0];
+  if (recomendado && recomendado.atraso.buffer > recomendado.atraso.total * 0.55) {
+    lista.push({
+      gravidade: 'baixa',
+      codigo: 'atraso-no-buffer',
+      titulo: `O buffer de quem assiste é ${Math.round((recomendado.atraso.buffer / recomendado.atraso.total) * 100)}% do atraso`,
+      detalhe: 'Quem assiste segura quadros para absorver variações da rede (jitterBufferTarget). É uma escolha: menos buffer = menos atraso, mais risco de congelar em Wi-Fi instável.',
+      evidencias: [
+        `${recomendado.trecho.nome}: codificação ${fmt(recomendado.atraso.codificacao, ' ms')}, fila ${fmt(recomendado.atraso.fila, ' ms')}, rede ${fmt(recomendado.atraso.rede, ' ms')}, buffer ${fmt(recomendado.atraso.buffer, ' ms')}, decodificação ${fmt(recomendado.atraso.decodificacao, ' ms')}`,
+        `jitterBufferTarget configurado: ${g.ajustes.folgaDeRedeMs ?? '?'} ms`,
+      ],
+      paraOApp: 'Testar uma folga menor (ex.: 80–120 ms) para quem tem rede estável, ou ajustar sozinho pelo jitter medido.',
+      ondeNoCodigo: [CODIGO.buffer],
+    });
+  }
+
+  // Placa de vídeo ocupada pelo jogo
+  const placaCheia = validos.filter((t) => (t.pc.placa3dTotalMax ?? 0) >= 95);
+  if (placaCheia.length) {
+    lista.push({
+      gravidade: 'media',
+      codigo: 'placa-cheia',
+      titulo: 'A placa de vídeo chegou a 100% (o jogo usa quase tudo)',
+      detalhe: 'Com a placa cheia, a captura e a codificação disputam espaço com o jogo e podem atrasar.',
+      evidencias: placaCheia.map((t) => `${t.trecho.nome}: 3D até ${fmt(t.pc.placa3dTotalMax, '%')} (o jogo ${fmt(t.pc.placa3dOutros, '%')} em média)`),
+      paraVoce: 'Limite o fps do jogo (60 costuma bastar) para sobrar placa para a transmissão.',
+    });
+  }
+
+  // Nitidez
+  const borrado = validos.filter((t) => (t.envio.qp ?? 0) > 32);
+  if (borrado.length) {
+    lista.push({
+      gravidade: 'baixa',
+      codigo: 'imagem-borrada',
+      titulo: 'A imagem saiu com pouca nitidez em alguns trechos',
+      detalhe: 'QP médio alto: o codificador comprimiu demais para caber no bitrate.',
+      evidencias: borrado.map((t) => `${t.trecho.nome}: QP ${fmt(t.envio.qp)}, ${fmt(t.envio.mbps, ' Mbps')} (alvo ${fmt(t.envio.alvoMbps, ' Mbps')})`),
+      paraOApp: 'Avaliar bitrate maior nessa qualidade.',
+      ondeNoCodigo: [CODIGO.qualidades],
+    });
+  }
+
+  // Medição incompleta
+  const semTela = soma(validos.map((t) => t.recepcao.segundosSemTela));
+  if (semTela > 0) {
+    lista.push({
+      gravidade: 'baixa',
+      codigo: 'sem-ritmo',
+      titulo: 'Parte do teste não mediu o ritmo na tela',
+      detalhe: 'Com a janela do Ozamigos escondida ou minimizada, o navegador não desenha o vídeo; nesses segundos valem só as medidas até a decodificação.',
+      evidencias: [`${semTela} segundos-espectador sem medida na tela`],
+      paraVoce: 'Deixe a janela do Ozamigos visível durante o teste (em outro monitor ou ao lado do jogo).',
+    });
+  }
+
+  if (g.modo === 'simulado') {
+    lista.push({
+      gravidade: 'baixa',
+      codigo: 'limites-do-simulado',
+      titulo: 'O que o teste simulado não mede',
+      detalhe:
+        'Os espectadores simulados estão no mesmo PC: não há internet no caminho (sem perda, rtt ~0) e a decodificação deles pesa no PC de quem transmite, o que amigos de verdade não fazem. Para a internet, grave com os amigos.',
+      evidencias: [`${soma(validos.map((t) => t.trecho.simulados))} espectadores simulados no total dos trechos`],
+    });
+  }
+
+  const ordem = { alta: 0, media: 1, baixa: 2, ok: 3 };
+  return lista.sort((a, b) => ordem[a.gravidade] - ordem[b.gravidade]);
+}
+
+// ===== Recomendação =====
+
+const PREFERENCIA: Qualidade[] = ['maxima', 'nitida', 'equilibrada', 'leve'];
+const contar = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+const passou = (t: ResumoDoTrecho) => t.resultado === 'otimo' || t.resultado === 'bom';
+
+export function recomendar(g: Gravacao, trechos: ResumoDoTrecho[], diagnosticos: Diagnostico[]): Analise['recomendacao'] {
+  const validos = trechos.filter((t) => t.segundos > 0 && !t.trecho.aquecimento);
+  if (!validos.length) return { titulo: 'Sem dados suficientes', texto: 'Rode o teste por mais tempo.' };
+  const principal = diagnosticos.find((d) => d.gravidade === 'alta');
+  if (g.modo === 'amigos') {
+    const piores = validos.filter((t) => !passou(t));
+    if (!piores.length) {
+      return {
+        titulo: `A transmissão foi ${validos.every((t) => t.resultado === 'otimo') ? 'ótima' : 'boa'} para todos que assistiram`,
+        texto: `Medido com ${contar(new Set(g.recepcao.map((r) => r.espectador)).size, 'amigo', 'amigos')} em ${contar(validos.length, 'trecho', 'trechos')}. ${principal ? `Atenção: ${principal.titulo}.` : 'Nenhum gargalo importante.'}`,
+      };
+    }
+    return {
+      titulo: principal ? principal.titulo : 'Houve trechos com engasgo',
+      texto: `${piores.length} de ${validos.length} trechos ficaram abaixo do esperado. ${principal?.paraVoce ?? ''}`.trim(),
+    };
+  }
+  // De cada qualidade, o trecho com menos gente assistindo (no roteiro completo, 1 espectador).
+  const base = new Map<Qualidade, ResumoDoTrecho>();
+  for (const t of validos) {
+    const atual = base.get(t.trecho.qualidade);
+    if (!atual || t.trecho.espectadores < atual.trecho.espectadores) base.set(t.trecho.qualidade, t);
+  }
+  const melhor = PREFERENCIA.find((q) => base.get(q) && passou(base.get(q)!));
+  const sua = g.qualidadeDaPessoa;
+  const escala = validos.filter((t) => t.trecho.qualidade === sua).sort((a, b) => a.trecho.espectadores - b.trecho.espectadores);
+  const aguenta = escala.filter(passou).map((t) => t.trecho.espectadores);
+  const maxOk = aguenta.length ? Math.max(...aguenta) : 0;
+  const falhou = escala.find((t) => !passou(t) && t.trecho.espectadores > maxOk);
+  const pessoas = (n: number) => `${n} ${n === 1 ? 'pessoa' : 'pessoas'}`;
+  const nomeSua = QUALIDADES[sua].rotulo;
+  const partes: string[] = [];
+  if (base.size > 1) {
+    partes.push(melhor ? `Entre as ${base.size} qualidades testadas, a melhor que passou sem engasgos foi ${QUALIDADES[melhor].rotulo}.` : 'Nenhuma das qualidades testadas passou sem engasgos.');
+  }
+  if (escala.length) {
+    if (falhou && maxOk) partes.push(`Em ${nomeSua}, foi bem com até ${pessoas(maxOk)} assistindo e engasgou com ${falhou.trecho.espectadores}.`);
+    else if (falhou) partes.push(`Em ${nomeSua}, engasgou já com ${pessoas(falhou.trecho.espectadores)} assistindo.`);
+    else partes.push(`Em ${nomeSua}, aguentou ${pessoas(maxOk)} assistindo sem problema.`);
+  }
+  if (principal) partes.push(`Gargalo principal: ${principal.titulo.charAt(0).toLowerCase()}${principal.titulo.slice(1)}.`);
+  let titulo: string;
+  if (base.size > 1) {
+    titulo = melhor
+      ? falhou && melhor === sua
+        ? `Use ${QUALIDADES[melhor].rotulo} com até ${pessoas(Math.max(1, maxOk))}; com mais gente, baixe a qualidade`
+        : `Use ${QUALIDADES[melhor].rotulo}: seu PC deu conta`
+      : 'Seu PC teve dificuldade em todas as qualidades';
+  } else {
+    titulo = !falhou ? `${nomeSua}: seu PC aguentou ${pessoas(maxOk)} assistindo` : maxOk ? `${nomeSua}: bem até ${pessoas(maxOk)}, engasgou com ${falhou.trecho.espectadores}` : `${nomeSua}: engasgou já com ${pessoas(falhou.trecho.espectadores)}`;
+  }
+  return { titulo, texto: partes.join(' ') };
+}
+
+export function analisar(g: Gravacao): Analise {
+  const trechos = g.trechos.map((t) => resumirTrecho(g, t));
+  const diagnosticos = diagnosticar(g, trechos);
+  const recomendacao = recomendar(g, trechos, diagnosticos);
+  const validos = trechos.filter((t) => t.segundos > 0 && !t.trecho.aquecimento);
+  const daPessoa = validos.find((t) => t.trecho.qualidade === g.qualidadeDaPessoa && t.trecho.espectadores <= 1) ?? validos[0];
+  const gargalo = diagnosticos.find((d) => d.gravidade === 'alta' || d.gravidade === 'media');
+  return {
+    trechos,
+    diagnosticos,
+    recomendacao,
+    principal: {
+      fluidez: daPessoa?.recepcao.fluidez ?? null,
+      p99Ms: daPessoa?.recepcao.p99Ms ?? null,
+      atraso: daPessoa?.atraso.total ?? null,
+      gargalo: gargalo ? gargalo.codigo : 'nenhum',
+    },
+  };
+}
+
+export const NOMES_DOS_GARGALOS: Record<string, string> = {
+  nenhum: 'Nenhum',
+  'captura-lenta': 'Captura do jogo',
+  'codificador-software': 'Codificador por software',
+  'codificador-saturado': 'Codificador',
+  banda: 'Banda',
+  'perda-de-pacotes': 'Perda de pacotes',
+  'rede-lenta': 'Rede',
+  'decodificacao-lenta': 'Decodificação',
+  'perde-na-tela': 'Exibição',
+  congelamentos: 'Congelamentos',
+  'interface-trava': 'Interface',
+  'congela-ao-entrar': 'Entrada de espectadores',
+  'placa-cheia': 'Placa de vídeo',
+  'sem-dados': 'Sem dados',
+};
+
+export { fmt };

@@ -161,6 +161,10 @@ function criarJanela(atualizando) {
   janela.on('enter-full-screen', () => conteudo.send('tela-cheia', true));
   janela.on('leave-full-screen', () => conteudo.send('tela-cheia', false));
   conteudo.on('did-finish-load', () => conteudo.send('tela-cheia', janela.isFullScreen()));
+  // Recarregou no meio de um teste de desempenho: os contadores do Windows param junto.
+  conteudo.on('did-start-navigation', (detalhes) => {
+    if (detalhes.isMainFrame && !detalhes.isSameDocument) desligarContadores();
+  });
   // Sem barra de título, o menu não aparece: os atalhos dele são tratados aqui, sem depender do menu.
   conteudo.on('before-input-event', (evento, tecla) => {
     if (tecla.type !== 'keyDown') return;
@@ -366,6 +370,119 @@ ipcMain.on('trocar-servidor', (evento) => {
 function trocarServidor() {
   janela?.loadFile(path.join(__dirname, 'inicio.html'));
 }
+
+// ===== Teste de desempenho (o que o navegador não mede: o PC e a placa de vídeo) =====
+
+let contadores = null; // o auxiliar em modo --contadores, enquanto um teste grava
+let ultimaLeitura = null; // a linha JSON mais recente dele
+
+function desligarContadores() {
+  contadores?.stdin.end();
+  contadores?.kill();
+  contadores = null;
+  ultimaLeitura = null;
+}
+
+const vindoDaPagina = (evento) => origemDe(evento.senderFrame?.url) === origemDoServidor();
+
+ipcMain.handle('desempenho-pc', async (evento) => {
+  if (!vindoDaPagina(evento)) return null;
+  const os = require('node:os');
+  const { screen } = require('electron');
+  let placa = null;
+  try {
+    const info = await app.getGPUInfo('complete');
+    const ativa = info.gpuDevice?.find((d) => d.active) ?? info.gpuDevice?.[0];
+    // "ANGLE (AMD, AMD  Radeon RX 7800 XT (0x0000747E) Direct3D11 vs_5_0 ps_5_0, D3D11-…)" -> "AMD Radeon RX 7800 XT"
+    const renderizador = info.auxAttributes?.glRenderer ?? '';
+    const nome = /^ANGLE \([^,]+,\s*(.+?)\s*(\(0x|Direct3D)/.exec(renderizador)?.[1]?.replace(/\s+/g, ' ') ?? (renderizador || null);
+    placa = { nome, driver: ativa?.driverVersion ?? null, fabricante: ativa?.vendorId ?? null };
+  } catch {
+    // sem informação da placa: o relatório diz "?"
+  }
+  return {
+    sistema: `${os.version()} (${os.release()})`,
+    processador: os.cpus()[0]?.model.trim() ?? '?',
+    nucleos: os.cpus().length,
+    memoriaGB: Math.round(os.totalmem() / 2 ** 30),
+    placa,
+    telas: screen.getAllDisplays().map((t) => ({
+      tamanho: `${Math.round(t.size.width * t.scaleFactor)}x${Math.round(t.size.height * t.scaleFactor)}`,
+      escala: t.scaleFactor,
+      hz: t.displayFrequency,
+      principal: t.id === screen.getPrimaryDisplay().id,
+    })),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    contadoresDoWindows: fs.existsSync(caminhoDoAuxiliar()),
+  };
+});
+
+ipcMain.handle('desempenho-ligar', (evento, ligado) => {
+  if (!vindoDaPagina(evento)) return false;
+  if (!ligado) {
+    desligarContadores();
+    return true;
+  }
+  if (contadores || !fs.existsSync(caminhoDoAuxiliar())) return Boolean(contadores);
+  const processo = spawn(caminhoDoAuxiliar(), ['--contadores'], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  contadores = processo;
+  let sobra = '';
+  processo.stdout.setEncoding('utf8');
+  processo.stdout.on('data', (texto) => {
+    const linhas = (sobra + texto).split('\n');
+    sobra = linhas.pop();
+    for (const linha of linhas) {
+      try {
+        ultimaLeitura = JSON.parse(linha);
+      } catch {
+        // linha cortada: a próxima chega em 1 s
+      }
+    }
+  });
+  processo.on('error', (erro) => console.error('Contadores do Windows não abriram', erro));
+  processo.on('exit', () => {
+    if (contadores === processo) contadores = null;
+  });
+  return true;
+});
+
+/**
+ * Uma amostra por segundo. O processador do app vem do Electron (por tipo de processo); o do PC inteiro e a
+ * placa de vídeo vêm dos contadores do Windows, separando o que é do app (estes processos e o auxiliar de som)
+ * do resto (o jogo, principalmente).
+ */
+ipcMain.handle('desempenho-amostra', (evento) => {
+  if (!vindoDaPagina(evento)) return null;
+  const metricas = app.getAppMetrics();
+  const pids = new Set(metricas.map((m) => String(m.pid)));
+  if (auxiliarDeSom?.pid) pids.add(String(auxiliarDeSom.pid));
+  if (contadores?.pid) pids.add(String(contadores.pid));
+  // percentCPUUsage já vem em % do processador inteiro (o Electron divide pelos núcleos).
+  const processos = {};
+  for (const m of metricas) {
+    const tipo = m.type === 'Utility' ? (m.serviceName ?? m.name ?? 'Utility') : m.type;
+    const atual = processos[tipo] ?? { cpu: 0, memoriaMB: 0 };
+    atual.cpu += m.cpu.percentCPUUsage;
+    atual.memoriaMB += (m.memory.workingSetSize ?? 0) / 1024;
+    processos[tipo] = atual;
+  }
+  for (const atual of Object.values(processos)) {
+    atual.cpu = Math.round(atual.cpu * 10) / 10;
+    atual.memoriaMB = Math.round(atual.memoriaMB);
+  }
+  let placa = null;
+  if (ultimaLeitura) {
+    const doApp = {};
+    const outros = {};
+    for (const [pid, tipos] of Object.entries(ultimaLeitura.porProcesso ?? {})) {
+      const destino = pids.has(pid) ? doApp : outros;
+      for (const [tipo, uso] of Object.entries(tipos)) destino[tipo] = Math.round(((destino[tipo] ?? 0) + uso) * 10) / 10;
+    }
+    placa = { total: ultimaLeitura.motores ?? {}, doApp, outros, memoriaMB: ultimaLeitura.memoriaDaPlacaMB ?? null };
+  }
+  return { processos, cpuDoPc: ultimaLeitura?.cpu ?? null, placa };
+});
 
 // ===== Menu (sem barra de título, ele não aparece: fica pelos atalhos de teclado) =====
 

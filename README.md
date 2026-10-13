@@ -86,6 +86,7 @@
 - **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura. Dois cliques no vídeo abrem a tela cheia, e o botão **Janela flutuante** solta a transmissão numa janelinha que fica por cima do jogo.
 - **Áudio por transmissão:** volume e silenciar de cada uma, lembrados por amigo, mais um volume geral.
 - **Qualidade ajustável ao vivo:** 1080p ou 720p, a 30 ou 60 fps, sem derrubar ninguém. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
+- **Teste de desempenho** (painel de **Estatísticas** ou Ctrl+Shift+D): grava tudo o que acontece com a imagem do seu jogo, da captura até a tela de quem assiste, e mostra onde está o gargalo. Funciona com espectadores simulados no seu PC (um roteiro automático pelas qualidades e por 1, 3 e 7 pessoas) ou com os amigos assistindo de verdade. O relatório sai pronto para colar numa IA e pedir melhorias.
 - **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos, que dá para desligar, e notificação do Windows quando o app está atrás do jogo.
 - **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
 - **Reconexão automática:** se a internet oscilar ou o servidor reiniciar, o app volta sozinho para a sala. Quem transmitia continua transmitindo, e quem assistia continua assistindo. As transmissões já abertas não param enquanto isso.
@@ -182,6 +183,7 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │       ├── cliente.ts                Núcleo: sinalização, WebRTC, qualidade e estatísticas
 │       ├── somDoApp.ts               Faixa de áudio do auxiliar de som (AudioWorklet)
 │       ├── ponte.ts                  Contrato com o app Electron
+│       ├── desempenho/               Teste de desempenho: medição, análise e os relatórios (HTML e para IA)
 │       └── componentes/              Entrada, Sala, BarraLateral, Palco, Transmissao, ...
 ├── site/                   Site de apresentação em português e inglês (en/), publicado no GitHub Pages
 ├── desktop/                App para Windows (Electron 44)
@@ -189,7 +191,7 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │   ├── preload.js                    Ponte segura entre a página e o app
 │   ├── inicio.html|js|css            Tela de escolher o servidor
 │   ├── build/                        Ícone (e o script que o gera) e a fonte do logotipo
-│   └── som/                          Auxiliar de som em C# (.NET 10): OzamigosSom.exe
+│   └── som/                          Auxiliar em C# (.NET 10): OzamigosSom.exe (som do PC; com --contadores, uso da placa de vídeo)
 ├── docs/imagens/           Logotipo, telas e GIF de demonstração deste README
 ├── docs/vitrine/           Scripts que geram as imagens de docs/imagens
 ├── .github/                CI, release do app, site, Dependabot e modelos de issue e PR
@@ -415,6 +417,27 @@ Exemplo: em 1080p a 30 fps para 4 amigos, são cerca de 25 Mbps de upload; para 
 | `Limite: processador / placa de vídeo` | O codificador não dá conta | 720p, fps do jogo limitado, driver atualizado |
 | `Limite: internet` / `Banda estimada` baixa | O upload não aguenta | Baixe a qualidade, use cabo ou tenha menos gente assistindo |
 | Indicador vermelho só em quem assiste | A internet de quem assiste | Cabo ou Wi-Fi mais perto do roteador |
+
+### Teste de desempenho
+
+Abra pelo painel de **Estatísticas** (botão **Teste de desempenho**) ou com **Ctrl+Shift+D**, com o jogo já transmitindo. Há dois modos:
+
+| Modo | Como funciona | O que mede |
+|---|---|---|
+| **Espectadores simulados** | O app cria espectadores no próprio PC (conexões WebRTC locais, sem servidor nem internet) e segue um roteiro: as 4 qualidades com 1 espectador e a sua qualidade com 3 e 7. Completo: ~4 min; rápido: ~1 min. | O seu PC: captura, codificação, decodificação e o ritmo dos quadros na tela, mais processador e placa de vídeo |
+| **Com os amigos assistindo** | Grava a transmissão de verdade. Cada amigo manda, pelo canal de dados da própria conexão, como a imagem chega no PC dele (ele vê um aviso enquanto isso). | Tudo acima, mais a internet: perdas, ida e volta, congelamentos no PC de cada amigo |
+
+No fim, o relatório traz:
+- a recomendação (qualidade e quantas pessoas o PC aguenta) e o gargalo principal;
+- os achados, com as evidências e o que fazer ("Para você" e "Para o app");
+- a tabela por trecho e os gráficos (fps ao longo do teste, intervalo entre quadros, codificação por espectador e onde está o atraso).
+
+Três formas de salvar:
+- **Copiar para IA / Salvar para IA** (`.md`): o relatório completo em texto, feito para colar numa conversa com uma IA e pedir correções no código. Ele explica como o Ozamigos transmite, a configuração desta versão, as regras de cada conclusão, um glossário das colunas e os dados de cada segundo em CSV.
+- **Salvar relatório** (`.html`): a página com os gráficos, que abre em qualquer navegador.
+- **Dados (JSON)**: tudo, sem arredondar.
+
+A **fluidez** é a porcentagem de quadros que chegaram à tela a tempo: intervalo até 1,5× o esperado, medido quadro a quadro com `requestVideoFrameCallback`. O uso da placa de vídeo vem dos mesmos contadores do Gerenciador de Tarefas e só é medido no app para Windows. Deixe a janela do Ozamigos visível durante o teste: escondida, o navegador não desenha o vídeo e o ritmo na tela não é medido.
 
 ---
 
