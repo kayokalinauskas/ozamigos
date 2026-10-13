@@ -6,6 +6,14 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
+## [Não publicado]
+
+Só na interface: chega a todos no próximo push na `main`, sem versão nova do app.
+
+### Alterado
+- Quem assiste segura cerca de 200 ms de imagem antes de mostrar. Os soluços curtos do Wi-Fi, que viravam congelamentos, agora passam despercebidos. Para assistir, esse atraso não se nota.
+- A banda indicada em cada qualidade passa a ser a que sai de verdade (o codificador da placa gasta uns 25% a mais que o pedido): ~6 Mbps por amigo em 1080p · 30 fps, não ~5.
+
 ## [1.2.4] - 2026-10-13
 
 As melhorias da interface valem também para quem ainda está numa versão anterior (o app carrega a interface

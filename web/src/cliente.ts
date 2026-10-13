@@ -76,6 +76,9 @@ const SILENCIO_MAXIMO = 70_000;
 const JANELA_DE_VOLTA = 120_000;
 // Conexão de vídeo "desconectada" por mais que isso é refeita (antes ficava congelada até desistir).
 const ESPERA_DESCONECTADO = 2_000;
+// Quem assiste segura ~200 ms de imagem antes de mostrar. Sem isso, cada soluço do Wi-Fi (ida e volta
+// pulando de 8 para 222 ms, num relatório real) virava um congelamento. Para assistir, 200 ms não se notam.
+const FOLGA_DE_REDE = 200;
 // O relatório guarda as últimas linhas (medidas de cada segundo e acontecimentos): umas 2 horas com 2 conexões.
 const LIMITE_DO_RELATORIO = 15_000;
 
@@ -851,6 +854,12 @@ class Cliente {
     this.fecharConexao('recebimento', idTransmissor);
     const conexao = this.novaConexao('recebimento', idTransmissor);
     conexao.pc.ontrack = (evento) => {
+      // Folga contra soluços do Wi-Fi de quem assiste (veja FOLGA_DE_REDE); vale para vídeo e som, que andam juntos.
+      try {
+        (evento.receiver as RTCRtpReceiver & { jitterBufferTarget: number | null }).jitterBufferTarget = FOLGA_DE_REDE;
+      } catch (erro) {
+        console.warn('O navegador não aceitou a folga de rede', erro);
+      }
       this.mudar({ videos: { ...this.estado.videos, [idTransmissor]: evento.streams[0] } });
     };
     await conexao.pc.setRemoteDescription(sdp);

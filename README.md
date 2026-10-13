@@ -400,12 +400,12 @@ Cada pessoa que assiste é mais um vídeo saindo do PC de quem transmite. O code
 
 | Qualidade | Upload por pessoa assistindo | Quando usar |
 |---|---|---|
-| 1080p · 30 fps (padrão) | ~5 Mbps | Imagem nítida, metade do trabalho do PC |
-| 1080p · 60 fps | ~8 Mbps | Jogos rápidos, com upload sobrando |
-| 720p · 60 fps | ~5 Mbps | Fluidez com menos banda |
-| 720p · 30 fps | ~3 Mbps | Internet fraca |
+| 1080p · 30 fps (padrão) | ~6 Mbps | Imagem nítida, metade do trabalho do PC |
+| 1080p · 60 fps | ~10 Mbps | Jogos rápidos, com upload sobrando |
+| 720p · 60 fps | ~6 Mbps | Fluidez com menos banda |
+| 720p · 30 fps | ~4 Mbps | Internet fraca |
 
-Exemplo: em 1080p a 30 fps para 4 amigos, são cerca de 20 Mbps de upload. Nos primeiros 15 a 25 segundos, uma resolução menor é normal: o WebRTC está medindo a rede.
+Exemplo: em 1080p a 30 fps para 4 amigos, são cerca de 25 Mbps de upload. Nos primeiros 15 a 25 segundos, uma resolução menor é normal: o WebRTC está medindo a rede.
 
 **Fps baixo ou travando.** Abra **Estatísticas** no PC de quem transmite:
 
