@@ -8,9 +8,10 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não publicado]
 
-Só na interface: chega a todos no próximo push na `main`, sem versão nova do app.
+A interface chega a todos no próximo push na `main`; a abertura mais rápida depende de uma versão nova do app.
 
 ### Alterado
+- O app abre mais rápido: a interface carrega enquanto ele confere se há versão nova, em vez de esperar a conferência terminar (~0,5–1 s a cada abertura).
 - Quem assiste segura cerca de 200 ms de imagem antes de mostrar. Os soluços curtos do Wi-Fi, que viravam congelamentos, agora passam despercebidos. Para assistir, esse atraso não se nota.
 - Com a tela parada (área de trabalho, Explorer), a captura caía para 1 fps e quem assistia via dezenas de "congelamentos" e a etiqueta vermelha, sem nada ter travado. Agora a captura repete o último quadro para nunca ficar abaixo de 10 fps, e a etiqueta só fica vermelha com congelamento de verdade ou abaixo de 8 fps.
 - A banda indicada em cada qualidade passa a ser a que sai de verdade (o codificador da placa gasta uns 25% a mais que o pedido): ~6 Mbps por amigo em 1080p · 30 fps, não ~5.

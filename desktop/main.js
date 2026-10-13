@@ -110,7 +110,8 @@ function abrirServidorOuInicio(erro) {
   }
 }
 
-function criarJanela() {
+/** atualizando: resolve true se o app vai fechar para instalar uma versão nova (a janela nem aparece). */
+function criarJanela(atualizando) {
   const { posicao = {} } = lerConfiguracao();
   janela = new BrowserWindow({
     width: posicao.width ?? 1600,
@@ -137,7 +138,11 @@ function criarJanela() {
     },
   });
   if (posicao.maximizada) janela.maximize();
-  janela.once('ready-to-show', () => janela.show());
+  // A interface carrega enquanto o app confere se há versão nova: as duas coisas juntas, não uma depois da outra.
+  const pronta = new Promise((resolver) => janela.once('ready-to-show', resolver));
+  void Promise.all([pronta, atualizando]).then(([, vaiAtualizar]) => {
+    if (!vaiAtualizar && janela && !janela.isDestroyed()) janela.show();
+  });
 
   // Lembra o tamanho e a posição para a próxima vez.
   janela.on('close', () => {
@@ -460,12 +465,14 @@ if (!app.requestSingleInstanceLock()) {
   nativeTheme.themeSource = 'dark';
 
   app.whenReady().then(async () => {
-    if (await atualizarSeHouver()) return; // o instalador fecha e reabre o app já na versão nova
+    // Conferir a versão nova leva ~0,5–1 s (GitHub); a interface carrega ao mesmo tempo, com a janela escondida.
+    // Havendo versão nova, a janela nunca aparece: o instalador fecha e reabre o app já atualizado.
+    const atualizando = atualizarSeHouver();
     await limparCacheSeAtualizou();
     configurarMenu();
     configurarSessao();
-    criarJanela();
-    fecharAvisoDeAtualizacao(); // se o download falhou no meio; só depois da janela, senão o app fecharia
+    criarJanela(atualizando);
+    if (!(await atualizando)) fecharAvisoDeAtualizacao(); // se o download falhou no meio; só depois da janela, senão o app fecharia
   });
 
   app.on('window-all-closed', () => app.quit());
