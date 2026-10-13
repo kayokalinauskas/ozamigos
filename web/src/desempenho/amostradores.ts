@@ -1,7 +1,8 @@
 // Quem mede o quê, uma vez por segundo. Cada amostrador guarda a leitura anterior do getStats e devolve
 // a diferença: os contadores do WebRTC são totais desde o começo da conexão.
 
-import { FAIXAS, type AmostraCaptura, type AmostraEnvio, type AmostraRecepcao, type Ritmo } from './tipos';
+import { ponte } from '../ponte';
+import { FAIXAS, type AmostraCaptura, type AmostraEnvio, type AmostraPc, type AmostraRecepcao, type Ritmo } from './tipos';
 
 type Relatorio = Map<string, any>;
 
@@ -282,6 +283,55 @@ export class MedidorDaPagina {
 }
 
 export const medidorDaPagina = new MedidorDaPagina();
+
+/**
+ * Os contadores do Windows (processador do PC e placa de vídeo), no app. O teste e a gravação da sala podem
+ * estar ligados ao mesmo tempo: só desliga quando o último parar.
+ */
+class ContadoresDoPc {
+  private usuarios = 0;
+
+  ligar() {
+    if (this.usuarios++ === 0) void ponte?.desempenho?.ligar(true).catch(() => false);
+  }
+
+  desligar() {
+    if (this.usuarios === 0) return;
+    if (--this.usuarios === 0) void ponte?.desempenho?.ligar(false).catch(() => false);
+  }
+
+  /** Um segundo do PC, ou null no navegador (ou num app antes do 1.2.10). */
+  async amostrar(t: number): Promise<AmostraPc | null> {
+    const bruta = await ponte?.desempenho?.amostra().catch(() => null);
+    if (!bruta) return null;
+    const soma = (registro: Record<string, number>) => Object.values(registro).reduce((a, b) => a + b, 0);
+    const deVideo = (motores: Record<string, number> | undefined) => {
+      if (!motores) return null;
+      const valores = Object.entries(motores)
+        .filter(([nome]) => /video/i.test(nome) && !/jpeg/i.test(nome))
+        .map(([, uso]) => uso);
+      return valores.length ? Math.max(...valores) : 0;
+    };
+    const placa = bruta.placa;
+    const cpuPorProcesso = Object.fromEntries(Object.entries(bruta.processos).map(([k, v]) => [k, v.cpu]));
+    return {
+      t,
+      cpuApp: Math.round(soma(cpuPorProcesso) * 10) / 10,
+      cpuPorProcesso,
+      memoriaAppMB: soma(Object.fromEntries(Object.entries(bruta.processos).map(([k, v]) => [k, v.memoriaMB]))),
+      cpuPc: bruta.cpuDoPc,
+      placa3dTotal: placa?.total['3D'] ?? null,
+      placaVideoTotal: deVideo(placa?.total),
+      placa3dApp: placa ? (placa.doApp['3D'] ?? 0) : null,
+      placaVideoApp: placa ? deVideo(placa.doApp) : null,
+      placa3dOutros: placa ? (placa.outros['3D'] ?? 0) : null,
+      motores: placa?.total ?? null,
+      memoriaPlacaMB: placa?.memoriaMB ?? null,
+    };
+  }
+}
+
+export const contadoresDoPc = new ContadoresDoPc();
 
 /** O <video> que mostra este stream na tela, se houver. */
 export function videoDoStream(stream: MediaStream | undefined | null): HTMLVideoElement | null {

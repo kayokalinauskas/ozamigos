@@ -50,6 +50,20 @@ class SalasTest {
     }
 
     @Test
+    void umaGravacaoPorVezEElaAcabaQuandoQuemGravaSai() {
+        salas.entrar("sala123", "a", "Ana", "", null);
+        salas.entrar("sala123", "b", "Beto", "", null);
+
+        assertThat(salas.comecarAGravar("sala123", "a")).isTrue();
+        assertThat(salas.comecarAGravar("sala123", "b")).isFalse(); // a Ana já grava
+        assertThat(salas.pararDeGravar("sala123", "b")).isFalse(); // só quem grava para
+        assertThat(salas.entrar("sala123", "c", "Caio", "", null).gravador()).isEqualTo("a");
+
+        assertThat(salas.sair("sala123", "a").gravacaoAcabou()).isTrue();
+        assertThat(salas.gravador("sala123")).isNull();
+    }
+
+    @Test
     void quemVoltaComAFichaEhReconhecido() {
         salas.entrar("sala123", "a", "Ana", "ficha-da-ana", null);
         salas.entrar("sala123", "b", "Beto", "ficha-do-beto", null);

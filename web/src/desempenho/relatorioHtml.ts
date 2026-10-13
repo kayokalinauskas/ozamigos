@@ -209,7 +209,8 @@ function cartaoDeAchado(d: Diagnostico): string {
   </div>`;
 }
 
-export function relatorioHtml(g: Gravacao, a: Analise): string {
+/** quem: na gravação da sala, quem transmitiu (o relatório é de uma das transmissões). */
+export function relatorioHtml(g: Gravacao, a: Analise, quem?: string): string {
   const validos = a.trechos.filter((t) => t.segundos > 0 && !t.trecho.aquecimento);
   const pc = g.pc;
   const chips = [
@@ -262,17 +263,17 @@ export function relatorioHtml(g: Gravacao, a: Analise): string {
 
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Relatório de desempenho · Ozamigos</title><style>${CSS}</style></head>
+<title>${quem ? `Transmissão de ${esc(quem)}` : 'Relatório de desempenho'} · Ozamigos</title><style>${CSS}</style></head>
 <body><div class="pagina">
 <div class="cabeca">
-  <span class="rotulo">Relatório de desempenho · ${esc(dataTexto)} · ${minSec(g.duracao)} · ${g.modo === 'simulado' ? 'espectadores simulados' : 'com os amigos'}${g.interrompido ? ' · interrompido' : ''}</span>
-  <h1>Seu PC transmitindo ${esc(nomeDaFonte(g.fonte))}</h1>
+  <span class="rotulo">Relatório de desempenho · ${esc(dataTexto)} · ${minSec(g.duracao)} · ${g.modo === 'simulado' ? 'espectadores simulados' : 'gravação da sala'}${g.interrompido ? ' · interrompido' : ''}</span>
+  <h1>${quem ? `${esc(quem)} transmitindo` : 'Seu PC transmitindo'} ${esc(nomeDaFonte(g.fonte))}</h1>
   <div class="chips">${chips.map((c) => `<span class="pilula neutra">${esc(c)}</span>`).join('')}</div>
 </div>
 
 <div class="veredito">
   <div class="cartao principal"><span class="rotulo" style="color:var(--destaque)">Recomendação</span><h2>${esc(a.recomendacao.titulo)}</h2><p>${esc(a.recomendacao.texto)}</p></div>
-  <div class="cartao numero"><span class="rotulo">Fluidez na sua qualidade</span><div class="valor">${fmt(fl)}<small>%</small></div><p>dos quadros exibidos no tempo; pior 1% em ${fmt(a.principal.p99Ms, ' ms', 0)}</p><span class="pilula ${nivelFl}">${textoFl}</span></div>
+  <div class="cartao numero"><span class="rotulo">${g.modo === 'sala' ? 'Fluidez para quem assistiu' : 'Fluidez na sua qualidade'}</span><div class="valor">${fmt(fl)}<small>%</small></div><p>dos quadros exibidos no tempo; pior 1% em ${fmt(a.principal.p99Ms, ' ms', 0)}</p><span class="pilula ${nivelFl}">${textoFl}</span></div>
   <div class="duplo">
     <div class="cartao numero"><span class="rotulo">Atraso estimado</span><div class="valor">${fmt(a.principal.atraso, '', 0)}<small>ms</small></div></div>
     <div class="cartao numero"><span class="rotulo">Gargalo</span><div class="valor" style="font-size:20px;margin-top:8px">${esc(NOMES_DOS_GARGALOS[a.principal.gargalo] ?? a.principal.gargalo)}</div></div>
@@ -298,7 +299,7 @@ export function relatorioHtml(g: Gravacao, a: Analise): string {
 
 <div class="secao"><h2>Acontecimentos</h2><div class="cartao eventos"><ol>${eventos}</ol></div></div>
 
-<p class="rodape">${g.modo === 'simulado' ? 'Os espectadores simulados estão neste PC: o teste não usa a internet. Para medir a conexão com os amigos, use a gravação com os amigos.' : 'Gravado com os amigos de verdade assistindo; cada um mandou as medidas de recepção do próprio PC.'} Dados completos: o arquivo JSON e o relatório para IA salvos junto.</p>
+<p class="rodape">${g.modo === 'simulado' ? 'Os espectadores simulados estão neste PC: o teste não usa a internet. Para medir a conexão com os amigos, grave a sala (Ctrl+Shift+G).' : 'Gravado na sala, com os amigos de verdade; cada PC mandou as próprias medidas para quem gravou.'} Dados completos: o arquivo JSON e o relatório para IA salvos junto.</p>
 </div>
 <script type="application/json" id="dados">${JSON.stringify(g).replace(/</g, '\\u003c')}</script>
 </body></html>`;

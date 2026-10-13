@@ -331,7 +331,7 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
         titulo: 'O teste foi curto demais para tirar conclusões',
         detalhe: `Cada trecho descarta os primeiros segundos (o WebRTC ainda está subindo a banda) e não sobrou nenhum segundo medido.`,
         evidencias: [`Duração: ${g.duracao} s; trechos: ${trechos.length}`],
-        paraVoce: 'Rode o teste até o fim, ou grave com os amigos por pelo menos 1 minuto.',
+        paraVoce: 'Rode o teste até o fim, ou grave a sala com alguém assistindo por pelo menos 1 minuto.',
       },
     ];
   }
@@ -616,10 +616,13 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
     lista.push({
       gravidade: 'baixa',
       codigo: 'sem-ritmo',
-      titulo: 'Parte do teste não mediu o ritmo na tela',
-      detalhe: 'Com a janela do Ozamigos escondida ou minimizada, o navegador não desenha o vídeo; nesses segundos valem só as medidas até a decodificação.',
+      titulo: g.modo === 'sala' ? 'Parte do tempo, quem assistia estava com o Ozamigos escondido' : 'Parte do teste não mediu o ritmo na tela',
+      detalhe:
+        g.modo === 'sala'
+          ? 'Com a janela do Ozamigos escondida ou minimizada (por exemplo, jogando em tela cheia), o navegador não desenha o vídeo; nesses segundos valem só as medidas até a decodificação (fps decodificados e intervalo na saída do decodificador).'
+          : 'Com a janela do Ozamigos escondida ou minimizada, o navegador não desenha o vídeo; nesses segundos valem só as medidas até a decodificação.',
       evidencias: [`${semTela} segundos-espectador sem medida na tela`],
-      paraVoce: 'Deixe a janela do Ozamigos visível durante o teste (em outro monitor ou ao lado do jogo).',
+      paraVoce: g.modo === 'sala' ? undefined : 'Deixe a janela do Ozamigos visível durante o teste (em outro monitor ou ao lado do jogo).',
     });
   }
 
@@ -629,7 +632,7 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
       codigo: 'limites-do-simulado',
       titulo: 'O que o teste simulado não mede',
       detalhe:
-        'Os espectadores simulados estão no mesmo PC: não há internet no caminho (sem perda, rtt ~0) e a decodificação deles pesa no PC de quem transmite, o que amigos de verdade não fazem. Para a internet, grave com os amigos.',
+        'Os espectadores simulados estão no mesmo PC: não há internet no caminho (sem perda, rtt ~0) e a decodificação deles pesa no PC de quem transmite, o que amigos de verdade não fazem. Para a internet, grave a sala com os amigos (Ctrl+Shift+G).',
       evidencias: [`${soma(validos.map((t) => t.trecho.simulados))} espectadores simulados no total dos trechos`],
     });
   }
@@ -648,7 +651,7 @@ export function recomendar(g: Gravacao, trechos: ResumoDoTrecho[], diagnosticos:
   const validos = trechos.filter((t) => t.segundos > 0 && !t.trecho.aquecimento);
   if (!validos.length) return { titulo: 'Sem dados suficientes', texto: 'Rode o teste por mais tempo.' };
   const principal = diagnosticos.find((d) => d.gravidade === 'alta');
-  if (g.modo === 'amigos') {
+  if (g.modo === 'sala') {
     const piores = validos.filter((t) => !passou(t));
     if (!piores.length) {
       return {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Eye, LayoutGrid, Link, MonitorUp, RectangleHorizontal, Volume2, VolumeX } from 'lucide-react';
 import { cliente, linkDaSala } from '../cliente';
 import { useCliente, useNumeroLembrado } from '../useCliente';
@@ -13,6 +13,36 @@ type Props = {
   foco: string | null;
   aoDestacar: (id: string) => void;
 };
+
+/** Todos na sala veem quando alguém grava as estatísticas (Ctrl+Shift+G); quem grava vê também o tempo. */
+function SeloDeGravacao() {
+  const { gravacaoDaSala, meuId } = useCliente();
+  const minha = gravacaoDaSala !== null && gravacaoDaSala.id === meuId;
+  const [segundos, setSegundos] = useState(0);
+  useEffect(() => {
+    if (!minha) return;
+    const inicio = Date.now();
+    setSegundos(0);
+    const relogio = setInterval(() => setSegundos(Math.floor((Date.now() - inicio) / 1000)), 1000);
+    return () => clearInterval(relogio);
+  }, [minha]);
+  if (!gravacaoDaSala) return null;
+  const tempo = `${String(Math.floor(segundos / 60)).padStart(2, '0')}:${String(segundos % 60).padStart(2, '0')}`;
+  return (
+    <span
+      className="gravando selo-gravando"
+      role="status"
+      title={
+        minha
+          ? 'As medidas de todos chegam aqui e são salvas sozinhas a cada 30 s em Documentos\\Ozamigos\\Estatísticas. Ctrl+Shift+G para parar.'
+          : 'O Ozamigos manda para essa pessoa como as transmissões chegam aqui. Você não precisa fazer nada.'
+      }
+    >
+      <span className="ponto" />
+      {minha ? `Gravando estatísticas · ${tempo}` : `${gravacaoDaSala.nome} está gravando as estatísticas`}
+    </span>
+  );
+}
 
 export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
   const { transmitindo, assistindo, meuId, pessoas, sala } = useCliente();
@@ -33,6 +63,7 @@ export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
         <h1>
           Transmissões
           {noPalco.length > 0 && <span className="contador">{noPalco.length}</span>}
+          <SeloDeGravacao />
         </h1>
         <div className="palco-ferramentas">
           <div className="segmentado" role="group" aria-label="Layout">

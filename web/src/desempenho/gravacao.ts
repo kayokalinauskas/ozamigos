@@ -1,14 +1,12 @@
-// O teste de desempenho de quem transmite. Dois modos:
-// - simulado: um roteiro automático com espectadores criados no próprio PC (conexões WebRTC locais, sem
-//   servidor nem internet), passando pelas qualidades e por 1, 3 e 7 espectadores;
-// - amigos: grava a transmissão de verdade, com quem estiver assistindo. Cada amigo manda pelo canal de
-//   medidas como a imagem chega no PC dele (veja amigos.ts).
-// Nos dois, quem assiste de verdade entra na gravação, e o resultado é uma Gravacao (tipos.ts).
+// O teste de desempenho de quem transmite (Ctrl+Shift+D): um roteiro automático com espectadores criados no
+// próprio PC (conexões WebRTC locais, sem servidor nem internet), passando pelas qualidades e por 1, 3 e 7
+// espectadores. Quem já assiste de verdade entra nas medidas de envio. O resultado é uma Gravacao (tipos.ts).
+// Com os amigos de verdade, a medida é a gravação da sala (Ctrl+Shift+G, gravadorDaSala.ts).
 
 import { AJUSTES_DA_TRANSMISSAO, cliente } from '../cliente';
 import { noApp, ponte } from '../ponte';
 import { QUALIDADES, type Qualidade } from '../qualidade';
-import { AmostradorEnvio, AmostradorRecepcao, medidorDaPagina, videoDoStream } from './amostradores';
+import { AmostradorEnvio, AmostradorRecepcao, contadoresDoPc, medidorDaPagina, videoDoStream } from './amostradores';
 import { resumirTrecho, type ResumoDoTrecho } from './analise';
 import {
   FORMATO,
@@ -18,7 +16,6 @@ import {
   type AmostraPagina,
   type AmostraPc,
   type AmostraRecepcao,
-  type AmbienteDoEspectador,
   type Gravacao,
   type Modo,
   type Roteiro,
@@ -106,7 +103,7 @@ class Teste {
   private inicio = 0;
   private medindo = false;
   private simulados: Simulado[] = [];
-  private readonly reais = new Map<string, { amostrador: AmostradorEnvio; canal: RTCDataChannel | null; avisado: boolean }>();
+  private readonly reais = new Map<string, { amostrador: AmostradorEnvio }>();
   private trechoAtual: Trecho | null = null;
   private fimDaEtapa = 0;
   private anteriores = new Map<string, { altura: number | null; limite: string | null }>();
@@ -129,19 +126,25 @@ class Teste {
     this.mudar(vazio());
   }
 
-  async iniciar(modo: Modo, roteiro: Roteiro) {
+  async iniciar(roteiro: Roteiro) {
     const e = cliente.ler();
+    const modo: Modo = 'simulado';
     if (this.estado.fase === 'gravando' || this.estado.fase === 'encerrando') return;
     if (!e.minhaTela) {
       this.mudar({ erro: 'Comece a transmitir o jogo antes de iniciar o teste.' });
       return;
     }
-    const etapas = modo === 'simulado' ? etapasDoRoteiro(roteiro, e.qualidade) : [];
+    // O teste troca a qualidade da transmissão: estragaria as medidas da gravação da sala.
+    if (e.gravacaoDaSala) {
+      this.mudar({ erro: `${e.gravacaoDaSala.id === e.meuId ? 'Você está' : `${e.gravacaoDaSala.nome} está`} gravando as estatísticas da sala. Espere terminar (Ctrl+Shift+G).` });
+      return;
+    }
+    const etapas = etapasDoRoteiro(roteiro, e.qualidade);
     const [video] = e.minhaTela.getVideoTracks();
     this.gravacao = {
       formato: FORMATO,
       modo,
-      roteiro: modo === 'simulado' ? roteiro : null,
+      roteiro,
       inicio: new Date().toISOString(),
       duracao: 0,
       interrompido: false,
@@ -162,15 +165,15 @@ class Teste {
       pagina: [],
       acontecimentos: [],
     };
-    await ponte?.desempenho?.ligar(true).catch(() => false);
+    contadoresDoPc.ligar();
     medidorDaPagina.ligar();
     this.inicio = performance.now();
     this.trechoAtual = null;
     this.anteriores.clear();
     this.mudar({ ...vazio(), fase: 'gravando', modo, roteiro, etapas, notas: etapas.map(() => null) });
-    cliente.registrar(`teste de desempenho: começou (${modo}${modo === 'simulado' ? `, ${roteiro}` : ''})`);
-    this.anotar('inicio', modo === 'simulado' ? `Teste automático (${roteiro}) começou` : 'Gravação com os amigos começou');
-    if (modo === 'simulado') await this.entrarNaEtapa(0);
+    cliente.registrar(`teste de desempenho: começou (${roteiro})`);
+    this.anotar('inicio', `Teste automático (${roteiro}) começou`);
+    await this.entrarNaEtapa(0);
     this.relogio = setInterval(() => void this.medir(), 1000);
   }
 
@@ -283,7 +286,6 @@ class Teste {
       }
       const t = this.agora();
       this.acompanharAmigos();
-      if (this.estado.modo === 'amigos') this.trechoDosAmigos();
       const g = this.gravacao;
       const pagina = medidorDaPagina.colher();
       const amostraPagina: AmostraPagina = { t, ...pagina, janelaVisivel: document.visibilityState === 'visible' };
@@ -306,13 +308,10 @@ class Teste {
       );
       g.recepcao.push(...recepcoes);
 
-      const amostraDoPc = await this.amostrarPc(t);
+      const amostraDoPc = await contadoresDoPc.amostrar(t);
       if (amostraDoPc) g.pcAmostras.push(amostraDoPc);
 
       this.detectar(envios, recepcoes);
-      const recentesDosAmigos = g.recepcao.filter((r) => !r.simulado && r.t >= t - 2);
-      const ultimoDeCada = new Map<string, AmostraRecepcao>();
-      for (const r of recentesDosAmigos) ultimoDeCada.set(r.espectador, r);
       const s = this.estado.series;
       const media = (lista: (number | null)[]) => {
         const v = lista.filter((x): x is number => x != null);
@@ -325,7 +324,7 @@ class Teste {
         segundos: t,
         resumo,
         estabilizando: trecho ? t <= trecho.descartarAte : true,
-        agora: { envio: envios, recepcao: [...recepcoes, ...ultimoDeCada.values()], captura, pc: amostraDoPc, pagina: amostraPagina },
+        agora: { envio: envios, recepcao: recepcoes, captura, pc: amostraDoPc, pagina: amostraPagina },
         series: {
           mbps: ultimos(s.mbps, media(envios.map((e) => e.mbps))),
           codificacao: ultimos(s.codificacao, media(envios.map((e) => e.msCodificacao))),
@@ -335,7 +334,7 @@ class Teste {
         },
       });
 
-      if (this.estado.modo === 'simulado' && t >= this.fimDaEtapa) {
+      if (t >= this.fimDaEtapa) {
         this.darNota(this.estado.etapaAtual);
         const proxima = this.estado.etapaAtual + 1;
         if (proxima >= this.estado.etapas.length) {
@@ -350,34 +349,6 @@ class Teste {
     } finally {
       this.medindo = false;
     }
-  }
-
-  private async amostrarPc(t: number): Promise<AmostraPc | null> {
-    const bruta = await ponte?.desempenho?.amostra().catch(() => null);
-    if (!bruta) return null;
-    const soma = (registro: Record<string, number>) => Object.values(registro).reduce((a, b) => a + b, 0);
-    const deVideo = (motores: Record<string, number> | undefined) => {
-      if (!motores) return null;
-      const valores = Object.entries(motores)
-        .filter(([nome]) => /video/i.test(nome) && !/jpeg/i.test(nome))
-        .map(([, uso]) => uso);
-      return valores.length ? Math.max(...valores) : 0;
-    };
-    const placa = bruta.placa;
-    return {
-      t,
-      cpuApp: Math.round(soma(Object.fromEntries(Object.entries(bruta.processos).map(([k, v]) => [k, v.cpu]))) * 10) / 10,
-      cpuPorProcesso: Object.fromEntries(Object.entries(bruta.processos).map(([k, v]) => [k, v.cpu])),
-      memoriaAppMB: soma(Object.fromEntries(Object.entries(bruta.processos).map(([k, v]) => [k, v.memoriaMB]))),
-      cpuPc: bruta.cpuDoPc,
-      placa3dTotal: placa?.total['3D'] ?? null,
-      placaVideoTotal: deVideo(placa?.total),
-      placa3dApp: placa ? (placa.doApp['3D'] ?? 0) : null,
-      placaVideoApp: placa ? deVideo(placa.doApp) : null,
-      placa3dOutros: placa ? (placa.outros['3D'] ?? 0) : null,
-      motores: placa?.total ?? null,
-      memoriaPlacaMB: placa?.memoriaMB ?? null,
-    };
   }
 
   /** Acontecimentos que valem uma linha: resolução que caiu, limite do codificador, congelamento. */
@@ -408,22 +379,15 @@ class Teste {
 
   // ===== Amigos de verdade =====
 
-  /** Quem começou a assistir entra na gravação; quem saiu, sai. Cada um recebe o pedido de mandar as medidas. */
+  /** Quem assiste de verdade durante o teste entra nas medidas de envio (pesa no mesmo codificador). */
   private acompanharAmigos() {
     const atuais = cliente.envios();
     for (const envio of atuais) {
-      let real = this.reais.get(envio.id);
-      if (!real || real.amostrador.pc !== envio.pc) {
-        real = { amostrador: new AmostradorEnvio(envio.pc, envio.nome, false), canal: envio.medidas, avisado: false };
-        this.reais.set(envio.id, real);
-        this.anotar('espectador', `${envio.nome} está assistindo`);
-        if (!this.gravacao!.espectadoresReais.some((r) => r.nome === envio.nome)) this.gravacao!.espectadoresReais.push({ nome: envio.nome, ambiente: null });
-        this.ouvirAmigo(envio.id, envio.nome, envio.medidas);
-      }
-      if (!real.avisado && real.canal?.readyState === 'open') {
-        real.canal.send(JSON.stringify({ tipo: 'gravar', ligado: true }));
-        real.avisado = true;
-      }
+      const real = this.reais.get(envio.id);
+      if (real && real.amostrador.pc === envio.pc) continue;
+      this.reais.set(envio.id, { amostrador: new AmostradorEnvio(envio.pc, envio.nome, false) });
+      this.anotar('espectador', `${envio.nome} está assistindo`);
+      if (!this.gravacao!.espectadoresReais.some((r) => r.nome === envio.nome)) this.gravacao!.espectadoresReais.push({ nome: envio.nome, ambiente: null });
     }
     for (const [id, real] of this.reais) {
       if (atuais.some((envio) => envio.id === id && envio.pc === real.amostrador.pc)) continue;
@@ -432,61 +396,18 @@ class Teste {
     }
   }
 
-  private ouvirAmigo(id: string, nome: string, canal: RTCDataChannel | null) {
-    if (!canal) return;
-    canal.addEventListener('message', (evento) => {
-      if (!this.gravacao || this.estado.fase !== 'gravando' || this.reais.get(id)?.canal !== canal) return;
-      let msg: any;
-      try {
-        msg = JSON.parse(String(evento.data));
-      } catch {
-        return;
-      }
-      if (msg?.tipo === 'ambiente') {
-        const real = this.gravacao.espectadoresReais.find((r) => r.nome === nome);
-        if (real) real.ambiente = msg.ambiente as AmbienteDoEspectador;
-      } else if (msg?.tipo === 'recepcao' && msg.amostra) {
-        const amostra = { ...(msg.amostra as AmostraRecepcao), t: this.agora(), espectador: nome, simulado: false };
-        this.gravacao.recepcao.push(amostra);
-        if (amostra.congelamentos > 0) this.anotar('congelamento', `${nome}: imagem congelou ${amostra.msCongelado} ms`);
-      }
-    });
-  }
-
-  /** No modo com os amigos, um trecho novo a cada mudança de qualidade ou de quantas pessoas assistem. */
-  private trechoDosAmigos() {
-    const { qualidade } = cliente.ler();
-    const quantos = this.reais.size;
-    const atual = this.trechoAtual;
-    if (atual && atual.qualidade === qualidade && atual.espectadores === quantos) {
-      atual.fim = this.agora();
-      return;
-    }
-    const nome = `${rotulo(qualidade)} · ${quantos} ${quantos === 1 ? 'amigo' : 'amigos'}`;
-    this.abrirTrecho(nome, qualidade);
-  }
-
   /** Encerra a etapa atual agora (o roteiro segue para a próxima no segundo seguinte). */
   pularEtapa() {
-    if (this.estado.fase === 'gravando' && this.estado.modo === 'simulado') {
+    if (this.estado.fase === 'gravando') {
       this.anotar('etapa', 'Etapa pulada pela pessoa');
       this.fimDaEtapa = this.agora();
     }
   }
 
-  /**
-   * Para o gráfico ao vivo. No simulado: o intervalo de cada quadro do primeiro espectador (últimos ~10 s).
-   * Com os amigos: o pior intervalo de cada segundo, entre todos os amigos (últimos 60 s).
-   */
+  /** Para o gráfico ao vivo: o intervalo de cada quadro do primeiro espectador simulado (últimos ~10 s). */
   ritmoAoVivo(): { porQuadro: boolean; valores: number[] } {
     const primeiro = this.simulados[0];
-    if (primeiro) return { porQuadro: true, valores: [...primeiro.amostradorRecepcao.ritmo.historico] };
-    const g = this.gravacao;
-    if (!g) return { porQuadro: false, valores: [] };
-    const t = this.agora();
-    const pior = new Map<number, number>();
-    for (const r of g.recepcao) if (r.t > t - 60 && r.ritmo) pior.set(r.t, Math.max(pior.get(r.t) ?? 0, r.ritmo.maxMs));
-    return { porQuadro: false, valores: [...pior.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v) };
+    return { porQuadro: true, valores: primeiro ? [...primeiro.amostradorRecepcao.ritmo.historico] : [] };
   }
 
   // ===== Fim =====
@@ -494,7 +415,7 @@ class Teste {
   async parar() {
     if (this.estado.fase !== 'gravando') return;
     this.anotar('fim', 'Parado pela pessoa');
-    await this.encerrar(this.estado.modo === 'simulado');
+    await this.encerrar(true);
   }
 
   private async encerrar(interrompido: boolean) {
@@ -508,14 +429,11 @@ class Teste {
     g.trechos = g.trechos.filter((trecho) => trecho.fim > trecho.inicio);
     g.duracao = t;
     g.interrompido = interrompido;
-    for (const real of this.reais.values()) {
-      if (real.canal?.readyState === 'open') real.canal.send(JSON.stringify({ tipo: 'gravar', ligado: false }));
-    }
     this.reais.clear();
     for (const simulado of this.simulados) this.fecharSimulado(simulado);
     this.simulados = [];
     medidorDaPagina.desligar();
-    await ponte?.desempenho?.ligar(false).catch(() => false);
+    contadoresDoPc.desligar();
     if (cliente.ler().minhaTela && cliente.ler().qualidade !== g.qualidadeDaPessoa) await cliente.qualidadeTemporaria(g.qualidadeDaPessoa);
     cliente.registrar('teste de desempenho: terminou');
     this.gravacao = null;

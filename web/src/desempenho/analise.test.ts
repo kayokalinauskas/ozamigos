@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { contarFaixas } from './amostradores';
 import { analisar, fluidez, percentilDasFaixas } from './analise';
-import { relatorioParaIa } from './relatorioIa';
-import { FORMATO, type AmostraEnvio, type AmostraRecepcao, type Gravacao, type Trecho } from './tipos';
+import { analisarSala } from './analiseDaSala';
+import { relatorioDaSalaParaIa, relatorioParaIa } from './relatorioIa';
+import { FORMATO, FORMATO_DA_SALA, type AmostraEnvio, type AmostraRecepcao, type Gravacao, type GravacaoDaSala, type Trecho } from './tipos';
 
 /** Um trecho de 30 s com n espectadores: ms de codificação e o intervalo entre quadros na tela. */
 function trecho(indice: number, inicio: number, espectadores: number, msCodificacao: number, intervalo: number, capturaFps = 60) {
@@ -65,5 +66,54 @@ describe('relatório para IA', () => {
     }
     expect(md).toContain('t,trecho,espectador,altura,fps_codif');
     expect(md).toContain(FORMATO);
+  });
+});
+
+describe('gravação da sala', () => {
+  it('separa a transmissão de cada pessoa quando as duas transmitem e assistem ao mesmo tempo', () => {
+    const kayo = trecho(0, 0, 1, 5, 16.7);
+    const duda = trecho(0, 0, 1, 6, 16.7);
+    const gs: GravacaoDaSala = {
+      formato: FORMATO_DA_SALA,
+      sala: 'abc123',
+      gravadoPor: 'Kayo',
+      inicio: '2026-10-13T20:00:00.000Z',
+      duracao: 30,
+      terminou: true,
+      pessoas: [
+        { nome: 'Kayo', ambiente: null, fontes: ['jogo do Kayo'] },
+        { nome: 'Duda', ambiente: null, fontes: ['jogo da Duda'] },
+      ],
+      papeis: [
+        { t: 1, pessoa: 'Kayo', transmite: true, qualidade: 'maxima', espectadores: ['Duda'], assiste: ['Duda'] },
+        { t: 1, pessoa: 'Duda', transmite: true, qualidade: 'maxima', espectadores: ['Kayo'], assiste: ['Kayo'] },
+      ],
+      trechos: { Kayo: [{ ...kayo.t, assistindo: 1 }], Duda: [{ ...duda.t, assistindo: 1 }] },
+      envio: [
+        ...kayo.envio.map((e) => ({ ...e, espectador: 'Duda', transmissor: 'Kayo' })),
+        ...duda.envio.map((e) => ({ ...e, espectador: 'Kayo', transmissor: 'Duda' })),
+      ],
+      captura: [...kayo.captura.map((c) => ({ ...c, pessoa: 'Kayo' })), ...duda.captura.map((c) => ({ ...c, pessoa: 'Duda' }))],
+      recepcao: [
+        ...kayo.recepcao.map((r) => ({ ...r, espectador: 'Duda', transmissor: 'Kayo' })),
+        ...duda.recepcao.map((r) => ({ ...r, espectador: 'Kayo', transmissor: 'Duda' })),
+      ],
+      pcAmostras: [],
+      pagina: [],
+      acontecimentos: [],
+      ajustes: {},
+      qualidades: {},
+    };
+
+    const a = analisarSala(gs);
+
+    expect(a.transmissoes.map((t) => t.nome)).toEqual(['Kayo', 'Duda']);
+    expect(a.transmissoes[0].g.recepcao.every((r) => r.espectador === 'Duda')).toBe(true);
+    expect(a.transmissoes[0].a.trechos[0].resultado).toBe('otimo');
+    expect(a.pessoas.find((p) => p.nome === 'Duda')!.assistiuQuem).toEqual(['Kayo']);
+    const md = relatorioDaSalaParaIa(gs, a);
+    for (const secao of ['## 1. A sala', '## 2. Transmissão de Kayo', '## 3. Transmissão de Duda', '## 4. O PC e a página de cada pessoa', '## 7. Glossário']) {
+      expect(md).toContain(secao);
+    }
   });
 });

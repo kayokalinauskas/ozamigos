@@ -69,6 +69,8 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             case "assistir" -> assistir(id, sala, msg.path("para").asString(""));
             case "deixar" -> deixar(id, sala, msg.path("para").asString(""));
             case "oferta", "resposta", "candidato" -> repassar(sessao, id, sala, (ObjectNode) msg);
+            case "gravar-sala" -> gravarSala(sessao, id, sala, msg.path("ligada").asBoolean(false));
+            case "medidas" -> repassarMedidas(id, sala, (ObjectNode) msg);
             // Mantém a conexão viva; a resposta mostra ao cliente que o servidor ainda está ouvindo.
             case "ping" -> enviar(segura(sessao), json.createObjectNode().put("tipo", "pong"));
             default -> erro(sessao, "tipo-desconhecido");
@@ -120,6 +122,9 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         entrada.compartilhando().forEach(compartilhando::add);
         ObjectNode plateias = boasVindas.putObject("plateias");
         entrada.plateias().forEach((quem, ids) -> ids.forEach(plateias.putArray(quem)::add));
+        if (entrada.gravador() != null) {
+            boasVindas.putObject("gravando").put("id", entrada.gravador()).put("nome", salas.nome(codigo, entrada.gravador()));
+        }
         enviar(segura(sessao), boasVindas);
 
         ObjectNode entrou = json.createObjectNode().put("tipo", "entrou").put("id", id).put("nome", nome);
@@ -187,6 +192,46 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         enviar(destino, msg);
     }
 
+    /**
+     * Gravação das estatísticas da sala: uma por vez, e todo mundo vê quem está gravando.
+     * As medidas de cada um passam a ir para essa pessoa (veja repassarMedidas).
+     */
+    private void gravarSala(WebSocketSession sessao, String id, String sala, boolean ligada) throws IOException {
+        if (ligada) {
+            if (!salas.comecarAGravar(sala, id)) {
+                erro(sessao, "sala-ja-gravando");
+                return;
+            }
+            avisarGravacao(sala, id, true);
+        } else if (salas.pararDeGravar(sala, id)) {
+            avisarGravacao(sala, id, false);
+        }
+    }
+
+    private void avisarGravacao(String sala, String id, boolean ligada) throws IOException {
+        ObjectNode aviso = json.createObjectNode()
+                .put("tipo", "gravacao-da-sala")
+                .put("ligada", ligada)
+                .put("id", id)
+                .put("nome", salas.nome(sala, id));
+        for (WebSocketSession pessoa : salas.todos(sala)) {
+            enviar(pessoa, aviso);
+        }
+    }
+
+    /**
+     * As medidas de um segundo (o que a pessoa transmite e o que assiste) vão só para quem está gravando.
+     * Sem gravação na sala, são descartadas: ninguém recebe medidas que não pediu.
+     */
+    private void repassarMedidas(String id, String sala, ObjectNode msg) throws IOException {
+        String gravador = salas.gravador(sala);
+        if (gravador == null || gravador.equals(id)) {
+            return;
+        }
+        msg.put("de", id);
+        enviar(salas.sessao(sala, gravador), msg);
+    }
+
     @Override
     public void afterConnectionClosed(WebSocketSession sessao, CloseStatus status) throws IOException {
         String id = (String) sessao.getAttributes().get("id");
@@ -209,6 +254,12 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
         for (Map.Entry<String, List<String>> mudou : saida.plateiasQueMudaram().entrySet()) {
             avisarPlateia(sala, mudou.getKey(), mudou.getValue());
+        }
+        if (saida.gravacaoAcabou()) {
+            ObjectNode aviso = json.createObjectNode().put("tipo", "gravacao-da-sala").put("ligada", false).put("id", id);
+            for (WebSocketSession restante : saida.restantes()) {
+                enviar(restante, aviso);
+            }
         }
     }
 

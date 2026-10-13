@@ -6,9 +6,15 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
-## [Não lançado]
+## [1.2.11] - 2026-10-13
+
+### Adicionado
+- **Gravação das estatísticas da sala** (Ctrl+Shift+G, de novo para parar). Grava a sala de verdade, com os amigos: quem transmite, quem assiste quem, ou as duas coisas ao mesmo tempo.
+  - Os amigos não precisam fazer nada: veem o selo "Gravando estatísticas" no alto da sala, e o PC de cada um manda as próprias medidas (o que transmite, o que assiste, processador e placa de vídeo) só para quem grava.
+  - Salva sozinho a cada 30 s e no fim em `Documentos\Ozamigos\Estatísticas`: o relatório para IA (a sala inteira, uma seção por transmissão e o PC de cada pessoa), uma página com gráficos por transmissão e os dados em JSON.
 
 ### Alterado
+- O teste com Ctrl+Shift+D fica só com os espectadores simulados: o modo "com os amigos assistindo" virou a gravação da sala.
 - O teste de desempenho fica escondido: sem botão no painel de Estatísticas, abre só com Ctrl+Shift+D.
 - Relatório do teste: os quadros "Para o app" não ficam mais espremidos numa coluna estreita, e quando a captura do jogo limita o fps em todas as qualidades, a recomendação diz isso em vez de recomendar a qualidade mais alta.
 
@@ -146,6 +152,7 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
+[1.2.11]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.10...v1.2.11
 [1.2.10]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.9...v1.2.10
 [1.2.9]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.8...v1.2.9
 [1.2.8]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.7...v1.2.8

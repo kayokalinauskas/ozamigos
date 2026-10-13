@@ -41,6 +41,11 @@ contextBridge.exposeInMainWorld('ozamigos', {
     ligar: (ligado) => ipcRenderer.invoke('desempenho-ligar', Boolean(ligado)),
     amostra: () => ipcRenderer.invoke('desempenho-amostra'),
   },
+  /** Gravação das estatísticas da sala (app 1.2.11 em diante): salva em Documentos\Ozamigos\Estatísticas\<pasta>. */
+  estatisticas: {
+    salvar: (pasta, arquivos) => ipcRenderer.invoke('estatisticas-salvar', String(pasta), arquivos),
+    abrirPasta: (pasta) => ipcRenderer.invoke('estatisticas-abrir-pasta', String(pasta)),
+  },
   // Usadas só pela tela de início (o main.js recusa se o pedido vier de outro lugar).
   servidorAtual: () => ipcRenderer.invoke('servidor-atual'),
   salvarServidor: (endereco) => ipcRenderer.invoke('salvar-servidor', String(endereco)),

@@ -33,12 +33,21 @@ export function Sala() {
   const [estatisticasAbertas, setEstatisticasAbertas] = useState(false);
   const [testeAberto, setTesteAberto] = useState(false);
 
-  // O teste de desempenho é uma ferramenta de diagnóstico, sem botão na tela: só abre com Ctrl+Shift+D.
+  // Ferramentas de diagnóstico, sem botão na tela: Ctrl+Shift+D abre o teste de desempenho, e Ctrl+Shift+G
+  // começa (ou para) a gravação das estatísticas da sala. O código das duas só é baixado no primeiro uso.
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+      if (!e.ctrlKey || !e.shiftKey) return;
+      const letra = e.key.toLowerCase();
+      if (letra === 'd') {
         e.preventDefault();
         setTesteAberto(true);
+      } else if (letra === 'g' && !e.repeat) {
+        e.preventDefault();
+        import('../desempenho/gravadorDaSala').then(
+          (m) => m.gravadorDaSala.alternar(),
+          () => cliente.avisar('Não foi possível gravar a sala: saiu uma versão nova do Ozamigos. Recarregue a página (Ctrl+R) e tente de novo.', 'erro'),
+        );
       }
     };
     addEventListener('keydown', tecla);

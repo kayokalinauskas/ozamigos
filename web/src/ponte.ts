@@ -31,6 +31,12 @@ export type PonteOzamigos = {
     ligar(ligado: boolean): Promise<boolean>;
     amostra(): Promise<AmostraDoPc | null>;
   };
+  /** Gravação das estatísticas da sala (app 1.2.11 em diante): salva em Documentos\Ozamigos\Estatísticas\<pasta>. */
+  estatisticas?: {
+    /** Devolve o caminho da pasta, ou null se recusou. */
+    salvar(pasta: string, arquivos: Record<string, string>): Promise<string | null>;
+    abrirPasta(pasta: string): Promise<boolean>;
+  };
 };
 
 export type InfoDoPc = {

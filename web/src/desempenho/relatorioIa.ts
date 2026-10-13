@@ -4,7 +4,8 @@
 
 import { QUALIDADES } from '../qualidade';
 import { NOMES_DOS_GARGALOS, fmt, type Analise, type ResumoDoTrecho } from './analise';
-import { FAIXAS, type Gravacao } from './tipos';
+import type { AnaliseDaSala } from './analiseDaSala';
+import { FAIXAS, type Gravacao, type GravacaoDaSala } from './tipos';
 import { SEGUNDOS_DESCARTADOS } from './gravacao';
 
 const LINHAS_MAXIMAS = 900; // por tabela de CSV: acima disso, junta segundos vizinhos (média)
@@ -64,39 +65,23 @@ function linhaDoTrecho(t: ResumoDoTrecho) {
   return `${t.trecho.indice + 1}. ${t.trecho.nome}`;
 }
 
-export function relatorioParaIa(g: Gravacao, a: Analise): string {
-  const validos = a.trechos.filter((t) => t.segundos > 0 && !t.trecho.aquecimento);
-  const partes: string[] = [];
-  const p = (...linhas: string[]) => partes.push(...linhas);
+type Empurrar = (...linhas: string[]) => void;
+/** sub: o nível dos títulos de dentro; regras e trechos: o número da seção (no relatório da sala, muda). */
+type Contexto = { sub: string; regras: string; trechos: string };
 
-  p(
-    '# Ozamigos — relatório de desempenho da transmissão',
-    '',
-    `<!-- formato: ${g.formato} · gerado em ${new Date().toISOString()} -->`,
-    '',
-    '> **Para a IA que vai ler isto.** O Ozamigos é um app (Electron + React + WebRTC) que transmite a tela de um jogo de um PC',
-    '> para os amigos, direto de um PC para o outro (malha P2P, sem servidor de mídia). Este arquivo é um teste de desempenho de',
-    '> quem transmite. Os números vêm do `getStats()` do WebRTC, do `requestVideoFrameCallback` (ritmo real na tela) e dos',
-    '> contadores do Windows (processador e motores da placa de vídeo). O que é estimativa está marcado como estimado.',
-    '>',
-    '> **Tarefa sugerida:** (1) confirme ou conteste os diagnósticos da seção 2 usando as evidências e as séries da seção 9;',
-    '> (2) proponha mudanças concretas no código do Ozamigos, citando arquivo e constante (as pistas estão em "Onde mexer" e na',
-    '> seção 5); (3) diga qual número deste relatório deve melhorar e quanto, para validar a mudança com um teste novo.',
-    '> Os trechos são comparáveis entre si: mesma fonte de imagem, só muda a qualidade ou o número de espectadores.',
-    '',
-  );
+const PARA_A_IA_FIM = '_Fim do relatório. O arquivo JSON salvo junto tem os mesmos dados sem arredondar nem juntar segundos, mais as faixas de intervalo de cada segundo._';
 
-  // 1. Resumo
-  p('## 1. Resumo', '');
+function resumo(p: Empurrar, g: Gravacao, a: Analise, titulo: string) {
+  p(titulo, '');
   p(`**${a.recomendacao.titulo}.** ${a.recomendacao.texto}`, '');
   p(
     tabela(
       ['Medida', 'Valor'],
       [
-        ['Modo', g.modo === 'simulado' ? `simulado (espectadores no próprio PC), roteiro ${g.roteiro}` : 'com amigos de verdade assistindo'],
+        ['Modo', g.modo === 'simulado' ? `simulado (espectadores no próprio PC), roteiro ${g.roteiro}` : 'gravação da sala, com amigos de verdade assistindo'],
         ['Duração', `${g.duracao} s${g.interrompido ? ' (interrompido antes do fim)' : ''}`],
-        ['Qualidade escolhida pela pessoa', `${g.qualidadeDaPessoa} (${QUALIDADES[g.qualidadeDaPessoa].rotulo})`],
-        ['Fluidez na qualidade da pessoa', fmt(a.principal.fluidez, '% dos quadros no tempo')],
+        [g.modo === 'sala' ? 'Qualidade (a mais usada)' : 'Qualidade escolhida pela pessoa', `${g.qualidadeDaPessoa} (${QUALIDADES[g.qualidadeDaPessoa].rotulo})`],
+        [g.modo === 'sala' ? 'Fluidez (primeiro trecho nessa qualidade)' : 'Fluidez na qualidade da pessoa', fmt(a.principal.fluidez, '% dos quadros no tempo')],
         ['Pior 1% dos intervalos entre quadros', fmt(a.principal.p99Ms, ' ms')],
         [g.modo === 'simulado' ? 'Atraso estimado (sem internet no caminho)' : 'Atraso estimado', fmt(a.principal.atraso, ' ms', 0)],
         ['Gargalo principal', `${NOMES_DOS_GARGALOS[a.principal.gargalo] ?? a.principal.gargalo} (\`${a.principal.gargalo}\`)`],
@@ -111,21 +96,24 @@ export function relatorioParaIa(g: Gravacao, a: Analise): string {
     ),
     '',
   );
+}
 
-  // 2. Diagnósticos
-  p('## 2. Diagnósticos (com as evidências)', '');
+function diagnosticos(p: Empurrar, a: Analise, titulo: string, c: Contexto) {
+  p(titulo, '');
   for (const d of a.diagnosticos) {
-    p(`### [${NOME_DA_GRAVIDADE[d.gravidade]}] ${d.titulo} (\`${d.codigo}\`)`, '', d.detalhe, '', '**Evidências:**', ...d.evidencias.map((e) => `- ${e}`), '');
+    p(`${c.sub} [${NOME_DA_GRAVIDADE[d.gravidade]}] ${d.titulo} (\`${d.codigo}\`)`, '', d.detalhe, '', '**Evidências:**', ...d.evidencias.map((e) => `- ${e}`), '');
     if (d.paraVoce) p(`**Para quem transmite:** ${d.paraVoce}`, '');
     if (d.paraOApp) p(`**Para o app:** ${d.paraOApp}`, '');
     if (d.ondeNoCodigo?.length) p(`**Onde mexer:** ${d.ondeNoCodigo.map((c) => `\`${c}\``).join('; ')}`, '');
   }
+}
 
-  // 3. Trechos
+function trechos(p: Empurrar, g: Gravacao, a: Analise, titulo: string, c: Contexto) {
+  const validos = a.trechos.filter((t) => t.segundos > 0 && !t.trecho.aquecimento);
   p(
-    '## 3. Trechos',
+    titulo,
     '',
-    `Médias de cada trecho, sem os primeiros ${SEGUNDOS_DESCARTADOS} s (o WebRTC começa com pouca banda e sobe). "esp." = espectadores ao mesmo tempo. Resultado: ótimo / bom / atenção / ruim (regras na seção 6).`,
+    `Médias de cada trecho, sem os primeiros ${SEGUNDOS_DESCARTADOS} s (o WebRTC começa com pouca banda e sobe). "esp." = espectadores ao mesmo tempo. Resultado: ótimo / bom / atenção / ruim (regras na seção ${c.regras}).`,
     '',
     '**Imagem e fluidez (quem assiste)**',
     '',
@@ -234,7 +222,7 @@ export function relatorioParaIa(g: Gravacao, a: Analise): string {
     ),
     '',
   );
-  const porEspectador = validos.filter((t) => t.recepcao.porEspectador.length > 1 || g.modo === 'amigos');
+  const porEspectador = validos.filter((t) => t.recepcao.porEspectador.length > 1 || g.modo === 'sala');
   if (porEspectador.length) {
     p(
       '**Por espectador**',
@@ -248,11 +236,12 @@ export function relatorioParaIa(g: Gravacao, a: Analise): string {
       '',
     );
   }
+}
 
-  // 4. Ambiente
+function ambiente(p: Empurrar, g: Gravacao, titulo: string) {
   const pc = g.pc;
   p(
-    '## 4. Ambiente',
+    titulo,
     '',
     tabela(
       ['Item', 'Valor'],
@@ -277,16 +266,25 @@ export function relatorioParaIa(g: Gravacao, a: Analise): string {
       '**Amigos que assistiram**',
       '',
       tabela(
-        ['Nome', 'Ozamigos', 'Tela', 'Núcleos', 'Navegador'],
-        g.espectadoresReais.map((e) => [e.nome, e.ambiente?.app, e.ambiente?.tela, e.ambiente?.nucleos, e.ambiente?.navegador]),
+        ['Nome', 'Ozamigos', 'Tela', 'Núcleos', 'Processador', 'Placa de vídeo', 'Navegador'],
+        g.espectadoresReais.map((e) => [
+          e.nome,
+          e.ambiente?.app,
+          e.ambiente?.tela,
+          e.ambiente?.nucleos,
+          e.ambiente?.pc?.processador,
+          e.ambiente?.pc?.placa ? `${e.ambiente.pc.placa.nome ?? '?'} · driver ${e.ambiente.pc.placa.driver ?? '?'}` : null,
+          e.ambiente?.navegador,
+        ]),
       ),
       '',
     );
   }
+}
 
-  // 5. Configuração
+function configuracao(p: Empurrar, g: Gravacao, titulo: string) {
   p(
-    '## 5. Como esta versão do Ozamigos transmite',
+    titulo,
     '',
     '- Cada pessoa assistindo ganha uma `RTCPeerConnection` só dela, com uma codificação própria da mesma captura (`web/src/cliente.ts`, `enviarOferta` → `montarEnvio`). 7 pessoas = 7 codificações simultâneas na placa de quem transmite.',
     '- A captura (`getDisplayMedia` no navegador, `desktopCapturer` no app) já sai no tamanho e no fps da qualidade (`tamanhoDaCaptura`), e o codificador não reduz a imagem (`scaleResolutionDownBy: 1`).',
@@ -308,9 +306,10 @@ export function relatorioParaIa(g: Gravacao, a: Analise): string {
     '```',
     '',
   );
+}
 
-  // 6. Protocolo
-  p('## 6. Como o teste foi feito', '');
+function protocolo(p: Empurrar, g: Gravacao, titulo: string) {
+  p(titulo, '');
   if (g.modo === 'simulado') {
     p(
       '- **Modo simulado:** os espectadores são pares de `RTCPeerConnection` no mesmo PC e na mesma página de quem transmite, ligados direto (sem servidor e sem internet), com a mesma configuração de envio e de recepção dos amigos de verdade. Cada um recebe, decodifica e mostra o vídeo num `<video>` na tela do teste.',
@@ -320,12 +319,15 @@ export function relatorioParaIa(g: Gravacao, a: Analise): string {
     );
   } else {
     p(
-      '- **Modo com os amigos:** a transmissão de verdade. Quem transmite mede o envio de cada conexão; cada amigo manda, a cada segundo, pelo canal de dados `medidas` da própria conexão, como a imagem chega no PC dele (mesmas medidas do modo simulado).',
-      '- Um trecho novo começa a cada mudança de qualidade ou de quantas pessoas assistem.',
+      '- **Gravação da sala:** alguém da sala apertou Ctrl+Shift+G. A partir daí, cada PC da sala mede a cada segundo o que transmite (uma linha de envio por pessoa assistindo, `getStats` de cada `RTCPeerConnection` de envio) e o que assiste (uma linha de recepção por transmissão, com o ritmo na tela) e manda pelo WebSocket do servidor de sinalização só para quem grava (mensagem `medidas`; sem gravação, o servidor descarta). Ninguém precisa aceitar nada; a sala mostra o selo "Gravando estatísticas" (`web/src/desempenho/coletor.ts`, `gravadorDaSala.ts`).',
+      '- Quem grava carimba o segundo `t` na chegada de cada pacote: entre PCs diferentes, o mesmo `t` pode estar até ~1 s fora.',
+      '- Cada transmissão é analisada à parte (uma seção por pessoa que transmitiu). Um trecho novo começa quando muda a qualidade de quem transmite, quantas pessoas assistem, ou quantas transmissões essa pessoa assiste ao mesmo tempo (assistir também decodifica vídeo no mesmo PC).',
+      '- Quem assiste pode estar jogando com a janela do Ozamigos escondida: nesses segundos não há ritmo na tela (`tela_visivel` = 0, `ritmo_*` vazios) e valem as medidas até a decodificação.',
+      '- Não é um teste controlado: o jogo, a cena e a rede mudam ao longo da gravação. Compare trechos com cuidado.',
     );
   }
   p(
-    `- Os primeiros ${SEGUNDOS_DESCARTADOS} s de cada trecho ficam fora das médias (subida da estimativa de banda do WebRTC). As séries da seção 9 têm todos os segundos.`,
+    `- Os primeiros ${SEGUNDOS_DESCARTADOS} s de cada trecho ficam fora das médias (subida da estimativa de banda do WebRTC). As séries de cada segundo (CSV) têm todos os segundos.`,
     '- **Fluidez:** % dos intervalos entre quadros exibidos (requestVideoFrameCallback, `expectedDisplayTime`) até 1,5× o intervalo esperado. O esperado vem do fps do conteúdo = menor entre o fps da qualidade e o fps da captura (um jogo a 45 fps não é cobrado por 60). Contado por faixas de intervalo.',
     '- **Engasgo:** intervalo acima de 2× o esperado. **Congelamento:** o `freezeCount` do WebRTC (intervalo > 3× a média ou > 150 ms).',
     '- **Resultado do trecho:** ruim se fluidez < 90% ou fps na tela < 80% do conteúdo ou mais de 2 congelamentos; atenção se fluidez < 97%, fps < 93%, algum limite do codificador > 20% do tempo ou algum congelamento; bom se fluidez < 99% ou fps < 97%; senão ótimo.',
@@ -333,15 +335,17 @@ export function relatorioParaIa(g: Gravacao, a: Analise): string {
     '- **CPU app:** soma dos processos do Ozamigos em % do processador inteiro (todos os núcleos = 100%).',
     '',
   );
+}
 
-  // 7. Glossário
+function glossario(p: Empurrar, titulo: string) {
   p(
-    '## 7. Glossário das colunas das séries',
+    titulo,
     '',
     tabela(
       ['Coluna', 'O que é', 'De onde vem', 'Referência'],
       [
-        ['t', 'segundos desde o início do teste', '—', '—'],
+        ['t', 'segundos desde o início do teste (ou da gravação da sala)', '—', '—'],
+        ['espectador / pessoa', 'quem assistia / de quem é a linha (na gravação da sala, os nomes da sala)', '—', '—'],
         ['fps_codif', 'quadros codificados por segundo', 'outbound-rtp framesEncoded', '= fps da qualidade'],
         ['mbps / alvo_mbps', 'bitrate enviado / pedido pelo controle de banda', 'bytesSent, targetBitrate', 'ver QUALIDADES'],
         ['ms_codif', 'tempo médio do codificador por quadro', 'totalEncodeTime / framesEncoded', '< 50% do intervalo entre quadros (8 ms a 60 fps)'],
@@ -371,16 +375,18 @@ export function relatorioParaIa(g: Gravacao, a: Analise): string {
     `Faixas dos intervalos (ms, limite de cima): ${FAIXAS.map((f) => (Number.isFinite(f) ? f : '∞')).join(', ')}.`,
     '',
   );
+}
 
-  // 8. Acontecimentos
-  p('## 8. Acontecimentos', '', tabela(['t (s)', 'Tipo', 'O que aconteceu'], g.acontecimentos.map((e) => [e.t, e.tipo, e.texto])), '');
+function acontecimentos(p: Empurrar, g: Gravacao, titulo: string) {
+  p(titulo, '', tabela(['t (s)', 'Tipo', 'O que aconteceu'], g.acontecimentos.map((e) => [e.t, e.tipo, e.texto])), '');
+}
 
-  // 9. Séries
-  p('## 9. Séries de cada segundo', '');
+function series(p: Empurrar, g: Gravacao, titulo: string, c: Contexto) {
+  p(titulo, '');
   const trechoDe = (t: number) => g.trechos.findLast((tr) => t >= tr.inicio)?.indice ?? -1;
   const envio = reduzir(g.envio, (l) => l.espectador, ['quadrosChave', 'plis', 'nacks']);
   p(
-    `**Envio** (uma linha por espectador por ${envio.passo === 1 ? 'segundo' : `${envio.passo} s, médias`}; trecho = número da seção 3):`,
+    `**Envio** (uma linha por espectador por ${envio.passo === 1 ? 'segundo' : `${envio.passo} s, médias`}; trecho = número da tabela de trechos, seção ${c.trechos}):`,
     '',
     csv(
       ['t', 'trecho', 'espectador', 'altura', 'fps_codif', 'fps_enviados', 'mbps', 'alvo_mbps', 'ms_codif', 'qp', 'q_chave', 'limite', 'ms_fila', 'plis', 'nacks', 'retrans_kbps', 'rtt_ms', 'banda_mbps', 'rede'],
@@ -493,8 +499,219 @@ export function relatorioParaIa(g: Gravacao, a: Analise): string {
       ]),
     ),
     '',
-    '_Fim do relatório. O arquivo JSON salvo junto tem os mesmos dados sem arredondar nem juntar segundos, mais as faixas de intervalo de cada segundo._',
+  );
+}
+
+export function relatorioParaIa(g: Gravacao, a: Analise): string {
+  const partes: string[] = [];
+  const p = (...linhas: string[]) => partes.push(...linhas);
+  const c: Contexto = { sub: '###', regras: '6', trechos: '3' };
+
+  p(
+    '# Ozamigos — relatório de desempenho da transmissão',
+    '',
+    `<!-- formato: ${g.formato} · gerado em ${new Date().toISOString()} -->`,
+    '',
+    '> **Para a IA que vai ler isto.** O Ozamigos é um app (Electron + React + WebRTC) que transmite a tela de um jogo de um PC',
+    '> para os amigos, direto de um PC para o outro (malha P2P, sem servidor de mídia). Este arquivo é um teste de desempenho de',
+    '> quem transmite. Os números vêm do `getStats()` do WebRTC, do `requestVideoFrameCallback` (ritmo real na tela) e dos',
+    '> contadores do Windows (processador e motores da placa de vídeo). O que é estimativa está marcado como estimado.',
+    '>',
+    '> **Tarefa sugerida:** (1) confirme ou conteste os diagnósticos da seção 2 usando as evidências e as séries da seção 9;',
+    '> (2) proponha mudanças concretas no código do Ozamigos, citando arquivo e constante (as pistas estão em "Onde mexer" e na',
+    '> seção 5); (3) diga qual número deste relatório deve melhorar e quanto, para validar a mudança com um teste novo.',
+    '> Os trechos são comparáveis entre si: mesma fonte de imagem, só muda a qualidade ou o número de espectadores.',
     '',
   );
+
+  resumo(p, g, a, '## 1. Resumo');
+  diagnosticos(p, a, '## 2. Diagnósticos (com as evidências)', c);
+  trechos(p, g, a, '## 3. Trechos', c);
+  ambiente(p, g, '## 4. Ambiente');
+  configuracao(p, g, '## 5. Como esta versão do Ozamigos transmite');
+  protocolo(p, g, '## 6. Como o teste foi feito');
+  glossario(p, '## 7. Glossário das colunas das séries');
+  acontecimentos(p, g, '## 8. Acontecimentos');
+  series(p, g, '## 9. Séries de cada segundo', c);
+  p(PARA_A_IA_FIM, '');
+  return partes.join('\n');
+}
+
+const NOME_DO_RESULTADO = { otimo: 'ótimo', bom: 'bom', atencao: 'atenção', ruim: 'ruim' } as const;
+const ORDEM_DOS_RESULTADOS = ['otimo', 'bom', 'atencao', 'ruim'] as const;
+
+/**
+ * O relatório da gravação da sala (Ctrl+Shift+G): a sala inteira na seção 1, uma seção por transmissão (com os
+ * mesmos blocos do relatório do teste) e, no fim, o PC de cada pessoa, a configuração, as regras e o glossário.
+ */
+export function relatorioDaSalaParaIa(gs: GravacaoDaSala, as: AnaliseDaSala): string {
+  const partes: string[] = [];
+  const p = (...linhas: string[]) => partes.push(...linhas);
+  const n = as.transmissoes.length;
+  const secPc = n + 2;
+  const secConfig = n + 3;
+  const secRegras = n + 4;
+  const secGlossario = n + 5;
+  // As seções de configuração e de regras só leem estes campos.
+  const daSala = { modo: 'sala', trechos: [], ajustes: gs.ajustes, qualidades: gs.qualidades } as unknown as Gravacao;
+
+  p(
+    '# Ozamigos — estatísticas da sala',
+    '',
+    `<!-- formato: ${gs.formato} · ${gs.terminou ? 'gravação completa' : 'salvamento automático no meio da gravação'} · gerado em ${new Date().toISOString()} -->`,
+    '',
+    '> **Para a IA que vai ler isto.** O Ozamigos é um app (Electron + React + WebRTC) que transmite a tela de jogos entre amigos,',
+    '> direto de um PC para o outro (malha P2P, sem servidor de mídia). Numa sala, várias pessoas podem transmitir e assistir ao mesmo',
+    '> tempo. Este arquivo é a gravação das estatísticas de uma sala de verdade: cada PC mandou, a cada segundo, o que transmitia e o',
+    '> que assistia. Os números vêm do `getStats()` do WebRTC, do `requestVideoFrameCallback` (ritmo real na tela) e dos contadores do',
+    '> Windows (processador e motores da placa de vídeo). O que é estimativa está marcado como estimado.',
+    '>',
+    `> **Tarefa sugerida:** (1) em cada transmissão (seções 2${n > 1 ? ` a ${n + 1}` : ''}), confirme ou conteste os diagnósticos usando as`,
+    '> evidências e as séries; (2) use a seção 1 para separar o que é de quem transmite, da internet ou do PC de quem assiste;',
+    `> (3) proponha mudanças concretas no código do Ozamigos, citando arquivo e constante (pistas em "Onde mexer" e na seção ${secConfig});`,
+    '> (4) diga qual número deste relatório deve melhorar e quanto, para validar a mudança numa gravação nova.',
+    '',
+  );
+
+  // 1. A sala
+  p('## 1. A sala', '', `**${as.resumo.titulo}.** ${as.resumo.texto}`, '');
+  p(
+    tabela(
+      ['Medida', 'Valor'],
+      [
+        ['Sala', gs.sala],
+        ['Gravado por', gs.gravadoPor],
+        ['Início', gs.inicio],
+        ['Duração', `${gs.duracao} s${gs.terminou ? '' : ' (salvamento automático: a gravação ainda não tinha terminado)'}`],
+        ['Pessoas com medidas', gs.pessoas.map((x) => x.nome).join(', ')],
+      ],
+    ),
+    '',
+    '**Transmissões**',
+    '',
+    tabela(
+      ['Quem transmite', 'Quem assistiu', 'Qualidades', 'Seg. analisados', 'Fluidez %', 'Pior trecho', 'Gargalo principal', 'Seção'],
+      as.transmissoes.map(({ nome, a }, i) => {
+        const validos = a.trechos.filter((t) => t.segundos > 0);
+        const pior = validos.reduce(
+          (x, t) => (ORDEM_DOS_RESULTADOS.indexOf(t.resultado) > ORDEM_DOS_RESULTADOS.indexOf(x) ? t.resultado : x),
+          'otimo' as (typeof ORDEM_DOS_RESULTADOS)[number],
+        );
+        const comFluidez = validos.filter((t) => t.recepcao.fluidez != null);
+        const pesos = comFluidez.reduce((s, t) => s + t.segundos, 0);
+        const fluidezMedia = pesos ? comFluidez.reduce((s, t) => s + t.recepcao.fluidez! * t.segundos, 0) / pesos : null;
+        return [
+          nome,
+          [...new Set(a.trechos.flatMap((t) => t.recepcao.porEspectador.map((e) => e.nome)))].join(', '),
+          [...new Set(a.trechos.map((t) => t.trecho.qualidade))].join(', '),
+          validos.reduce((s, t) => s + t.segundos, 0),
+          fmt(fluidezMedia),
+          validos.length ? NOME_DO_RESULTADO[pior] : 'sem dados',
+          `${NOMES_DOS_GARGALOS[a.principal.gargalo] ?? a.principal.gargalo} (\`${a.principal.gargalo}\`)`,
+          i + 2,
+        ];
+      }),
+    ),
+    '',
+    '**Pessoas** (o PC de cada uma durante toda a gravação; "assistindo" = tudo que a pessoa assistiu)',
+    '',
+    tabela(
+      ['Pessoa', 'Ozamigos', 'Placa de vídeo', 'Transmitiu s', 'Assistiu s', 'Assistiu quem', 'Fluidez assistindo %', 'Congel. assistindo', 'Decod. ms', 'CPU app %', 'CPU PC % (máx)', 'Placa 3D % (máx)', 'Motor de vídeo % (máx)', 'Janela visível %', 'Tarefas longas (maior ms)'],
+      as.pessoas.map((x) => [
+        x.nome,
+        x.app,
+        x.placa,
+        x.transmitiu,
+        x.assistiu,
+        x.assistiuQuem.join(', '),
+        fmt(x.fluidezAssistindo),
+        x.congelamentosAssistindo,
+        fmt(x.msDecodificacao),
+        fmt(x.cpuApp),
+        `${fmt(x.cpuPc)} (${fmt(x.cpuPcMax)})`,
+        `${fmt(x.placa3d)} (${fmt(x.placa3dMax)})`,
+        `${fmt(x.placaVideo)} (${fmt(x.placaVideoMax)})`,
+        fmt(x.janelaVisivelPct, '', 0),
+        `${x.tarefasLongas} (${x.msTarefaMaior})`,
+      ]),
+    ),
+    '',
+  );
+  if (as.diagnosticos.length) {
+    diagnosticos(p, { diagnosticos: as.diagnosticos } as Analise, '### Diagnósticos da sala inteira', { sub: '####', regras: String(secRegras), trechos: '' });
+  }
+  p(
+    '### Quem fazia o quê',
+    '',
+    'Uma linha a cada mudança (t em segundos desde o início da gravação).',
+    '',
+    tabela(
+      ['t (s)', 'Pessoa', 'Transmite', 'Para quem', 'Assiste'],
+      gs.papeis.slice(0, 400).map((x) => [x.t, x.pessoa, x.transmite ? `sim, ${x.qualidade}` : 'não', x.espectadores.join(', '), x.assiste.join(', ')]),
+    ),
+    '',
+  );
+
+  // 2..n+1. Cada transmissão, com os mesmos blocos do relatório do teste
+  as.transmissoes.forEach(({ nome, g, a }, i) => {
+    const s = i + 2;
+    const c: Contexto = { sub: '####', regras: String(secRegras), trechos: `${s}.3` };
+    const quem = g.espectadoresReais.map((e) => e.nome);
+    p(`## ${s}. Transmissão de ${nome}`, '', `${nome} transmitiu ${g.fonte}. Quem assistiu: ${quem.join(', ') || 'ninguém'}.`, '');
+    resumo(p, g, a, `### ${s}.1 Resumo`);
+    diagnosticos(p, a, `### ${s}.2 Diagnósticos (com as evidências)`, c);
+    trechos(p, g, a, `### ${s}.3 Trechos`, c);
+    ambiente(p, g, `### ${s}.4 Ambiente de quem transmitiu e de quem assistiu`);
+    acontecimentos(p, g, `### ${s}.5 Acontecimentos`);
+    series(p, g, `### ${s}.6 Séries de cada segundo`, c);
+  });
+
+  // O PC de cada pessoa, segundo a segundo, com o que ela fazia
+  const papelEm = (pessoa: string, t: number) => gs.papeis.findLast((x) => x.pessoa === pessoa && x.t <= t);
+  const porChave = new Map<string, { t: number } & Record<string, unknown>>();
+  const linha = (t: number, pessoa: string) => {
+    const chave = `${t}|${pessoa}`;
+    let atual = porChave.get(chave);
+    if (!atual) {
+      const papel = papelEm(pessoa, t);
+      atual = { t, pessoa, transmite: papel?.transmite ? papel.qualidade : '', assiste: papel?.assiste.join(' ') ?? '' };
+      porChave.set(chave, atual);
+    }
+    return atual;
+  };
+  for (const q of gs.pcAmostras) {
+    Object.assign(linha(q.t, q.pessoa), {
+      cpuApp: q.cpuApp,
+      cpuPc: q.cpuPc,
+      placa3d: q.placa3dTotal,
+      placaVideo: q.placaVideoTotal,
+      placa3dApp: q.placa3dApp,
+      placaVideoApp: q.placaVideoApp,
+      placa3dOutros: q.placa3dOutros,
+      memPlaca: q.memoriaPlacaMB,
+    });
+  }
+  for (const q of gs.pagina) Object.assign(linha(q.t, q.pessoa), { tarefas: q.tarefasLongas, tarefaMaior: q.msTarefaMaior, visivel: q.janelaVisivel });
+  const pcs = reduzir(
+    [...porChave.values()].sort((x, y) => x.t - y.t),
+    (l) => String(l.pessoa),
+    ['tarefas'],
+  );
+  p(
+    `## ${secPc}. O PC e a página de cada pessoa`,
+    '',
+    `Uma linha por pessoa por ${pcs.passo === 1 ? 'segundo' : `${pcs.passo} s (médias)`}. "transmite" = a qualidade, se transmitia; "assiste" = quem a pessoa assistia. Processador e placa de vídeo só no app para Windows (1.2.10 em diante).`,
+    '',
+    csv(
+      ['t', 'pessoa', 'transmite', 'assiste', 'cpu_app', 'cpu_pc', 'placa3d_total', 'placa_video_total', 'placa3d_app', 'placa_video_app', 'placa3d_outros', 'mem_placa_mb', 'tarefas_longas', 'ms_tarefa_maior', 'tela_visivel'],
+      pcs.linhas.map((l) => [l.t, l.pessoa, l.transmite, l.assiste, l.cpuApp, l.cpuPc, l.placa3d, l.placaVideo, l.placa3dApp, l.placaVideoApp, l.placa3dOutros, l.memPlaca, l.tarefas, l.tarefaMaior, l.visivel]),
+    ),
+    '',
+  );
+
+  configuracao(p, daSala, `## ${secConfig}. Como esta versão do Ozamigos transmite`);
+  protocolo(p, daSala, `## ${secRegras}. Como a gravação foi feita (e as regras das conclusões)`);
+  glossario(p, `## ${secGlossario}. Glossário das colunas das séries`);
+  p(PARA_A_IA_FIM, '');
   return partes.join('\n');
 }

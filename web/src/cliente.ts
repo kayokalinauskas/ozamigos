@@ -58,12 +58,11 @@ export type Estado = {
   metricas: Record<string, Metrica>; // `${canal}:${id}` -> medição
   avisos: Aviso[];
   conexaoPerdida: boolean; // caiu a conexão com o servidor; o cliente já está tentando voltar sozinho
+  gravacaoDaSala: { id: string; nome: string } | null; // quem está gravando as estatísticas da sala (Ctrl+Shift+G)
 };
 
 type Canal = 'envio' | 'recebimento';
-// medidas: canal de dados que vai junto com o vídeo. Quem assiste manda por ele o que recebe, quando quem
-// transmite grava um teste de desempenho com os amigos (veja desempenho/).
-type Conexao = { pc: RTCPeerConnection; pendentes: RTCIceCandidateInit[]; canal: Canal; id: string; medidas?: RTCDataChannel };
+type Conexao = { pc: RTCPeerConnection; pendentes: RTCIceCandidateInit[]; canal: Canal; id: string };
 type Fonte = 'aplicativo' | 'tela' | 'escolher';
 
 type Mensagem = Record<string, any> & { tipo: string };
@@ -103,8 +102,8 @@ export const AJUSTES_DA_TRANSMISSAO = {
   escalaNoCodificador: 'scaleResolutionDownBy 1 (a captura já sai no tamanho da qualidade)',
 };
 
-/** Quem assiste, visto por quem transmite. */
-export type Envio = { id: string; nome: string; pc: RTCPeerConnection; medidas: RTCDataChannel | null };
+/** Uma conexão de vídeo com alguém da sala: quem me assiste (envio) ou quem eu assisto (recebimento). */
+export type Ligacao = { id: string; nome: string; pc: RTCPeerConnection };
 
 /** Uma linha do relatório: uma medida de uma conexão, ou um acontecimento. */
 export type LinhaDoRelatorio = { momento: string } & ({ evento: string } | ({ medida: string } & Omit<Metrica, 'id'>));
@@ -156,8 +155,10 @@ class Cliente {
   private readonly linhasDoRelatorio: LinhaDoRelatorio[] = [];
   // Conexões de envio que não são de ninguém da sala: os espectadores simulados do teste de desempenho.
   private readonly enviosExtras = new Set<RTCPeerConnection>();
-  /** Chamado quando abre o canal de medidas de uma transmissão que eu assisto (desempenho/). */
-  aoAbrirCanalDeMedidas: ((idTransmissor: string, canal: RTCDataChannel, pc: RTCPeerConnection) => void) | null = null;
+  /** Quem grava as estatísticas da sala recebe aqui as medidas de cada pessoa (desempenho/gravadorDaSala.ts). */
+  aoReceberMedidas: ((de: string, pacote: unknown) => void) | null = null;
+  /** O servidor recusou começar a gravação: outra pessoa já grava. */
+  aoRecusarGravacao: (() => void) | null = null;
 
   constructor() {
     const daUrl = new URLSearchParams(location.search).get('sala');
@@ -179,6 +180,7 @@ class Cliente {
       metricas: {},
       avisos: [],
       conexaoPerdida: false,
+      gravacaoDaSala: null,
     };
     this.trocarSala(sala);
     // Um "estou aqui" a cada 30 s: sem isso, proxies e hospedagens gratuitas fecham a conexão parada.
@@ -215,6 +217,11 @@ class Cliente {
   nomeDe(id: string): string {
     if (id === this.estado.meuId) return 'Você';
     return this.estado.pessoas.find((p) => p.id === id)?.nome ?? 'Amigo';
+  }
+
+  /** O nome como os outros veem (o meu também), para relatórios. */
+  nomeReal(id: string): string {
+    return id === this.estado.meuId ? this.estado.meuNome || 'Eu' : this.nomeDe(id);
   }
 
   // ===== Avisos (os "toasts" do canto da tela) =====
@@ -372,6 +379,7 @@ class Cliente {
       assistindo: [],
       videos: {},
       conexaoPerdida: false,
+      gravacaoDaSala: msg.gravando ?? null,
     });
     if (this.estado.minhaTela) this.enviar({ tipo: 'comecei' }); // continuo transmitindo, agora com o id novo
     for (const id of msg.compartilhando as string[]) {
@@ -430,7 +438,9 @@ class Cliente {
           pessoas: msg.outros,
           transmitindo: msg.compartilhando,
           plateias: msg.plateias ?? {},
+          gravacaoDaSala: msg.gravando ?? null,
         });
+        if (msg.gravando) this.avisar(`${msg.gravando.nome} está gravando as estatísticas da sala: o Ozamigos manda para essa pessoa como as transmissões chegam aqui.`);
         if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
           void Notification.requestPermission().catch(() => undefined);
         }
@@ -523,7 +533,28 @@ class Cliente {
         // O canal vem do ponto de vista de quem mandou: o "envio" dele é o meu "recebimento".
         await this.receberCandidato(msg.de, msg.canal === 'envio' ? 'recebimento' : 'envio', msg.candidato);
         break;
+      case 'gravacao-da-sala': {
+        const minha = msg.id === e.meuId;
+        if (msg.ligada) {
+          this.mudar({ gravacaoDaSala: { id: msg.id, nome: msg.nome ?? this.nomeDe(msg.id) } });
+          if (!minha && e.gravacaoDaSala?.id !== msg.id) {
+            this.avisar(`${this.nomeDe(msg.id)} começou a gravar as estatísticas da sala: o Ozamigos manda para essa pessoa como as transmissões chegam aqui. Você não precisa fazer nada.`);
+          }
+        } else if (e.gravacaoDaSala?.id === msg.id) {
+          this.mudar({ gravacaoDaSala: null });
+          if (!minha) this.avisar(`${e.gravacaoDaSala!.nome} terminou a gravação das estatísticas da sala.`);
+        }
+        break;
+      }
+      case 'medidas':
+        this.aoReceberMedidas?.(msg.de, msg.pacote);
+        break;
       case 'erro':
+        if (msg.motivo === 'sala-ja-gravando') {
+          this.aoRecusarGravacao?.();
+          this.avisar(`${e.gravacaoDaSala?.nome ?? 'Outra pessoa'} já está gravando as estatísticas desta sala.`, 'erro');
+          break;
+        }
         this.tratarErro(msg.motivo);
         break;
     }
@@ -543,7 +574,7 @@ class Cliente {
         // Recusado ao reconectar (a senha mudou, a sala encheu): desfaz tudo e volta para a entrada.
         this.pararDeTransmitir(false);
         for (const { canal, id } of [...this.conexoes.values()]) this.fecharConexao(canal, id);
-        this.mudar({ meuId: null, pessoas: [], transmitindo: [], plateias: {}, assistindo: [], videos: {}, conexaoPerdida: false });
+        this.mudar({ meuId: null, pessoas: [], transmitindo: [], plateias: {}, assistindo: [], videos: {}, conexaoPerdida: false, gravacaoDaSala: null });
       }
       this.mudar({ fase: 'entrada', erro: texto });
     } else {
@@ -853,8 +884,6 @@ class Cliente {
     const conexao = this.novaConexao('envio', idEspectador);
     const { pc } = conexao;
     this.montarEnvio(pc);
-    // Criado antes da oferta, o canal entra na mesma negociação; fica parado até alguém gravar um teste.
-    conexao.medidas = pc.createDataChannel('medidas', { ordered: true });
     const oferta = await pc.createOffer();
     await pc.setLocalDescription({ type: 'offer', sdp: opusEstereo(oferta.sdp ?? '') });
     this.enviar({ tipo: 'oferta', para: idEspectador, sdp: pc.localDescription });
@@ -904,10 +933,29 @@ class Cliente {
   }
 
   /** Quem está me assistindo agora (só os da sala). */
-  envios(): Envio[] {
-    return [...this.conexoes.values()]
-      .filter((c) => c.canal === 'envio')
-      .map((c) => ({ id: c.id, nome: this.nomeDe(c.id), pc: c.pc, medidas: c.medidas ?? null }));
+  envios(): Ligacao[] {
+    return this.ligacoes('envio');
+  }
+
+  /** Quem eu estou assistindo agora. */
+  recebimentos(): Ligacao[] {
+    return this.ligacoes('recebimento');
+  }
+
+  private ligacoes(canal: Canal): Ligacao[] {
+    return [...this.conexoes.values()].filter((c) => c.canal === canal).map((c) => ({ id: c.id, nome: this.nomeDe(c.id), pc: c.pc }));
+  }
+
+  // ===== Gravação das estatísticas da sala (desempenho/) =====
+
+  /** Pede ao servidor para começar ou parar a gravação. A resposta chega como "gravacao-da-sala" para todos. */
+  gravarSala(ligada: boolean) {
+    this.enviar({ tipo: 'gravar-sala', ligada });
+  }
+
+  /** As medidas deste segundo, para quem está gravando (o servidor entrega só a essa pessoa). */
+  mandarMedidas(pacote: unknown) {
+    this.enviar({ tipo: 'medidas', pacote });
   }
 
   private async receberResposta(idEspectador: string, sdp: RTCSessionDescriptionInit) {
@@ -924,11 +972,6 @@ class Cliente {
     if (!this.estado.assistindo.includes(idTransmissor)) return; // desisti de assistir no meio do caminho
     this.fecharConexao('recebimento', idTransmissor);
     const conexao = this.novaConexao('recebimento', idTransmissor);
-    conexao.pc.ondatachannel = ({ channel }) => {
-      if (channel.label !== 'medidas') return;
-      conexao.medidas = channel;
-      this.aoAbrirCanalDeMedidas?.(idTransmissor, channel, conexao.pc);
-    };
     conexao.pc.ontrack = (evento) => {
       // Folga contra soluços do Wi-Fi de quem assiste (veja FOLGA_DE_REDE); vale para vídeo e som, que andam juntos.
       try {

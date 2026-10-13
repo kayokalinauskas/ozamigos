@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Bot, Copy, Download, FileJson, FileText, MonitorUp, RotateCcw, SkipForward, Square, Users, X, Zap } from 'lucide-react';
+import { Bot, Copy, Download, FileJson, FileText, MonitorUp, RotateCcw, SkipForward, Square, Users, X } from 'lucide-react';
 import { cliente } from '../cliente';
 import { analisar, fmt, type ResumoDoTrecho } from '../desempenho/analise';
 import { teste, type EstadoDoTeste } from '../desempenho/gravacao';
 import { relatorioHtml } from '../desempenho/relatorioHtml';
 import { relatorioParaIa } from '../desempenho/relatorioIa';
-import type { Gravacao, Modo, Roteiro } from '../desempenho/tipos';
+import type { Gravacao, Roteiro } from '../desempenho/tipos';
 import { noApp, pintarBarraDaJanela } from '../ponte';
 import { QUALIDADES } from '../qualidade';
 import { useCliente } from '../useCliente';
@@ -53,11 +53,8 @@ export function TesteDesempenho({ aoFechar }: { aoFechar: () => void }) {
 // ===== Começo =====
 
 function Inicio({ estado, aoFechar }: { estado: EstadoDoTeste; aoFechar: () => void }) {
-  const { minhaTela, plateias, meuId, qualidade } = useCliente();
-  const [modo, setModo] = useState<Modo>('simulado');
+  const { minhaTela, qualidade } = useCliente();
   const [roteiro, setRoteiro] = useState<Roteiro>('completo');
-  const assistindo = meuId ? (plateias[meuId]?.length ?? 0) : 0;
-  const podeComecar = minhaTela !== null && (modo === 'simulado' || assistindo > 0);
 
   return (
     <div className="teste-inicio">
@@ -68,31 +65,19 @@ function Inicio({ estado, aoFechar }: { estado: EstadoDoTeste; aoFechar: () => v
         </button>
       </header>
       <p className="teste-intro">
-        Grava tudo o que acontece com a imagem do seu jogo, da captura até a tela de quem assiste, e no fim mostra onde está o gargalo. O
-        relatório sai em duas versões: uma para você ler e outra para colar numa IA e pedir melhorias no app.
+        O Ozamigos cria espectadores no seu próprio PC e passa sozinho pelas 4 qualidades e por 1, 3 e 7 pessoas assistindo. Grava tudo o que
+        acontece com a imagem do seu jogo, da captura até a tela de quem assiste, e no fim mostra onde está o gargalo. O relatório sai em duas
+        versões: uma para você ler e outra para colar numa IA e pedir melhorias no app.
+      </p>
+      <p className="teste-sala">
+        <Users size={18} aria-hidden="true" />
+        <span>
+          Para medir com os amigos de verdade (a internet, o PC de cada um, vocês dois transmitindo), use a <b>gravação da sala</b>: aperte{' '}
+          <kbd>Ctrl+Shift+G</kbd> na sala. Os amigos não precisam fazer nada, e o relatório é salvo sozinho.
+        </span>
       </p>
 
-      <div className="teste-modos" role="radiogroup" aria-label="Como testar">
-        <button type="button" role="radio" aria-checked={modo === 'simulado'} className="teste-modo" onClick={() => setModo('simulado')}>
-          <Zap size={22} />
-          <b>Espectadores simulados</b>
-          <span>
-            O Ozamigos cria espectadores no seu próprio PC e passa sozinho pelas 4 qualidades e por 1, 3 e 7 pessoas assistindo. Mede o seu
-            PC (captura, codificação, exibição), sem a internet.
-          </span>
-        </button>
-        <button type="button" role="radio" aria-checked={modo === 'amigos'} className="teste-modo" onClick={() => setModo('amigos')}>
-          <Users size={22} />
-          <b>Com os amigos assistindo</b>
-          <span>
-            Grava a transmissão de verdade. Cada amigo manda como a imagem chega no PC dele: fps, engasgos, perdas e atraso da internet.
-            {assistindo > 0 ? ` Agora: ${assistindo} ${assistindo === 1 ? 'pessoa assistindo' : 'pessoas assistindo'}.` : ' Agora ninguém está assistindo.'}
-          </span>
-        </button>
-      </div>
-
-      {modo === 'simulado' && (
-        <div className="teste-roteiros" role="radiogroup" aria-label="Duração">
+      <div className="teste-roteiros" role="radiogroup" aria-label="Duração">
           <label>
             <input type="radio" name="roteiro" checked={roteiro === 'completo'} onChange={() => setRoteiro('completo')} />
             Completo · ~4 min <span>4 qualidades com 1 espectador, depois 3 e 7 na sua ({QUALIDADES[qualidade].rotulo})</span>
@@ -102,12 +87,10 @@ function Inicio({ estado, aoFechar }: { estado: EstadoDoTeste; aoFechar: () => v
             Rápido · ~1 min <span>só a sua qualidade, com 1 e com 7 espectadores</span>
           </label>
         </div>
-      )}
 
       <ul className="teste-dicas">
         <li>Deixe o jogo rodando como você joga de verdade, e a janela do Ozamigos visível (em outro monitor ou ao lado do jogo): escondida, o navegador não desenha o vídeo e o ritmo na tela não é medido.</li>
-        {modo === 'simulado' && <li>Quem estiver assistindo agora vê as trocas de qualidade do teste. No fim, a sua qualidade volta.</li>}
-        {modo === 'amigos' && <li>Os amigos veem um aviso enquanto o teste grava. Pare quando quiser: os trechos se dividem sozinhos a cada troca de qualidade ou de quem assiste.</li>}
+        <li>Quem estiver assistindo agora vê as trocas de qualidade do teste. No fim, a sua qualidade volta.</li>
         {!noApp && <li>No navegador, o uso do processador e da placa de vídeo não é medido: para isso, use o app para Windows.</li>}
       </ul>
 
@@ -118,11 +101,10 @@ function Inicio({ estado, aoFechar }: { estado: EstadoDoTeste; aoFechar: () => v
             <MonitorUp size={18} /> Primeiro, escolha o jogo para transmitir
           </button>
         ) : (
-          <button type="button" className="botao botao-primario botao-grande" disabled={!podeComecar} onClick={() => void teste.iniciar(modo, roteiro)}>
-            {modo === 'simulado' ? 'Começar o teste' : 'Começar a gravar'}
+          <button type="button" className="botao botao-primario botao-grande" onClick={() => void teste.iniciar(roteiro)}>
+            Começar o teste
           </button>
         )}
-        {modo === 'amigos' && minhaTela && assistindo === 0 && <span className="ajuda">Espere alguém clicar em Assistir.</span>}
       </div>
     </div>
   );
@@ -192,9 +174,8 @@ function GraficoDoRitmo({ alvoFps }: { alvoFps: number }) {
 }
 
 function AoVivo({ estado }: { estado: EstadoDoTeste }) {
-  const { qualidade, minhaTela } = useCliente();
+  const { qualidade } = useCliente();
   const r: ResumoDoTrecho | null = estado.resumo;
-  const simulado = estado.modo === 'simulado';
   const etapa = estado.etapas[estado.etapaAtual];
   const decorrido = etapa ? Math.min(1, (estado.segundos - estado.etapas.slice(0, estado.etapaAtual).reduce((s, e) => s + e.segundos, 0)) / etapa.segundos) : 0;
   const media = (lista: (number | null)[]) => {
@@ -212,7 +193,7 @@ function AoVivo({ estado }: { estado: EstadoDoTeste }) {
         ['Rede', atraso.rede, 'var(--texto-2)'],
         ['Buffer', atraso.buffer, 'var(--medio)'],
         ['Decodificação', atraso.decodificacao, 'var(--bom)'],
-      ].filter(([, v]) => (v as number) > 0.5 || simulado === false)
+      ].filter(([, v]) => (v as number) > 0.5)
     : [];
   const fluidez = r?.recepcao.fluidez ?? null;
   const telaFps = media(recepcao.map((x) => x.fpsExibidos));
@@ -231,21 +212,19 @@ function AoVivo({ estado }: { estado: EstadoDoTeste }) {
           <span className="ponto" /> {estado.fase === 'encerrando' ? 'GERANDO O RELATÓRIO…' : `GRAVANDO · ${minSec(estado.segundos)}`}
         </span>
         <span className="pilula neutra">
-          {simulado ? 'Espectadores simulados' : 'Com os amigos'} · {QUALIDADES[qualidade].rotulo}
+          Espectadores simulados · {QUALIDADES[qualidade].rotulo}
         </span>
         <div className="teste-topo-acoes">
-          {simulado && (
-            <button type="button" className="botao botao-secundario" onClick={() => teste.pularEtapa()} disabled={estado.fase !== 'gravando'}>
-              <SkipForward size={16} /> Pular etapa
-            </button>
-          )}
+          <button type="button" className="botao botao-secundario" onClick={() => teste.pularEtapa()} disabled={estado.fase !== 'gravando'}>
+            <SkipForward size={16} /> Pular etapa
+          </button>
           <button type="button" className="botao botao-primario" onClick={() => void teste.parar()} disabled={estado.fase !== 'gravando'}>
             <Square size={14} /> Parar e ver relatório
           </button>
         </div>
       </header>
 
-      {simulado && (
+      {estado.etapas.length > 0 && (
         <ol className="teste-etapas">
           {estado.etapas.map((e, i) => {
             const nota = estado.notas[i];
@@ -270,89 +249,41 @@ function AoVivo({ estado }: { estado: EstadoDoTeste }) {
 
       <div className="teste-corpo">
         <div className="teste-esquerda">
-          {simulado ? (
-            <div className="teste-video">
-              {estado.simulados[0] ? <Video stream={estado.simulados[0]} rotulo="O que o espectador simulado 1 vê" /> : <div className="teste-video-vazio">Conectando o espectador simulado…</div>}
-              <div className="teste-video-hud">
-                <span>O que o espectador vê</span>
-                {recepcao[0]?.altura && (
-                  <span>
-                    {recepcao[0].largura}×{recepcao[0].altura} · {Math.round(recepcao[0].fpsExibidos ?? recepcao[0].fpsDecodificados)} fps
-                  </span>
-                )}
-                {envio[0]?.codec && (
-                  <span style={{ color: codificadorDaPlaca === false ? 'var(--ruim)' : codificadorDaPlaca ? 'var(--bom)' : undefined }}>
-                    {envio[0].codec}
-                    {codificadorDaPlaca === false ? ' · software' : codificadorDaPlaca ? ' · placa de vídeo' : ''}
-                  </span>
-                )}
-              </div>
-              {estado.simulados.length > 1 && (
-                <div className="teste-miniaturas" aria-label="Os outros espectadores simulados">
-                  {estado.simulados.slice(1).map((s, i) => (
-                    <Video key={s.id} stream={s} rotulo={`Espectador simulado ${i + 2}`} />
-                  ))}
-                </div>
+          <div className="teste-video">
+            {estado.simulados[0] ? <Video stream={estado.simulados[0]} rotulo="O que o espectador simulado 1 vê" /> : <div className="teste-video-vazio">Conectando o espectador simulado…</div>}
+            <div className="teste-video-hud">
+              <span>O que o espectador vê</span>
+              {recepcao[0]?.altura && (
+                <span>
+                  {recepcao[0].largura}×{recepcao[0].altura} · {Math.round(recepcao[0].fpsExibidos ?? recepcao[0].fpsDecodificados)} fps
+                </span>
               )}
-              <div className="teste-video-quem">
-                <b>
-                  {estado.simulados.length} {estado.simulados.length === 1 ? 'espectador simulado' : 'espectadores simulados'}
-                </b>{' '}
-                · conexões locais, ninguém da sala vê este teste
-              </div>
+              {envio[0]?.codec && (
+                <span style={{ color: codificadorDaPlaca === false ? 'var(--ruim)' : codificadorDaPlaca ? 'var(--bom)' : undefined }}>
+                  {envio[0].codec}
+                  {codificadorDaPlaca === false ? ' · software' : codificadorDaPlaca ? ' · placa de vídeo' : ''}
+                </span>
+              )}
             </div>
-          ) : (
-            <>
-            {minhaTela && (
-              <div className="teste-video">
-                <Video stream={minhaTela} rotulo="O que você está transmitindo" />
-                <div className="teste-video-hud">
-                  <span>O que você está transmitindo</span>
-                </div>
+            {estado.simulados.length > 1 && (
+              <div className="teste-miniaturas" aria-label="Os outros espectadores simulados">
+                {estado.simulados.slice(1).map((s, i) => (
+                  <Video key={s.id} stream={s} rotulo={`Espectador simulado ${i + 2}`} />
+                ))}
               </div>
             )}
-            <div className="cartao-teste teste-amigos">
-              <h2>Amigos assistindo</h2>
-              {recepcao.length === 0 ? (
-                <p className="ajuda">Esperando as medidas dos amigos… (chegam a cada segundo, depois que a conexão abre o canal de medidas)</p>
-              ) : (
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Amigo</th>
-                      <th>Imagem</th>
-                      <th>Na tela</th>
-                      <th>Pior quadro</th>
-                      <th>Perda</th>
-                      <th>Ida e volta</th>
-                      <th>Congelou</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recepcao.map((x) => (
-                      <tr key={x.espectador}>
-                        <td>{x.espectador}</td>
-                        <td>{x.altura ? `${x.altura}p` : '?'}</td>
-                        <td>{x.fpsExibidos != null ? `${Math.round(x.fpsExibidos)} fps` : 'janela escondida'}</td>
-                        <td>{x.ritmo ? `${Math.round(x.ritmo.maxMs)} ms` : '—'}</td>
-                        <td>{fmt(x.perdaPct, '%', 2)}</td>
-                        <td>{fmt(x.rttMs, ' ms', 0)}</td>
-                        <td>{x.congelamentos > 0 ? `${x.msCongelado} ms` : 'não'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+            <div className="teste-video-quem">
+              <b>
+                {estado.simulados.length} {estado.simulados.length === 1 ? 'espectador simulado' : 'espectadores simulados'}
+              </b>{' '}
+              · conexões locais, ninguém da sala vê este teste
             </div>
-            </>
-          )}
+          </div>
           <div className="cartao-teste teste-ritmo">
             <header>
               <h2>Ritmo dos quadros</h2>
               <p>
-                {simulado
-                  ? 'Intervalo entre cada quadro mostrado na tela, últimos 10 s. Reto = fluido; picos = engasgos que dá para sentir.'
-                  : 'O pior intervalo entre quadros de cada segundo, entre todos os amigos, último minuto.'}
+                Intervalo entre cada quadro mostrado na tela, últimos 10 s. Reto = fluido; picos = engasgos que dá para sentir.
               </p>
             </header>
             <GraficoDoRitmo alvoFps={r?.conteudoFps ?? QUALIDADES[qualidade].fps} />
@@ -377,7 +308,7 @@ function AoVivo({ estado }: { estado: EstadoDoTeste }) {
                 {atraso?.total ? Math.round(atraso.total) : '—'}
                 <small>ms</small>
               </div>
-              <p>{simulado ? 'do jogo até a tela, sem a internet' : 'do jogo até a tela do amigo'}</p>
+              <p>do jogo até a tela, sem a internet</p>
             </div>
           </div>
 

@@ -371,6 +371,35 @@ function trocarServidor() {
   janela?.loadFile(path.join(__dirname, 'inicio.html'));
 }
 
+const vindoDaPagina = (evento) => origemDe(evento.senderFrame?.url) === origemDoServidor();
+
+// ===== Estatísticas da sala (Ctrl+Shift+G na sala): salvas sozinhas em Documentos\Ozamigos\Estatísticas =====
+
+const pastaDasEstatisticas = () => path.join(app.getPath('documents'), 'Ozamigos', 'Estatísticas');
+// Só um nome, nunca um caminho: a página não escolhe onde gravar no disco.
+const nomeSeguro = (texto) => typeof texto === 'string' && /^[^\\/:*?"<>|\x00-\x1f]{1,120}$/.test(texto) && !/^[. ]|[. ]$/.test(texto);
+
+ipcMain.handle('estatisticas-salvar', async (evento, pasta, arquivos) => {
+  if (!vindoDaPagina(evento) || !nomeSeguro(pasta) || !arquivos || typeof arquivos !== 'object') return null;
+  const destino = path.join(pastaDasEstatisticas(), pasta);
+  await fs.promises.mkdir(destino, { recursive: true });
+  for (const [nome, conteudo] of Object.entries(arquivos)) {
+    if (!nomeSeguro(nome) || !/\.(md|json|html)$/.test(nome) || typeof conteudo !== 'string') continue;
+    // Grava num temporário e troca: um salvamento cortado no meio não estraga o anterior.
+    const final = path.join(destino, nome);
+    await fs.promises.writeFile(`${final}.tmp`, conteudo, 'utf8');
+    await fs.promises.rename(`${final}.tmp`, final);
+  }
+  return destino;
+});
+
+ipcMain.handle('estatisticas-abrir-pasta', async (evento, pasta) => {
+  if (!vindoDaPagina(evento) || !nomeSeguro(pasta)) return false;
+  const destino = path.join(pastaDasEstatisticas(), pasta);
+  if (!fs.existsSync(destino)) return false;
+  return (await shell.openPath(destino)) === '';
+});
+
 // ===== Teste de desempenho (o que o navegador não mede: o PC e a placa de vídeo) =====
 
 let contadores = null; // o auxiliar em modo --contadores, enquanto um teste grava
@@ -383,7 +412,6 @@ function desligarContadores() {
   ultimaLeitura = null;
 }
 
-const vindoDaPagina = (evento) => origemDe(evento.senderFrame?.url) === origemDoServidor();
 
 ipcMain.handle('desempenho-pc', async (evento) => {
   if (!vindoDaPagina(evento)) return null;

@@ -1482,6 +1482,42 @@ input[type='range']::-moz-range-thumb {
   letter-spacing: 0.04em;
 }
 
+.selo-gravando {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: default;
+}
+
+.teste-sala {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 760px;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  color: var(--texto-2);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.teste-sala svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--destaque);
+}
+
+.teste-sala kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--borda);
+  border-radius: 5px;
+  background: var(--painel-3);
+  color: var(--texto);
+  font: 600 12px/1.4 inherit;
+}
+
 .gravando .ponto,
 .teste .eventos .ponto {
   width: 7px;

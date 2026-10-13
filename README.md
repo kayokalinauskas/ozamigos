@@ -182,7 +182,7 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │       ├── cliente.ts                Núcleo: sinalização, WebRTC, qualidade e estatísticas
 │       ├── somDoApp.ts               Faixa de áudio do auxiliar de som (AudioWorklet)
 │       ├── ponte.ts                  Contrato com o app Electron
-│       ├── desempenho/               Teste de desempenho: medição, análise e os relatórios (HTML e para IA)
+│       ├── desempenho/               Teste de desempenho e gravação da sala: medição, análise e os relatórios (HTML e para IA)
 │       └── componentes/              Entrada, Sala, BarraLateral, Palco, Transmissao, ...
 ├── site/                   Site de apresentação em português e inglês (en/), publicado no GitHub Pages
 ├── desktop/                App para Windows (Electron 44)
@@ -376,12 +376,14 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `assistir` / `deixar` | `para` | Entra ou sai da plateia de quem transmite |
 | `oferta` / `resposta` / `candidato` | `para`, `sdp` ou `candidato`, `canal` | Repassado só ao destinatário, na mesma sala |
 | `ping` | — | Mantém a conexão viva (a cada 30 s); o servidor responde `pong` |
+| `gravar-sala` | `ligada` | Começa ou para a gravação das estatísticas da sala (uma por vez; só quem grava para) |
+| `medidas` | `pacote` | As medidas deste segundo, entregues só a quem grava a sala (sem gravação, o servidor descarta) |
 
 **Servidor → cliente**
 
 | `tipo` | Campos | Quando |
 |---|---|---|
-| `bem-vindo` | `id`, `ficha`, `outros[]`, `compartilhando[]`, `plateias{}` | Ao entrar. A `ficha` é secreta: só quem a recebeu pode usá-la para reconectar |
+| `bem-vindo` | `id`, `ficha`, `outros[]`, `compartilhando[]`, `plateias{}`, `gravando` (`id`, `nome`, se alguém grava a sala) | Ao entrar. A `ficha` é secreta: só quem a recebeu pode usá-la para reconectar |
 | `pong` | — | Resposta ao `ping`. Sem nenhuma mensagem por 70 s, o cliente considera a conexão morta e reconecta |
 | `entrou` / `saiu` | `id` (e `nome`) | Alguém entrou ou saiu |
 | `pode-compartilhar` | — | Confirma o `comecei` |
@@ -389,7 +391,9 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `plateia` | `id`, `ids[]` | Mudou quem assiste uma transmissão |
 | `assistir` / `deixar` | `de` | (para quem transmite) alguém quer assistir ou desistiu |
 | `oferta` / `resposta` / `candidato` | `de`, ... | Repasse do WebRTC |
-| `erro` | `motivo` | `senha-errada`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, ... |
+| `gravacao-da-sala` | `ligada`, `id`, `nome` | Alguém começou ou parou de gravar as estatísticas da sala (ou saiu da sala gravando) |
+| `medidas` | `de`, `pacote` | (para quem grava a sala) as medidas de um segundo de outra pessoa |
+| `erro` | `motivo` | `senha-errada`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, ... |
 
 Com `senha-errada` e `sala-cheia`, o servidor fecha a conexão logo depois de avisar.
 
@@ -419,14 +423,21 @@ Exemplo: em 1080p a 30 fps para 4 amigos, são cerca de 25 Mbps de upload; para 
 
 ### Teste de desempenho
 
-Ferramenta de diagnóstico, sem botão na tela: abra com **Ctrl+Shift+D** dentro da sala, com o jogo já transmitindo. Há dois modos:
+Ferramentas de diagnóstico, sem botão na tela. São duas:
 
-| Modo | Como funciona | O que mede |
+| Atalho | O que faz | O que mede |
 |---|---|---|
-| **Espectadores simulados** | O app cria espectadores no próprio PC (conexões WebRTC locais, sem servidor nem internet) e segue um roteiro: as 4 qualidades com 1 espectador e a sua qualidade com 3 e 7. Completo: ~4 min; rápido: ~1 min. | O seu PC: captura, codificação, decodificação e o ritmo dos quadros na tela, mais processador e placa de vídeo |
-| **Com os amigos assistindo** | Grava a transmissão de verdade. Cada amigo manda, pelo canal de dados da própria conexão, como a imagem chega no PC dele (ele vê um aviso enquanto isso). | Tudo acima, mais a internet: perdas, ida e volta, congelamentos no PC de cada amigo |
+| **Ctrl+Shift+D**: teste com espectadores simulados | Com o jogo já transmitindo, o app cria espectadores no próprio PC (conexões WebRTC locais, sem servidor nem internet) e segue um roteiro: as 4 qualidades com 1 espectador e a sua qualidade com 3 e 7. Completo: ~4 min; rápido: ~1 min. | O seu PC: captura, codificação, decodificação e o ritmo dos quadros na tela, mais processador e placa de vídeo |
+| **Ctrl+Shift+G**: gravação das estatísticas da sala | Grava a sala de verdade, com os amigos: quem transmite, quem assiste quem, ou os dois ao mesmo tempo. Aperte de novo para parar. | Tudo acima, de cada transmissão e de cada PC da sala, mais a internet: perdas, ida e volta, congelamentos no PC de quem assiste |
 
-No fim, o relatório traz:
+**Gravação da sala (Ctrl+Shift+G).** Os amigos não precisam fazer nada nem aceitar nada: todos veem o selo "Gravando estatísticas" no alto da sala, e cada PC manda, pelo servidor, só para quem grava, o que transmite e o que assiste a cada segundo (com o processador e a placa de vídeo, no app). Uma gravação por sala de cada vez. No app (1.2.11 em diante), os arquivos são salvos sozinhos a cada 30 s e no fim em `Documentos\Ozamigos\Estatísticas\<data> - sala <código>`:
+- `estatisticas para IA.md`: o relatório para colar numa IA, com a sala inteira, uma seção por transmissão e o PC de cada pessoa;
+- `transmissao de <nome>.html`: a página com os gráficos de cada transmissão (só no fim);
+- `dados.json`: tudo, sem arredondar.
+
+No navegador, os arquivos são baixados no fim.
+
+**Teste simulado (Ctrl+Shift+D).** No fim, o relatório traz:
 - a recomendação (qualidade e quantas pessoas o PC aguenta) e o gargalo principal;
 - os achados, com as evidências e o que fazer ("Para você" e "Para o app");
 - a tabela por trecho e os gráficos (fps ao longo do teste, intervalo entre quadros, codificação por espectador e onde está o atraso).

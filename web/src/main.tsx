@@ -4,10 +4,10 @@ import '@fontsource-variable/inter';
 import '@fontsource-variable/sora';
 import './estilo.css';
 import { App } from './componentes/App';
-import { ouvirPedidosDeMedidas } from './desempenho/amigos';
+import { acompanharGravacaoDaSala } from './desempenho/coletor';
 
-// Quem transmite pode pedir as medidas de recepção deste PC num teste de desempenho com os amigos.
-ouvirPedidosDeMedidas();
+// Quando alguém grava as estatísticas da sala (Ctrl+Shift+G), este PC manda as próprias medidas para essa pessoa.
+acompanharGravacaoDaSala();
 
 createRoot(document.getElementById('raiz')!).render(
   <StrictMode>

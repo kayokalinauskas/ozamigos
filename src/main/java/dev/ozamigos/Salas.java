@@ -27,12 +27,17 @@ public class Salas {
 
     /**
      * O que quem acabou de entrar precisa saber: quem já está (id -> nome),
-     * quem está transmitindo e quem assiste cada transmissão.
+     * quem está transmitindo, quem assiste cada transmissão e quem está gravando as estatísticas (ou null).
      */
-    public record Entrada(Map<String, String> outros, List<String> compartilhando, Map<String, List<String>> plateias) {}
+    public record Entrada(Map<String, String> outros, List<String> compartilhando, Map<String, List<String>> plateias,
+            String gravador) {}
 
-    /** O que sobrou depois que alguém saiu, e as plateias que mudaram por causa disso. */
-    public record Saida(List<WebSocketSession> restantes, Map<String, List<String>> plateiasQueMudaram) {}
+    /**
+     * O que sobrou depois que alguém saiu, as plateias que mudaram por causa disso e se a gravação
+     * das estatísticas acabou (quem saiu era quem gravava).
+     */
+    public record Saida(List<WebSocketSession> restantes, Map<String, List<String>> plateiasQueMudaram,
+            boolean gravacaoAcabou) {}
 
     private static final class Sala {
         final Map<String, WebSocketSession> participantes = new LinkedHashMap<>();
@@ -41,6 +46,8 @@ public class Salas {
         final Map<String, String> fichas = new HashMap<>();
         /** Quem transmite -> quem está assistindo (só existe enquanto a pessoa transmite). */
         final Map<String, Set<String>> plateias = new LinkedHashMap<>();
+        /** Quem está gravando as estatísticas da sala: as medidas de todos vão para essa pessoa. */
+        String gravador;
     }
 
     private final Map<String, Sala> salas = new HashMap<>();
@@ -58,7 +65,7 @@ public class Salas {
         sala.fichas.put(id, ficha);
         Map<String, List<String>> plateias = new LinkedHashMap<>();
         sala.plateias.forEach((quem, plateia) -> plateias.put(quem, List.copyOf(plateia)));
-        return new Entrada(outros, List.copyOf(sala.plateias.keySet()), plateias);
+        return new Entrada(outros, List.copyOf(sala.plateias.keySet()), plateias, sala.gravador);
     }
 
     /** Devolve null se a pessoa já não estava na sala (por exemplo, já tirada numa reconexão). */
@@ -71,6 +78,10 @@ public class Salas {
         sala.nomes.remove(id);
         sala.fichas.remove(id);
         sala.plateias.remove(id); // quem sai para de transmitir; o "saiu" já avisa os outros
+        boolean gravacaoAcabou = id.equals(sala.gravador);
+        if (gravacaoAcabou) {
+            sala.gravador = null;
+        }
         Map<String, List<String>> mudaram = new LinkedHashMap<>();
         sala.plateias.forEach((quem, plateia) -> {
             if (plateia.remove(id)) {
@@ -80,7 +91,7 @@ public class Salas {
         if (sala.participantes.isEmpty()) {
             salas.remove(codigo);
         }
-        return new Saida(new ArrayList<>(sala.participantes.values()), mudaram);
+        return new Saida(new ArrayList<>(sala.participantes.values()), mudaram, gravacaoAcabou);
     }
 
     /**
@@ -141,6 +152,44 @@ public class Salas {
             return null;
         }
         return List.copyOf(plateia);
+    }
+
+    /**
+     * Começa a gravar as estatísticas da sala. Uma gravação por vez: devolve false se outra pessoa
+     * já está gravando (ou se quem pediu não está na sala). Pedir de novo quem já grava não muda nada.
+     */
+    public synchronized boolean comecarAGravar(String codigo, String id) {
+        Sala sala = salas.get(codigo);
+        if (sala == null || !sala.participantes.containsKey(id)) {
+            return false;
+        }
+        if (sala.gravador != null && !sala.gravador.equals(id)) {
+            return false;
+        }
+        sala.gravador = id;
+        return true;
+    }
+
+    /** Só quem grava pode parar. Devolve true se a gravação acabou agora. */
+    public synchronized boolean pararDeGravar(String codigo, String id) {
+        Sala sala = salas.get(codigo);
+        if (sala == null || !id.equals(sala.gravador)) {
+            return false;
+        }
+        sala.gravador = null;
+        return true;
+    }
+
+    /** Quem está gravando as estatísticas da sala, ou null. */
+    public synchronized String gravador(String codigo) {
+        Sala sala = salas.get(codigo);
+        return sala == null ? null : sala.gravador;
+    }
+
+    /** O nome de alguém da sala, ou null. */
+    public synchronized String nome(String codigo, String id) {
+        Sala sala = salas.get(codigo);
+        return sala == null ? null : sala.nomes.get(id);
     }
 
     /** A sessão de alguém da mesma sala, ou null se a pessoa não estiver lá. */

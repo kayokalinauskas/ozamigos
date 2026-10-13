@@ -4,10 +4,14 @@
 import type { InfoDoPc } from '../ponte';
 import type { Qualidade } from '../qualidade';
 
-export const FORMATO = 'ozamigos-desempenho/1';
+export const FORMATO = 'ozamigos-desempenho/2';
+export const FORMATO_DA_SALA = 'ozamigos-sala/1';
 
-/** simulado: espectadores criados no próprio PC, num roteiro automático. amigos: quem está assistindo de verdade. */
-export type Modo = 'simulado' | 'amigos';
+/**
+ * simulado: espectadores criados no próprio PC, num roteiro automático (Ctrl+Shift+D).
+ * sala: uma transmissão de verdade, tirada da gravação das estatísticas da sala (Ctrl+Shift+G).
+ */
+export type Modo = 'simulado' | 'sala';
 export type Roteiro = 'completo' | 'rapido';
 
 /**
@@ -108,7 +112,8 @@ export type AmostraPc = {
 /** A página de quem transmite: travadas da interface (tarefas acima de 50 ms). */
 export type AmostraPagina = { t: number; tarefasLongas: number; msTarefaMaior: number; janelaVisivel: boolean };
 
-export type Acontecimento = { t: number; tipo: string; texto: string };
+/** transmissao: na gravação da sala, de qual transmissão é (sem ela, vale para todas). */
+export type Acontecimento = { t: number; tipo: string; texto: string; transmissao?: string };
 
 /** Um pedaço do teste com a mesma qualidade e o mesmo número de espectadores. */
 export type Trecho = {
@@ -123,6 +128,8 @@ export type Trecho = {
   aquecimento: boolean;
   /** Os primeiros segundos de cada trecho ficam fora das médias: o WebRTC ainda está subindo a banda. */
   descartarAte: number;
+  /** Na gravação da sala: quantas transmissões quem transmite estava assistindo ao mesmo tempo. */
+  assistindo?: number;
 };
 
 export type EspectadorReal = { nome: string; ambiente: AmbienteDoEspectador | null };
@@ -133,6 +140,54 @@ export type AmbienteDoEspectador = {
   tela: string;
   hz: number | null;
   nucleos: number | null;
+  /** O PC (só no app 1.2.10 em diante). */
+  pc?: InfoDoPc | null;
+};
+
+// ===== Gravação das estatísticas da sala (Ctrl+Shift+G) =====
+
+/**
+ * Um segundo de uma pessoa da sala: o que ela transmite (uma linha de envio por quem assiste) e o que ela
+ * assiste (uma linha de recepção por transmissão). Cada PC manda o seu pelo servidor para quem está gravando.
+ * Os ids são os do servidor; quem grava troca pelos nomes.
+ */
+export type Pacote = {
+  transmissao: { qualidade: Qualidade; fonte: string } | null;
+  envio: AmostraEnvio[]; // espectador = id de quem assiste
+  captura: AmostraCaptura | null;
+  recepcao: (AmostraRecepcao & { transmissor: string })[]; // transmissor = id de quem transmite
+  pc: AmostraPc | null;
+  pagina: AmostraPagina;
+  /** No primeiro pacote e a cada 30 s (quem grava pode ter começado depois). */
+  ambiente?: AmbienteDoEspectador;
+};
+
+/** O que uma pessoa estava fazendo num segundo da gravação. */
+export type Papel = { t: number; pessoa: string; transmite: boolean; qualidade: Qualidade | null; espectadores: string[]; assiste: string[] };
+
+/**
+ * A gravação da sala inteira: tudo com o nome das pessoas. Cada transmissão vira uma Gravacao (modo "sala")
+ * para a análise; o PC e a página de quem só assiste ficam aqui.
+ */
+export type GravacaoDaSala = {
+  formato: typeof FORMATO_DA_SALA;
+  sala: string;
+  gravadoPor: string;
+  inicio: string; // ISO
+  duracao: number; // s
+  terminou: boolean; // false: salvamento automático no meio da gravação
+  pessoas: { nome: string; ambiente: AmbienteDoEspectador | null; fontes: string[] }[];
+  papeis: Papel[]; // a cada mudança de papel de cada pessoa (e no primeiro segundo dela)
+  /** Os trechos de cada transmissão (pelo nome de quem transmite). */
+  trechos: Record<string, Trecho[]>;
+  envio: (AmostraEnvio & { transmissor: string })[];
+  captura: (AmostraCaptura & { pessoa: string })[];
+  recepcao: (AmostraRecepcao & { transmissor: string })[]; // espectador = quem assiste
+  pcAmostras: (AmostraPc & { pessoa: string })[];
+  pagina: (AmostraPagina & { pessoa: string })[];
+  acontecimentos: Acontecimento[];
+  ajustes: Record<string, unknown>;
+  qualidades: Record<string, unknown>;
 };
 
 export type Gravacao = {
