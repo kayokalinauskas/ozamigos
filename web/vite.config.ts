@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -10,6 +11,10 @@ export default defineConfig({
   build: {
     outDir: '../src/main/resources/static',
     emptyOutDir: true,
+  },
+  // Testes (npm test): o cliente usa location, localStorage e crypto, então rodam num DOM simulado.
+  test: {
+    environment: 'happy-dom',
   },
   server: {
     proxy: {
