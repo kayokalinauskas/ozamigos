@@ -5,10 +5,14 @@
 import { QUALIDADES } from '../qualidade';
 import { NOMES_DOS_GARGALOS, fmt, type Analise, type ResumoDoTrecho } from './analise';
 import type { AnaliseDaSala } from './analiseDaSala';
-import { FAIXAS, type Gravacao, type GravacaoDaSala } from './tipos';
-import { SEGUNDOS_DESCARTADOS } from './gravacao';
+import { FAIXAS, SEGUNDOS_DESCARTADOS, type AmostraRecepcao, type Gravacao, type GravacaoDaSala } from './tipos';
 
-const LINHAS_MAXIMAS = 900; // por tabela de CSV: acima disso, junta segundos vizinhos (média)
+// Por tabela de CSV: acima disso, junta segundos vizinhos. No relatório da sala, o total de linhas de todas as
+// tabelas é dividido por elas (LINHAS_DA_SALA), para o arquivo inteiro caber na conversa com uma IA.
+const LINHAS_MAXIMAS = 900;
+const LINHAS_DA_SALA = 1500;
+const ACONTECIMENTOS_MAXIMOS = 150;
+const PIORES_SEGUNDOS = 15;
 
 const celula = (v: unknown) => (v == null || v === '' ? '—' : String(v).replace(/\|/g, '/').replace(/\n/g, ' '));
 
@@ -32,16 +36,25 @@ function csv(cabecalho: string[], linhas: unknown[][]): string {
 }
 
 /**
- * Junta segundos vizinhos (por chave, ex.: espectador) quando há linhas demais.
- * Números viram média; texto fica o mais comum; contadores (somar) são somados.
+ * Junta segundos vizinhos (por chave, ex.: espectador) quando há mais linhas que o limite.
+ * Números viram média; contadores (somar) são somados; picos (maximos) ficam com o maior, para a média não
+ * esconder um engasgo. Texto fica o do primeiro segundo do grupo.
  */
-function reduzir<T extends { t: number }>(linhas: T[], chave: (l: T) => string, somar: (keyof T)[] = []): { passo: number; linhas: T[] } {
-  if (linhas.length <= LINHAS_MAXIMAS) return { passo: 1, linhas };
-  const passo = Math.ceil(linhas.length / LINHAS_MAXIMAS);
+function reduzir<T extends { t: number }>(
+  linhas: T[],
+  chave: (l: T) => string,
+  somar: (keyof T)[] = [],
+  limite = LINHAS_MAXIMAS,
+  maximos: (keyof T)[] = [],
+): { passo: number; linhas: T[] } {
+  if (linhas.length <= limite) return { passo: 1, linhas };
+  const passo = Math.ceil(linhas.length / limite); // juntando `passo` segundos, sobram ~linhas/passo linhas
   const grupos = new Map<string, T[]>();
   for (const l of linhas) {
     const k = `${Math.floor(l.t / passo)}|${chave(l)}`;
-    grupos.set(k, [...(grupos.get(k) ?? []), l]);
+    const grupo = grupos.get(k);
+    if (grupo) grupo.push(l);
+    else grupos.set(k, [l]);
   }
   const resultado: T[] = [];
   for (const grupo of grupos.values()) {
@@ -51,7 +64,7 @@ function reduzir<T extends { t: number }>(linhas: T[], chave: (l: T) => string, 
       const nums = grupo.map((l) => l[campo]).filter((v): v is T[keyof T] & number => typeof v === 'number');
       if (nums.length) {
         const total = nums.reduce((a, b) => a + b, 0);
-        base[campo as string] = somar.includes(campo) ? total : Math.round((total / nums.length) * 10) / 10;
+        base[campo as string] = somar.includes(campo) ? total : maximos.includes(campo) ? Math.max(...nums) : Math.round((total / nums.length) * 10) / 10;
       }
     }
     resultado.push(base as T);
@@ -67,7 +80,7 @@ function linhaDoTrecho(t: ResumoDoTrecho) {
 
 type Empurrar = (...linhas: string[]) => void;
 /** sub: o nível dos títulos de dentro; regras e trechos: o número da seção (no relatório da sala, muda). */
-type Contexto = { sub: string; regras: string; trechos: string };
+type Contexto = { sub: string; regras: string; trechos: string; linhas: number };
 
 const PARA_A_IA_FIM = '_Fim do relatório. O arquivo JSON salvo junto tem os mesmos dados sem arredondar nem juntar segundos, mais as faixas de intervalo de cada segundo._';
 
@@ -321,6 +334,7 @@ function protocolo(p: Empurrar, g: Gravacao, titulo: string) {
     p(
       '- **Gravação da sala:** alguém da sala apertou Ctrl+Shift+G. A partir daí, cada PC da sala mede a cada segundo o que transmite (uma linha de envio por pessoa assistindo, `getStats` de cada `RTCPeerConnection` de envio) e o que assiste (uma linha de recepção por transmissão, com o ritmo na tela) e manda pelo WebSocket do servidor de sinalização só para quem grava (mensagem `medidas`; sem gravação, o servidor descarta). Ninguém precisa aceitar nada; a sala mostra o selo "Gravando estatísticas" (`web/src/desempenho/coletor.ts`, `gravadorDaSala.ts`).',
       '- Quem grava carimba o segundo `t` na chegada de cada pacote: entre PCs diferentes, o mesmo `t` pode estar até ~1 s fora.',
+      '- Se a conexão de alguém com o servidor cai (ou o servidor reinicia, por exemplo num deploy), essa pessoa para de mandar medidas por alguns segundos e, ao voltar, o Ozamigos refaz todas as conexões de vídeo dela (`voltei` em `web/src/cliente.ts`): os acontecimentos marcam isso, e um trecho novo começa.',
       '- Cada transmissão é analisada à parte (uma seção por pessoa que transmitiu). Um trecho novo começa quando muda a qualidade de quem transmite, quantas pessoas assistem, ou quantas transmissões essa pessoa assiste ao mesmo tempo (assistir também decodifica vídeo no mesmo PC).',
       '- Quem assiste pode estar jogando com a janela do Ozamigos escondida: nesses segundos não há ritmo na tela (`tela_visivel` = 0, `ritmo_*` vazios) e valem as medidas até a decodificação.',
       '- Não é um teste controlado: o jogo, a cena e a rede mudam ao longo da gravação. Compare trechos com cuidado.',
@@ -378,13 +392,94 @@ function glossario(p: Empurrar, titulo: string) {
 }
 
 function acontecimentos(p: Empurrar, g: Gravacao, titulo: string) {
-  p(titulo, '', tabela(['t (s)', 'Tipo', 'O que aconteceu'], g.acontecimentos.map((e) => [e.t, e.tipo, e.texto])), '');
+  let lista = g.acontecimentos;
+  const nota: string[] = [];
+  if (lista.length > ACONTECIMENTOS_MAXIMOS) {
+    // Os repetitivos (um congelamento, uma travada) ficam com os primeiros de cada tipo; o resto vai inteiro.
+    const porTipo = new Map<string, number>();
+    for (const e of lista) porTipo.set(e.tipo, (porTipo.get(e.tipo) ?? 0) + 1);
+    const repetitivos = [...porTipo.entries()].filter(([, n]) => n > 30).map(([tipo]) => tipo);
+    const vistos = new Map<string, number>();
+    lista = lista.filter((e) => {
+      if (!repetitivos.includes(e.tipo)) return true;
+      const n = (vistos.get(e.tipo) ?? 0) + 1;
+      vistos.set(e.tipo, n);
+      return n <= 30;
+    });
+    lista = lista.slice(0, ACONTECIMENTOS_MAXIMOS);
+    nota.push(
+      `_${g.acontecimentos.length} acontecimentos no total (${[...porTipo.entries()].map(([tipo, n]) => `${tipo}: ${n}`).join(', ')}); aqui, os primeiros 30 de cada tipo repetitivo. O JSON tem todos._`,
+      '',
+    );
+  }
+  p(titulo, '', ...nota, tabela(['t (s)', 'Tipo', 'O que aconteceu'], lista.map((e) => [e.t, e.tipo, e.texto])), '');
+}
+
+/**
+ * Os segundos em que quem assistia sentiu mais (congelou, o pior intervalo entre quadros, menos fps), sem média,
+ * com o que acontecia no mesmo segundo em quem transmitia: é onde se acha a causa.
+ */
+function pioresSegundos(p: Empurrar, g: Gravacao) {
+  const gravidade = (r: AmostraRecepcao) => r.msCongelado * 10 + (r.ritmo?.maxMs ?? r.intervaloDesvioMs ?? 0) + r.descartados * 5;
+  const piores = [...g.recepcao]
+    .filter((r) => r.congelamentos > 0 || (r.ritmo?.maxMs ?? 0) > 50 || r.descartados > 0)
+    .sort((a, b) => gravidade(b) - gravidade(a))
+    .slice(0, PIORES_SEGUNDOS)
+    .sort((a, b) => a.t - b.t);
+  if (!piores.length) return;
+  const trechoDe = (t: number) => g.trechos.findLast((tr) => t >= tr.inicio)?.indice ?? -1;
+  // Na gravação da sala, cada PC chega com até ~1 s de diferença: vale o segundo mais próximo.
+  const perto = <T extends { t: number }>(lista: T[], t: number, filtro: (x: T) => boolean = () => true) => {
+    let melhor: T | undefined;
+    for (const x of lista) if (Math.abs(x.t - t) <= 1 && filtro(x) && (!melhor || Math.abs(x.t - t) < Math.abs(melhor.t - t))) melhor = x;
+    return melhor;
+  };
+  p(
+    `**Os piores segundos** (até ${PIORES_SEGUNDOS}, sem média; colunas \`tx_\` = quem transmitia no mesmo segundo, \`pc_\` = o PC de quem transmitia):`,
+    '',
+    csv(
+      ['t', 'trecho', 'espectador', 'fps_tela', 'ritmo_max', 'congel_ms', 'descartados', 'perda_pct', 'ms_decod', 'ms_buffer', 'tela_visivel', 'tarefas_longas', 'tx_fps_codif', 'tx_ms_codif', 'tx_limite', 'tx_q_chave', 'tx_plis', 'tx_rtt_ms', 'captura_fps', 'pc_cpu', 'pc_placa3d', 'pc_motor_video', 'pc_tarefas_longas'],
+      piores.map((r) => {
+        const e = perto(g.envio, r.t, (x) => x.espectador === r.espectador);
+        const c = perto(g.captura, r.t);
+        const q = perto(g.pcAmostras, r.t);
+        const pg = perto(g.pagina, r.t);
+        return [
+          r.t,
+          trechoDe(r.t) + 1,
+          r.espectador,
+          r.fpsExibidos,
+          r.ritmo?.maxMs,
+          r.msCongelado,
+          r.descartados,
+          r.perdaPct,
+          r.msDecodificacao,
+          r.msBuffer,
+          r.janelaVisivel,
+          r.tarefasLongas,
+          e?.fpsCodificados,
+          e?.msCodificacao,
+          e?.limite,
+          e?.quadrosChave,
+          e?.plis,
+          e?.rttMs,
+          c?.fps,
+          q?.cpuPc,
+          q?.placa3dTotal,
+          q?.placaVideoTotal,
+          pg?.tarefasLongas,
+        ];
+      }),
+    ),
+    '',
+  );
 }
 
 function series(p: Empurrar, g: Gravacao, titulo: string, c: Contexto) {
   p(titulo, '');
   const trechoDe = (t: number) => g.trechos.findLast((tr) => t >= tr.inicio)?.indice ?? -1;
-  const envio = reduzir(g.envio, (l) => l.espectador, ['quadrosChave', 'plis', 'nacks']);
+  pioresSegundos(p, g);
+  const envio = reduzir(g.envio, (l) => l.espectador, ['quadrosChave', 'plis', 'nacks'], c.linhas, ['msCodificacao']);
   p(
     `**Envio** (uma linha por espectador por ${envio.passo === 1 ? 'segundo' : `${envio.passo} s, médias`}; trecho = número da tabela de trechos, seção ${c.trechos}):`,
     '',
@@ -418,6 +513,8 @@ function series(p: Empurrar, g: Gravacao, titulo: string, c: Contexto) {
     g.recepcao.map((r) => ({ ...r, ritmoP99: r.ritmo?.p99Ms ?? null, ritmoMax: r.ritmo?.maxMs ?? null, recebTela: r.ritmo?.msRecebidoAteTela ?? null, capturaTela: r.ritmo?.msCapturaAteTela ?? null })),
     (l) => l.espectador,
     ['congelamentos', 'msCongelado', 'descartados', 'pacotesPerdidos', 'tarefasLongas'],
+    c.linhas,
+    ['ritmoP99', 'ritmoMax', 'msTarefaMaior'],
   );
   p(
     `**Recepção** (uma linha por espectador por ${recepcao.passo === 1 ? 'segundo' : `${recepcao.passo} s, médias`}):`,
@@ -473,6 +570,8 @@ function series(p: Empurrar, g: Gravacao, titulo: string, c: Contexto) {
     [...porSegundo.values()].sort((x, y) => (x.t as number) - (y.t as number)) as ({ t: number } & Record<string, unknown>)[],
     () => '',
     ['tarefas'],
+    c.linhas,
+    ['tarefaMaior', 'cpuApp'],
   );
   p(
     `**PC de quem transmite, captura e interface** (${pcLinhas.passo === 1 ? 'por segundo' : `a cada ${pcLinhas.passo} s, médias`}):`,
@@ -505,7 +604,7 @@ function series(p: Empurrar, g: Gravacao, titulo: string, c: Contexto) {
 export function relatorioParaIa(g: Gravacao, a: Analise): string {
   const partes: string[] = [];
   const p = (...linhas: string[]) => partes.push(...linhas);
-  const c: Contexto = { sub: '###', regras: '6', trechos: '3' };
+  const c: Contexto = { sub: '###', regras: '6', trechos: '3', linhas: LINHAS_MAXIMAS };
 
   p(
     '# Ozamigos — relatório de desempenho da transmissão',
@@ -554,6 +653,8 @@ export function relatorioDaSalaParaIa(gs: GravacaoDaSala, as: AnaliseDaSala): st
   const secGlossario = n + 5;
   // As seções de configuração e de regras só leem estes campos.
   const daSala = { modo: 'sala', trechos: [], ajustes: gs.ajustes, qualidades: gs.qualidades } as unknown as Gravacao;
+  // 3 tabelas de CSV por transmissão, mais a dos PCs: todas dividem o mesmo orçamento.
+  const linhas = Math.max(60, Math.floor(LINHAS_DA_SALA / (3 * n + 1)));
 
   p(
     '# Ozamigos — estatísticas da sala',
@@ -638,7 +739,7 @@ export function relatorioDaSalaParaIa(gs: GravacaoDaSala, as: AnaliseDaSala): st
     '',
   );
   if (as.diagnosticos.length) {
-    diagnosticos(p, { diagnosticos: as.diagnosticos } as Analise, '### Diagnósticos da sala inteira', { sub: '####', regras: String(secRegras), trechos: '' });
+    diagnosticos(p, { diagnosticos: as.diagnosticos } as Analise, '### Diagnósticos da sala inteira', { sub: '####', regras: String(secRegras), trechos: '', linhas });
   }
   p(
     '### Quem fazia o quê',
@@ -647,7 +748,7 @@ export function relatorioDaSalaParaIa(gs: GravacaoDaSala, as: AnaliseDaSala): st
     '',
     tabela(
       ['t (s)', 'Pessoa', 'Transmite', 'Para quem', 'Assiste'],
-      gs.papeis.slice(0, 400).map((x) => [x.t, x.pessoa, x.transmite ? `sim, ${x.qualidade}` : 'não', x.espectadores.join(', '), x.assiste.join(', ')]),
+      gs.papeis.slice(0, 200).map((x) => [x.t, x.pessoa, x.transmite ? `sim, ${x.qualidade}` : 'não', x.espectadores.join(', '), x.assiste.join(', ')]),
     ),
     '',
   );
@@ -655,7 +756,7 @@ export function relatorioDaSalaParaIa(gs: GravacaoDaSala, as: AnaliseDaSala): st
   // 2..n+1. Cada transmissão, com os mesmos blocos do relatório do teste
   as.transmissoes.forEach(({ nome, g, a }, i) => {
     const s = i + 2;
-    const c: Contexto = { sub: '####', regras: String(secRegras), trechos: `${s}.3` };
+    const c: Contexto = { sub: '####', regras: String(secRegras), trechos: `${s}.3`, linhas };
     const quem = g.espectadoresReais.map((e) => e.nome);
     p(`## ${s}. Transmissão de ${nome}`, '', `${nome} transmitiu ${g.fonte}. Quem assistiu: ${quem.join(', ') || 'ninguém'}.`, '');
     resumo(p, g, a, `### ${s}.1 Resumo`);
@@ -696,6 +797,8 @@ export function relatorioDaSalaParaIa(gs: GravacaoDaSala, as: AnaliseDaSala): st
     [...porChave.values()].sort((x, y) => x.t - y.t),
     (l) => String(l.pessoa),
     ['tarefas'],
+    linhas,
+    ['tarefaMaior'],
   );
   p(
     `## ${secPc}. O PC e a página de cada pessoa`,

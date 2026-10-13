@@ -5,6 +5,9 @@ import type { InfoDoPc } from '../ponte';
 import type { Qualidade } from '../qualidade';
 
 export const FORMATO = 'ozamigos-desempenho/2';
+
+/** Os primeiros segundos de cada trecho ficam fora das médias: o WebRTC começa com pouca banda e vai subindo. */
+export const SEGUNDOS_DESCARTADOS = 8;
 export const FORMATO_DA_SALA = 'ozamigos-sala/1';
 
 /**

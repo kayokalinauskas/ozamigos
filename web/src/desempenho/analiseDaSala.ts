@@ -176,6 +176,24 @@ function diagnosticarSala(gs: GravacaoDaSala, transmissoes: TransmissaoDaSala[],
     });
   }
 
+  // A página de quem assiste travou (tarefas longas) no mesmo segundo em que essa pessoa viu um engasgo
+  for (const p of pessoas) {
+    const dela = gs.recepcao.filter((r) => r.espectador === p.nome && r.ritmo);
+    const engasgos = dela.filter((r) => r.ritmo!.maxMs > 100);
+    const juntos = engasgos.filter((r) => r.tarefasLongas > 0);
+    if (juntos.length < 3 || juntos.length / Math.max(1, engasgos.length) < 0.3) continue;
+    lista.push({
+      gravidade: 'media',
+      codigo: 'interface-de-quem-assiste',
+      titulo: `${juntos.length} de ${engasgos.length} engasgos que ${p.nome} viu coincidiram com travadas da página de ${p.nome}`,
+      detalhe:
+        'Tarefas acima de 50 ms na página de quem assiste atrasam a exibição dos quadros (o vídeo chega, mas a página não desenha a tempo). Pode ser o PC de quem assiste sobrecarregado ou trabalho demais da própria página.',
+      evidencias: juntos.slice(0, 8).map((r) => `t ${r.t} s, vendo ${r.transmissor}: pior intervalo ${fmt(r.ritmo!.maxMs, ' ms', 0)}, ${r.tarefasLongas} tarefas longas (maior ${r.msTarefaMaior} ms)`),
+      paraOApp: 'Ver o que roda na página de quem assiste nesses segundos (getStats de todas as conexões, re-render do React a cada segundo, áudio).',
+      ondeNoCodigo: ['web/src/cliente.ts (medir(): getStats a cada 1 s e mudar() que re-renderiza o React) e web/src/componentes/'],
+    });
+  }
+
   if (!transmissoes.length) {
     lista.push({
       gravidade: 'media',

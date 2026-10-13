@@ -11,7 +11,8 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ### Adicionado
 - **Gravação das estatísticas da sala** (Ctrl+Shift+G, de novo para parar). Grava a sala de verdade, com os amigos: quem transmite, quem assiste quem, ou as duas coisas ao mesmo tempo.
   - Os amigos não precisam fazer nada: veem o selo "Gravando estatísticas" no alto da sala, e o PC de cada um manda as próprias medidas (o que transmite, o que assiste, processador e placa de vídeo) só para quem grava.
-  - Salva sozinho a cada 30 s e no fim em `Documentos\Ozamigos\Estatísticas`: o relatório para IA (a sala inteira, uma seção por transmissão e o PC de cada pessoa), uma página com gráficos por transmissão e os dados em JSON.
+  - Salva sozinho em `Documentos\Ozamigos\Estatísticas`: o relatório para IA a cada 30 s (a sala inteira, uma seção por transmissão com os piores segundos e o PC de cada pessoa, num tamanho que cabe numa conversa com a IA) e, no fim, uma página com gráficos por transmissão e os dados em JSON.
+  - Continua se o servidor reiniciar no meio, e para sozinha depois de 2 horas.
 
 ### Alterado
 - O teste com Ctrl+Shift+D fica só com os espectadores simulados: o modo "com os amigos assistindo" virou a gravação da sala.

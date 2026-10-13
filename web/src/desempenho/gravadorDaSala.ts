@@ -1,21 +1,22 @@
 // A gravação das estatísticas da sala, no PC de quem grava (Ctrl+Shift+G). Junta as medidas que cada PC da sala
 // manda a cada segundo (coletor.ts), mais as deste PC, numa GravacaoDaSala: quem transmite, quem assiste quem,
-// e os trechos de cada transmissão. A cada 30 s e no fim, salva sozinho o relatório para IA, as páginas e os dados
-// em Documentos\Ozamigos\Estatísticas (no app) ou baixa os arquivos no fim (no navegador).
+// e os trechos de cada transmissão. As linhas de cada segundo vão para um worker (trabalhadorDaSala.ts), que guarda
+// tudo e gera os arquivos sem travar a página. A cada 30 s, salva sozinho o relatório para IA; no fim, também as
+// páginas e os dados, em Documentos\Ozamigos\Estatísticas (no app) ou baixa os arquivos no fim (no navegador).
 
 import { AJUSTES_DA_TRANSMISSAO, cliente } from '../cliente';
 import { ponte } from '../ponte';
 import { QUALIDADES, type Qualidade } from '../qualidade';
-import { analisarSala } from './analiseDaSala';
 import { Coletor } from './coletor';
-import { SEGUNDOS_DESCARTADOS, teste } from './gravacao';
-import { relatorioHtml } from './relatorioHtml';
-import { relatorioDaSalaParaIa } from './relatorioIa';
-import { FORMATO_DA_SALA, type AmostraEnvio, type AmostraRecepcao, type GravacaoDaSala, type Pacote, type Trecho } from './tipos';
+import { teste } from './gravacao';
+import { LISTAS, type Linhas, type Meta, type Pedido, type Resposta } from './trabalhadorDaSala';
+import { FORMATO_DA_SALA, SEGUNDOS_DESCARTADOS, type AmostraEnvio, type AmostraRecepcao, type GravacaoDaSala, type Pacote, type Trecho } from './tipos';
 
 const SALVAR_A_CADA = 30_000;
 // Sem pacote de alguém por esse tempo, a pessoa saiu ou caiu: o papel dela acaba e a transmissão fecha o trecho.
 const SEGUNDOS_SEM_NOTICIA = 4;
+// Uma hora com 4 pessoas são ~60 MB de dados: acima de 2 horas, a memória pesa no PC de quem grava.
+const DURACAO_MAXIMA = 2 * 60 * 60;
 
 type PapelAgora = { transmite: boolean; qualidade: Qualidade | null; espectadores: string[]; assiste: string[] };
 
@@ -30,9 +31,6 @@ function nomeDaPasta(sala: string) {
   return `${d.getFullYear()}-${doisDigitos(d.getMonth() + 1)}-${doisDigitos(d.getDate())} ${doisDigitos(d.getHours())}h${doisDigitos(d.getMinutes())} - sala ${sala}`;
 }
 
-/** Nome de arquivo sem caracteres que o Windows recusa. */
-const arquivo = (texto: string) => texto.replace(/[\\/:*?"<>|]/g, '_').trim() || 'sem nome';
-
 function baixar(nome: string, conteudo: string, tipo: string) {
   const link = document.createElement('a');
   link.href = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
@@ -41,23 +39,14 @@ function baixar(nome: string, conteudo: string, tipo: string) {
   setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
 }
 
-/** Os arquivos de uma gravação: o relatório para IA (o principal), os dados e uma página por transmissão. */
-export function arquivosDaGravacao(gs: GravacaoDaSala, comPaginas: boolean): Record<string, string> {
-  const analise = analisarSala(gs);
-  const arquivos: Record<string, string> = {
-    'estatisticas para IA.md': relatorioDaSalaParaIa(gs, analise),
-    'dados.json': JSON.stringify(gs),
-  };
-  if (comPaginas) {
-    for (const { nome, g, a } of analise.transmissoes) arquivos[`transmissao de ${arquivo(nome)}.html`] = relatorioHtml(g, a, nome);
-  }
-  return arquivos;
-}
-
 class GravadorDaSala {
   private estado: EstadoDaGravacao = { gravando: false, inicio: 0, pasta: '', salvoEm: null };
   private readonly ouvintes = new Set<() => void>();
+  // As listas de `g` só guardam as linhas que ainda não foram para o worker (veja mandarLinhas).
   private g: GravacaoDaSala | null = null;
+  private trabalhador: Worker | null = null;
+  private readonly esperando = new Map<number, (resposta: Resposta) => void>();
+  private proximoPedido = 1;
   private readonly coletor = new Coletor();
   private inicioMs = 0;
   private relogio: ReturnType<typeof setInterval> | null = null;
@@ -120,13 +109,25 @@ class GravadorDaSala {
       ajustes: { ...AJUSTES_DA_TRANSMISSAO },
       qualidades: { ...QUALIDADES },
     };
+    try {
+      this.trabalhador = new Worker(new URL('./trabalhadorDaSala.ts', import.meta.url), { type: 'module' });
+    } catch (erro) {
+      console.error('Gravação da sala: o worker não abriu', erro);
+      cliente.avisar('Não foi possível começar a gravação da sala neste navegador.', 'erro');
+      this.g = null;
+      return;
+    }
+    this.trabalhador.onmessage = (evento: MessageEvent<Resposta>) => {
+      this.esperando.get(evento.data.id)?.(evento.data);
+      this.esperando.delete(evento.data.id);
+    };
     this.inicioMs = performance.now();
     this.ultimos.clear();
     this.papeis.clear();
     this.trechosAbertos.clear();
     this.anteriores.clear();
     cliente.aoReceberMedidas = (de, pacote) => this.receber(de, pacote);
-    cliente.aoRecusarGravacao = () => void this.parar('O servidor recusou: outra pessoa já grava a sala.');
+    cliente.aoRecusarGravacao = () => void this.parar('O servidor recusou: outra pessoa já grava a sala.', false);
     this.pedidoComId = e.meuId;
     cliente.gravarSala(true);
     this.coletor.ligar((pacote) => {
@@ -148,12 +149,12 @@ class GravadorDaSala {
     const { fase, meuId, gravacaoDaSala } = cliente.ler();
     if (fase !== 'sala' || !meuId) return;
     if (gravacaoDaSala && gravacaoDaSala.id !== meuId && gravacaoDaSala.id !== this.pedidoComId) {
-      void this.parar(`${gravacaoDaSala.nome} começou outra gravação enquanto você estava sem conexão.`);
+      void this.parar(`${gravacaoDaSala.nome} começou outra gravação enquanto você estava sem conexão.`, false);
       return;
     }
     if (!gravacaoDaSala && meuId !== this.pedidoComId) {
       this.pedidoComId = meuId;
-      this.anotar('reconexao', `${this.g?.gravadoPor} reconectou ao servidor; a gravação continua`);
+      this.anotar('reconexao', `${this.g?.gravadoPor} reconectou ao servidor (a gravação continua); ao voltar, as conexões de vídeo dessa pessoa são refeitas`);
       cliente.gravarSala(true);
     }
   }
@@ -238,6 +239,32 @@ class GravadorDaSala {
       this.acompanharTrecho(nome, papel, t);
     }
     g.duracao = t;
+    this.mandarLinhas();
+    if (t >= DURACAO_MAXIMA) void this.parar('A gravação da sala parou sozinha depois de 2 horas.');
+  }
+
+  /** As linhas novas vão para o worker, e a página esquece delas: a memória fica com ele. */
+  private mandarLinhas() {
+    const g = this.g;
+    if (!g || !this.trabalhador) return;
+    const novas = {} as Linhas;
+    for (const lista of LISTAS) {
+      (novas as Record<string, unknown[]>)[lista] = g[lista];
+      (g as Record<string, unknown>)[lista] = [];
+    }
+    const meta = Object.fromEntries(Object.entries(g).filter(([chave]) => !(LISTAS as string[]).includes(chave))) as Meta;
+    this.trabalhador.postMessage({ tipo: 'linhas', meta, novas } satisfies Pedido);
+  }
+
+  private gerar(final: boolean): Promise<Record<string, string>> {
+    const trabalhador = this.trabalhador;
+    if (!trabalhador) return Promise.reject(new Error('sem worker'));
+    this.mandarLinhas();
+    const id = this.proximoPedido++;
+    return new Promise((resolver, rejeitar) => {
+      this.esperando.set(id, (resposta) => (resposta.tipo === 'arquivos' ? resolver(resposta.arquivos) : rejeitar(new Error(resposta.mensagem))));
+      trabalhador.postMessage({ tipo: 'gerar', id, final } satisfies Pedido);
+    });
   }
 
   private registrarPapel(nome: string, papel: PapelAgora | null, t: number) {
@@ -252,7 +279,7 @@ class GravadorDaSala {
     for (const quem of anterior?.espectadores ?? []) {
       if (!papel?.espectadores.includes(quem)) this.anotar('espectador', `${quem} parou de assistir ${nome}`, nome);
     }
-    if (!papel) this.anotar('papel', `${nome} parou de mandar medidas (saiu da sala ou a conexão caiu)`);
+    if (!papel) this.anotar('papel', `${nome} parou de mandar medidas (saiu da sala, ou a conexão com o servidor caiu ou o servidor reiniciou)`);
     else if (papel.transmite !== (anterior?.transmite ?? false) || papel.qualidade !== (anterior?.qualidade ?? null) || !anterior) {
       this.anotar(
         'papel',
@@ -309,7 +336,7 @@ class GravadorDaSala {
       try {
         g.duracao = this.agora();
         g.terminou = final;
-        const arquivos = arquivosDaGravacao(g, final);
+        const arquivos = await this.gerar(final);
         const salvar = ponte?.estatisticas?.salvar;
         if (salvar) {
           const caminho = await salvar(this.estado.pasta, arquivos);
@@ -330,7 +357,8 @@ class GravadorDaSala {
     return this.salvando;
   }
 
-  async parar(motivo?: string) {
+  /** motivo: quando não foi a pessoa que parou. avisarServidor = false quando a gravação já não é desta pessoa. */
+  async parar(motivo?: string, avisarServidor = true) {
     if (!this.estado.gravando || !this.g) return;
     if (this.relogio) clearInterval(this.relogio);
     if (this.salvador) clearInterval(this.salvador);
@@ -340,7 +368,7 @@ class GravadorDaSala {
     this.desinscrever = null;
     cliente.aoReceberMedidas = null;
     cliente.aoRecusarGravacao = null;
-    if (!motivo) cliente.gravarSala(false);
+    if (avisarServidor) cliente.gravarSala(false);
     const t = this.agora();
     for (const { trecho } of this.trechosAbertos.values()) trecho.fim = t;
     this.trechosAbertos.clear();
@@ -351,13 +379,16 @@ class GravadorDaSala {
     await this.salvar(true);
     const { pasta, salvoEm } = this.estado;
     const abrir = ponte?.estatisticas?.abrirPasta;
-    if (motivo) cliente.avisar(motivo, 'erro');
+    if (motivo) cliente.avisar(motivo, avisarServidor ? 'info' : 'erro');
     if (salvoEm && abrir) {
       cliente.avisar(`Estatísticas da sala salvas em ${salvoEm}`, 'info', { rotulo: 'Abrir a pasta', executar: () => void abrir(pasta) });
     } else if (!ponte?.estatisticas) {
       cliente.avisar('Estatísticas da sala baixadas (veja a pasta de downloads).');
     }
     this.g = null;
+    this.trabalhador?.terminate();
+    this.trabalhador = null;
+    this.esperando.clear();
   }
 }
 

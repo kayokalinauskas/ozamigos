@@ -430,10 +430,10 @@ Ferramentas de diagnóstico, sem botão na tela. São duas:
 | **Ctrl+Shift+D**: teste com espectadores simulados | Com o jogo já transmitindo, o app cria espectadores no próprio PC (conexões WebRTC locais, sem servidor nem internet) e segue um roteiro: as 4 qualidades com 1 espectador e a sua qualidade com 3 e 7. Completo: ~4 min; rápido: ~1 min. | O seu PC: captura, codificação, decodificação e o ritmo dos quadros na tela, mais processador e placa de vídeo |
 | **Ctrl+Shift+G**: gravação das estatísticas da sala | Grava a sala de verdade, com os amigos: quem transmite, quem assiste quem, ou os dois ao mesmo tempo. Aperte de novo para parar. | Tudo acima, de cada transmissão e de cada PC da sala, mais a internet: perdas, ida e volta, congelamentos no PC de quem assiste |
 
-**Gravação da sala (Ctrl+Shift+G).** Os amigos não precisam fazer nada nem aceitar nada: todos veem o selo "Gravando estatísticas" no alto da sala, e cada PC manda, pelo servidor, só para quem grava, o que transmite e o que assiste a cada segundo (com o processador e a placa de vídeo, no app). Uma gravação por sala de cada vez. No app (1.2.11 em diante), os arquivos são salvos sozinhos a cada 30 s e no fim em `Documentos\Ozamigos\Estatísticas\<data> - sala <código>`:
-- `estatisticas para IA.md`: o relatório para colar numa IA, com a sala inteira, uma seção por transmissão e o PC de cada pessoa;
-- `transmissao de <nome>.html`: a página com os gráficos de cada transmissão (só no fim);
-- `dados.json`: tudo, sem arredondar.
+**Gravação da sala (Ctrl+Shift+G).** Os amigos não precisam fazer nada nem aceitar nada: todos veem o selo "Gravando estatísticas" no alto da sala, e cada PC manda, pelo servidor, só para quem grava, o que transmite e o que assiste a cada segundo (com o processador e a placa de vídeo, no app). Uma gravação por sala de cada vez, de até 2 horas (depois disso, ela para sozinha). Se o servidor reiniciar no meio, a gravação continua. No app (1.2.11 em diante), os arquivos ficam em `Documentos\Ozamigos\Estatísticas\<data> - sala <código>`:
+- `estatisticas para IA.md`, salvo a cada 30 s e no fim: o relatório para colar numa IA, com a sala inteira, uma seção por transmissão (com os piores segundos sem média) e o PC de cada pessoa. Ele cabe numa conversa: ~45 mil tokens mesmo com 1 hora e 4 pessoas;
+- `transmissao de <nome>.html`, no fim: a página com os gráficos de cada transmissão;
+- `dados.json`, no fim: tudo, sem arredondar.
 
 No navegador, os arquivos são baixados no fim.
 

@@ -10,6 +10,7 @@ import { AmostradorEnvio, AmostradorRecepcao, contadoresDoPc, medidorDaPagina, v
 import { resumirTrecho, type ResumoDoTrecho } from './analise';
 import {
   FORMATO,
+  SEGUNDOS_DESCARTADOS,
   type Acontecimento,
   type AmostraCaptura,
   type AmostraEnvio,
@@ -21,9 +22,6 @@ import {
   type Roteiro,
   type Trecho,
 } from './tipos';
-
-/** Os primeiros segundos de cada trecho ficam fora das médias: o WebRTC começa com pouca banda e vai subindo. */
-export const SEGUNDOS_DESCARTADOS = 8;
 
 export type Etapa = { nome: string; segundos: number; qualidade: Qualidade; espectadores: number; aquecimento?: boolean };
 

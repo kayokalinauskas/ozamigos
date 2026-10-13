@@ -476,11 +476,11 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
     lista.push({
       gravidade: 'media',
       codigo: 'rede-lenta',
-      titulo: g.modo === 'simulado' ? 'A ida e volta subiu mesmo sem internet: o PC demorou a responder' : 'A ida e volta pela internet ficou alta',
+      titulo: g.modo === 'simulado' ? 'A ida e volta subiu mesmo sem internet: o PC demorou a responder' : 'A ida e volta entre os PCs ficou alta',
       detalhe:
         g.modo === 'simulado'
           ? 'Entre conexões no mesmo PC a ida e volta fica perto de 0 ms; acima de 120 ms, o processo estava ocupado demais para responder.'
-          : 'Atraso alto não trava a imagem, mas faz a reação demorar e deixa o controle de banda mais lento.',
+          : 'Atraso alto não trava a imagem por si, mas faz a reação demorar e deixa o controle de banda mais lento. Vem da internet ou de um dos PCs ocupado demais para responder: compare com o rtt dos outros trechos e com o uso do PC no mesmo período.',
       evidencias: longe.map((t) => `${t.trecho.nome}: rtt ${fmt(t.envio.rttMs, ' ms', 0)}, caminho ${t.envio.rede ?? '?'}`),
       ondeNoCodigo: [CODIGO.rede],
     });
