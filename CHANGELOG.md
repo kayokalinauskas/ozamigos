@@ -6,9 +6,10 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
-## [Não publicado]
+## [1.2.4] - 2026-10-13
 
-A interface chega a todos no próximo push na `main`; o descarte de quadros depende de uma versão nova do app.
+As melhorias da interface valem também para quem ainda está numa versão anterior (o app carrega a interface
+do servidor); só o fim do descarte de quadros depende desta versão.
 
 ### Adicionado
 - **Relatório da sessão.** Nas estatísticas, "Salvar relatório" baixa um arquivo com as medidas de cada segundo (fps, resolução, Mbps, captura, congelamentos, rede) e o que aconteceu na sessão (quem entrou, quedas, trocas de qualidade, conexões refeitas). Serve para entender depois um travamento.
@@ -93,6 +94,7 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
+[1.2.4]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.0...v1.2.1
