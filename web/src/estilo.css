@@ -1385,10 +1385,6 @@ input[type='range']::-moz-range-thumb {
 }
 
 /* ===== Teste de desempenho (tela cheia sobre a sala) ===== */
-.abrir-teste {
-  align-self: flex-start;
-}
-
 .teste {
   --roxo: #b38cff;
   --azul: #5fb4ff;

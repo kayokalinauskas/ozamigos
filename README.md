@@ -86,7 +86,6 @@
 - **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura. Dois cliques no vídeo abrem a tela cheia, e o botão **Janela flutuante** solta a transmissão numa janelinha que fica por cima do jogo.
 - **Áudio por transmissão:** volume e silenciar de cada uma, lembrados por amigo, mais um volume geral.
 - **Qualidade ajustável ao vivo:** 1080p ou 720p, a 30 ou 60 fps, sem derrubar ninguém. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
-- **Teste de desempenho** (painel de **Estatísticas** ou Ctrl+Shift+D): grava tudo o que acontece com a imagem do seu jogo, da captura até a tela de quem assiste, e mostra onde está o gargalo. Funciona com espectadores simulados no seu PC (um roteiro automático pelas qualidades e por 1, 3 e 7 pessoas) ou com os amigos assistindo de verdade. O relatório sai pronto para colar numa IA e pedir melhorias.
 - **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos, que dá para desligar, e notificação do Windows quando o app está atrás do jogo.
 - **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
 - **Reconexão automática:** se a internet oscilar ou o servidor reiniciar, o app volta sozinho para a sala. Quem transmitia continua transmitindo, e quem assistia continua assistindo. As transmissões já abertas não param enquanto isso.
@@ -420,7 +419,7 @@ Exemplo: em 1080p a 30 fps para 4 amigos, são cerca de 25 Mbps de upload; para 
 
 ### Teste de desempenho
 
-Abra pelo painel de **Estatísticas** (botão **Teste de desempenho**) ou com **Ctrl+Shift+D**, com o jogo já transmitindo. Há dois modos:
+Ferramenta de diagnóstico, sem botão na tela: abra com **Ctrl+Shift+D** dentro da sala, com o jogo já transmitindo. Há dois modos:
 
 | Modo | Como funciona | O que mede |
 |---|---|---|

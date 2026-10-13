@@ -33,7 +33,7 @@ export function Sala() {
   const [estatisticasAbertas, setEstatisticasAbertas] = useState(false);
   const [testeAberto, setTesteAberto] = useState(false);
 
-  // Ctrl+Shift+D abre o teste de desempenho (também fica no painel de estatísticas).
+  // O teste de desempenho é uma ferramenta de diagnóstico, sem botão na tela: só abre com Ctrl+Shift+D.
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
@@ -77,7 +77,7 @@ export function Sala() {
         )}
         <div className="palco-e-painel">
           <Palco modo={modo} aoMudarModo={mudarModo} foco={foco} aoDestacar={destacar} />
-          {estatisticasAbertas && <PainelEstatisticas aoFechar={() => setEstatisticasAbertas(false)} aoAbrirTeste={() => setTesteAberto(true)} />}
+          {estatisticasAbertas && <PainelEstatisticas aoFechar={() => setEstatisticasAbertas(false)} />}
         </div>
         <Controles
           estatisticasAbertas={estatisticasAbertas}

@@ -175,10 +175,11 @@ h1, h2, h3 { font-family: 'Sora Variable', Sora, 'Segoe UI', sans-serif; letter-
 .secao h2 { font-size: 19px; margin-bottom: 4px; } .secao > p { margin: 0 0 16px; color: var(--texto-3); font-size: 13px; }
 .achados { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .achado { padding: 18px 20px; display: grid; grid-template-columns: 34px 1fr; gap: 4px 14px; align-content: start; }
-.achado .icone { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; font: 700 15px Sora, sans-serif; grid-row: span 4; }
+.achado > * { grid-column: 2; min-width: 0; }
+.achado .icone { grid-column: 1; grid-row: 1 / span 6; width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; font: 700 15px Sora, sans-serif; }
 .achado h3 { font-size: 15px; } .achado p { margin: 2px 0 0; color: var(--texto-2); font-size: 13px; }
 .achado ul { margin: 8px 0 0; padding-left: 16px; color: var(--texto-3); font-size: 12px; }
-.achado .faca { margin-top: 10px; font-size: 12.5px; display: flex; gap: 8px; } .achado .faca b { color: var(--destaque); white-space: nowrap; } .achado .faca.dev b { color: var(--azul); }
+.achado .faca { margin-top: 10px; font-size: 12.5px; display: grid; grid-template-columns: auto 1fr; gap: 8px; } .achado .faca b { color: var(--destaque); white-space: nowrap; } .achado .faca.dev b { color: var(--azul); }
 .tabela { overflow-x: auto; } table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: right; font-weight: 600; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--texto-3); padding: 14px 12px 10px; border-bottom: 1px solid var(--borda); white-space: nowrap; }
 td { text-align: right; padding: 12px; border-bottom: 1px solid var(--painel-3); white-space: nowrap; } th:first-child, td:first-child { text-align: left; }

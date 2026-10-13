@@ -6,10 +6,16 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
+## [Não lançado]
+
+### Alterado
+- O teste de desempenho fica escondido: sem botão no painel de Estatísticas, abre só com Ctrl+Shift+D.
+- Relatório do teste: os quadros "Para o app" não ficam mais espremidos numa coluna estreita, e quando a captura do jogo limita o fps em todas as qualidades, a recomendação diz isso em vez de recomendar a qualidade mais alta.
+
 ## [1.2.10] - 2026-10-13
 
 ### Adicionado
-- **Teste de desempenho** (painel de Estatísticas ou Ctrl+Shift+D). Grava tudo o que acontece com a imagem do seu jogo, da captura até a tela de quem assiste, e mostra onde está o gargalo:
+- **Teste de desempenho** (Ctrl+Shift+D). Grava tudo o que acontece com a imagem do seu jogo, da captura até a tela de quem assiste, e mostra onde está o gargalo:
   - com **espectadores simulados** no seu PC, num roteiro automático pelas 4 qualidades e por 1, 3 e 7 pessoas assistindo (~4 min, ou ~1 min no rápido);
   - ou **com os amigos assistindo de verdade**: cada amigo manda como a imagem chega no PC dele (fps na tela, engasgos, perdas, ida e volta).
 - O relatório traz a recomendação (qualidade e quantas pessoas o PC aguenta), os achados com as evidências e gráficos. Ele sai em três formatos: página HTML, JSON e um texto **para colar numa IA** e pedir melhorias no app, com o contexto do Ozamigos, as regras de cada conclusão e os dados de cada segundo.

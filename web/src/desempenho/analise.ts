@@ -667,7 +667,10 @@ export function recomendar(g: Gravacao, trechos: ResumoDoTrecho[], diagnosticos:
     const atual = base.get(t.trecho.qualidade);
     if (!atual || t.trecho.espectadores < atual.trecho.espectadores) base.set(t.trecho.qualidade, t);
   }
-  const melhor = PREFERENCIA.find((q) => base.get(q) && passou(base.get(q)!));
+  // Com a captura abaixo do que a qualidade pede, a imagem sai fluida mas com menos fps: não conta como aprovada.
+  const capturaOk = (t: ResumoDoTrecho) => t.captura.fps == null || t.captura.fps >= t.alvoFps * 0.85;
+  const melhor = PREFERENCIA.find((q) => base.get(q) && passou(base.get(q)!) && capturaOk(base.get(q)!));
+  const capturaLimita = [...base.values()].every((t) => !capturaOk(t));
   const sua = g.qualidadeDaPessoa;
   const escala = validos.filter((t) => t.trecho.qualidade === sua).sort((a, b) => a.trecho.espectadores - b.trecho.espectadores);
   const aguenta = escala.filter(passou).map((t) => t.trecho.espectadores);
@@ -677,7 +680,13 @@ export function recomendar(g: Gravacao, trechos: ResumoDoTrecho[], diagnosticos:
   const nomeSua = QUALIDADES[sua].rotulo;
   const partes: string[] = [];
   if (base.size > 1) {
-    partes.push(melhor ? `Entre as ${base.size} qualidades testadas, a melhor que passou sem engasgos foi ${QUALIDADES[melhor].rotulo}.` : 'Nenhuma das qualidades testadas passou sem engasgos.');
+    partes.push(
+      melhor
+        ? `Entre as ${base.size} qualidades testadas, a melhor que passou sem engasgos foi ${QUALIDADES[melhor].rotulo}.`
+        : capturaLimita
+          ? 'Nenhuma qualidade recebeu da captura os fps que pede: os amigos veem no máximo o que a captura entrega, seja qual for a qualidade. Uma qualidade a 30 fps gasta menos sem perder nada.'
+          : 'Nenhuma das qualidades testadas passou sem engasgos.',
+    );
   }
   if (escala.length) {
     if (falhou && maxOk) partes.push(`Em ${nomeSua}, foi bem com até ${pessoas(maxOk)} assistindo e engasgou com ${falhou.trecho.espectadores}.`);
@@ -691,7 +700,9 @@ export function recomendar(g: Gravacao, trechos: ResumoDoTrecho[], diagnosticos:
       ? falhou && melhor === sua
         ? `Use ${QUALIDADES[melhor].rotulo} com até ${pessoas(Math.max(1, maxOk))}; com mais gente, baixe a qualidade`
         : `Use ${QUALIDADES[melhor].rotulo}: seu PC deu conta`
-      : 'Seu PC teve dificuldade em todas as qualidades';
+      : capturaLimita
+        ? `A captura do jogo limita a imagem a ~${Math.round(Math.max(...[...base.values()].map((t) => t.captura.fps ?? 0)))} fps em todas as qualidades`
+        : 'Seu PC teve dificuldade em todas as qualidades';
   } else {
     titulo = !falhou ? `${nomeSua}: seu PC aguentou ${pessoas(maxOk)} assistindo` : maxOk ? `${nomeSua}: bem até ${pessoas(maxOk)}, engasgou com ${falhou.trecho.espectadores}` : `${nomeSua}: engasgou já com ${pessoas(falhou.trecho.espectadores)}`;
   }
