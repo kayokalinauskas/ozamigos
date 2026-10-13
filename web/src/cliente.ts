@@ -79,6 +79,11 @@ const ESPERA_DESCONECTADO = 2_000;
 // Quem assiste segura ~200 ms de imagem antes de mostrar. Sem isso, cada soluço do Wi-Fi (ida e volta
 // pulando de 8 para 222 ms, num relatório real) virava um congelamento. Para assistir, 200 ms não se notam.
 const FOLGA_DE_REDE = 200;
+// Com a tela parada, a captura do Chromium só entrega quadro quando algo muda (até 1 fps). Quem assiste via
+// isso como congelamento (51 num relatório real, mostrando o Explorer). Com um piso, o Chromium repete o último
+// quadro quando nenhum chega em 100 ms. É baixo de propósito: cada repetição é uma captura a mais, e o jogo
+// que já sai a ~21 fps (um quadro a cada ~47 ms) nunca chega a pedir uma.
+const FPS_MINIMO_DA_CAPTURA = 10;
 // O relatório guarda as últimas linhas (medidas de cada segundo e acontecimentos): umas 2 horas com 2 conexões.
 const LIMITE_DO_RELATORIO = 15_000;
 
@@ -606,6 +611,7 @@ class Cliente {
     video.contentHint = 'motion'; // jogo: priorizar movimento fluido em vez de nitidez de texto
     tela.getAudioTracks().forEach((audio) => (audio.contentHint = 'music'));
     video.onended = () => this.pararDeTransmitir(true); // botão "Parar compartilhamento" do navegador
+    video.applyConstraints(this.tamanhoDaCaptura(true)).catch((erro) => console.warn('A captura não aceitou o piso de fps', erro));
     this.mudar({ minhaTela: tela });
     const { width, height, frameRate } = video.getSettings();
     this.registrar(`transmitindo: ${this.descreverFonte()}, captura ${width}x${height} @${frameRate}`);
@@ -673,12 +679,13 @@ class Cliente {
    * de vídeo). Antes, cada amigo assistindo tinha o seu codificador reduzindo a mesma imagem, e a escala
    * ficava errada se a janela do jogo mudasse de tamanho no meio da transmissão.
    */
-  private tamanhoDaCaptura(): MediaTrackConstraints {
+  // comPiso: o getDisplayMedia não aceita "min"; o piso entra depois, por applyConstraints.
+  private tamanhoDaCaptura(comPiso = false): MediaTrackConstraints {
     const { altura, fps } = QUALIDADES[this.estado.qualidade];
     return {
       width: { max: Math.round((altura * 16) / 9) },
       height: { max: altura },
-      frameRate: { ideal: fps, max: fps },
+      frameRate: comPiso ? { min: FPS_MINIMO_DA_CAPTURA, ideal: fps, max: fps } : { ideal: fps, max: fps },
     };
   }
 
@@ -698,7 +705,7 @@ class Cliente {
     const [trilha] = this.estado.minhaTela?.getVideoTracks() ?? [];
     if (trilha) {
       try {
-        await trilha.applyConstraints(this.tamanhoDaCaptura());
+        await trilha.applyConstraints(this.tamanhoDaCaptura(true));
       } catch (erro) {
         console.warn('Não foi possível mudar o tamanho e o fps da captura', erro);
       }

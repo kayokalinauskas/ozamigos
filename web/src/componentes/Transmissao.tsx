@@ -14,11 +14,14 @@ type Props = {
   aoDestacar?: () => void;
 };
 
-/** Verde, amarelo ou vermelho, a partir do que quem assiste está recebendo de verdade. */
+/**
+ * Verde, amarelo ou vermelho, a partir do que quem assiste está recebendo de verdade.
+ * Tela parada chega a ~10 fps (o piso da captura): fica amarelo, não vermelho, porque não travou nada.
+ */
 function saude(metrica: Metrica | undefined): { nivel: 'bom' | 'medio' | 'ruim'; texto: string } | null {
   if (!metrica || !metrica.altura) return null;
   const texto = `${metrica.altura}p · ${metrica.fps} fps`;
-  if (metrica.congelouAgora || metrica.fps < 15) return { nivel: 'ruim', texto };
+  if (metrica.congelouAgora || metrica.fps < 8) return { nivel: 'ruim', texto };
   if (metrica.fps < 24 || (metrica.idaEVolta ?? 0) > 150) return { nivel: 'medio', texto };
   return { nivel: 'bom', texto };
 }
