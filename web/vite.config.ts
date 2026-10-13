@@ -18,7 +18,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/sinal': { target: servidorJava, ws: true, changeOrigin: true },
+      // O Spring só aceita o WebSocket de páginas do próprio servidor: a origem vai como se fosse a dele.
+      '/sinal': { target: servidorJava, ws: true, changeOrigin: true, headers: { origin: servidorJava } },
     },
   },
 });

@@ -5,6 +5,11 @@ const NOTAS = {
   entrou: [660, 880],
   saiu: [660, 440],
   aoVivo: [523, 659, 784],
+  // Microfone e fone, como no Discord: descendo ao desligar, subindo ao ligar.
+  mudo: [587, 440],
+  desmudo: [440, 587],
+  surdo: [494, 330],
+  dessurdo: [330, 494],
 } as const;
 
 export type Som = keyof typeof NOTAS;

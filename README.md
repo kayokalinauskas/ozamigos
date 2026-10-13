@@ -80,6 +80,12 @@
 </table>
 
 **Na sala**
+- **Conversa por voz, como num canal do Discord:** quem entra na sala já está na conversa, com o microfone aberto só quando fala.
+  - **Supressão de ruído com o RNNoise** (padrão): teclado, mouse e ventilador não chegam aos amigos. Dá para trocar pela do navegador ou desligar.
+  - **Sensibilidade automática:** o microfone abre quando o RNNoise reconhece voz acima do barulho do ambiente. Ou manual, arrastando o limite sobre o medidor.
+  - **Botões de microfone e de som** no seu cartão (desligar o som desliga o microfone também), e o **anel verde** em quem está falando.
+  - **Engrenagem:** microfone e saída de áudio, volumes de entrada e saída, teste do microfone, cancelamento de eco e controle automático de ganho.
+  - **Cada amigo:** clicando no avatar, volume da voz dele (até 200%) e "silenciar para mim", lembrados pelo nome.
 - **Presença em tempo real:** quem está na sala, quem está **ao vivo** e quantas pessoas assistem cada transmissão.
 - **Assistir sob demanda:** você escolhe uma ou mais transmissões. O vídeo só sai do PC de quem transmite para quem clicou em **Assistir**, o que poupa o upload e a placa de vídeo de quem transmite.
 - **Todos podem transmitir ao mesmo tempo**, em salas de até 8 pessoas.
@@ -374,7 +380,7 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `entrar` | `sala`, `senha`, `nome`, `ficha` (opcional) | Confere a senha e entra na sala. Na reconexão, a `ficha` recebida no `bem-vindo` anterior tira da sala a conexão antiga, se o servidor ainda não percebeu a queda |
 | `comecei` / `parei` | — | Começa ou para de transmitir |
 | `assistir` / `deixar` | `para` | Entra ou sai da plateia de quem transmite |
-| `oferta` / `resposta` / `candidato` | `para`, `sdp` ou `candidato`, `canal` | Repassado só ao destinatário, na mesma sala |
+| `oferta` / `resposta` / `candidato` | `para`, `sdp` ou `candidato`, `canal` (`envio`, `recebimento` ou `voz`) | Repassado só ao destinatário, na mesma sala |
 | `ping` | — | Mantém a conexão viva (a cada 30 s); o servidor responde `pong` |
 | `gravar-sala` | `ligada` | Começa ou para a gravação das estatísticas da sala (uma por vez; só quem grava para) |
 | `medidas` | `pacote` | As medidas deste segundo, entregues só a quem grava a sala (sem gravação, o servidor descarta) |
@@ -511,7 +517,8 @@ O workflow [CI](.github/workflows/ci.yml) roda tudo isso em cada push na `main` 
 
 ## Limitações conhecidas
 
-- **Sem servidor TURN:** quem está atrás de CGNAT, em 4G/5G ou em rede corporativa pode não conseguir conectar. O TURN repassa o vídeo e tem custo por GB.
+- **Sem servidor TURN:** quem está atrás de CGNAT, em 4G/5G ou em rede corporativa pode não conseguir conectar (nem o vídeo nem a voz). O TURN repassa o vídeo e tem custo por GB.
+- **Voz sem apertar para falar:** por enquanto, só a detecção de voz. Apertar uma tecla para falar com o jogo em primeiro plano precisa de um gancho de teclado no auxiliar do Windows.
 - **Senha única por servidor:** pensada para grupos de amigos, cada grupo com o próprio deploy. Para uso público, seriam necessários senha por sala e limite de tentativas.
 - **Estado em memória:** as salas vivem num servidor só. Para mais de um servidor, seria preciso um armazenamento compartilhado (ex.: Redis).
 - **Exclusão de som por grupo de processos:** programas abertos *a partir* do Discord ou do Ozamigos também ficam de fora. Jogos abertos pela Steam, pela Epic ou pelo menu Iniciar não são afetados.

@@ -6,6 +6,30 @@ Os arquivos de cada versão estão em [Releases](https://github.com/kayokalinaus
 
 O servidor e a versão web não têm número de versão: cada push na `main` vai para o ar no Render.
 
+## [Não lançado]
+
+### Adicionado
+- **Conversa por voz na sala**, como num canal de voz do Discord: quem entra já está na conversa, e o microfone abre só quando a pessoa fala.
+  - Supressão de ruído com o **RNNoise** por padrão, ou a do navegador, ou nenhuma.
+  - Sensibilidade do microfone **automática** (pela detecção de voz do RNNoise, acima do barulho do ambiente) ou manual, com medidor.
+  - Botões de microfone e de som no seu cartão, e anel verde em quem está falando. Quem desliga o microfone ou o som aparece com o ícone para os outros.
+  - Engrenagem com microfone, saída de áudio, volumes de entrada e de saída, teste do microfone, cancelamento de eco, controle automático de ganho e os sons de aviso.
+  - Volume da voz de cada amigo (até 200%) e "silenciar para mim", clicando no avatar dele.
+  - Um limitador suave antes da caixa de som: vários amigos falando juntos, ou um volume em 200%, não estouram.
+
+### Alterado
+- **Menos atraso para quem assiste:** a folga contra soluços da rede era fixa em 200 ms e agora se ajusta à rede de cada um (de 80 a 250 ms, começando em 100). Na bancada, o atraso estimado caiu de ~195 ms para ~100 ms.
+- O sino dos sons de aviso e o "Trocar o servidor" saíram do cartão de baixo e foram para a engrenagem.
+- **Revisão visual:**
+  - Os nomes não são mais cortados na lista da sala: "Assistir" e "Parar" viraram botões de ícone.
+  - O cartão de baixo mostra o nome e um status curto ("Mudo", "Som desligado", "Ao vivo").
+  - O botão de sair da sala foi para o alto da barra lateral, ao lado do logo.
+  - Nas miniaturas, o nome não quebra mais em duas linhas.
+  - Os avisos ganharam ícone e nunca passam da borda; o aviso de estatísticas salvas não mostra mais o caminho inteiro da pasta.
+  - No modo Destaque, a transmissão principal fica em 16:9, sem faixas pretas enormes quando as estatísticas estão abertas.
+  - Barras de rolagem finas, na cor do app.
+  - Em telas de 2560×1440 sem escala do Windows, a interface fica 20% maior.
+
 ## [1.2.11] - 2026-10-13
 
 ### Adicionado
@@ -153,6 +177,7 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.11...HEAD
 [1.2.11]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.10...v1.2.11
 [1.2.10]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.9...v1.2.10
 [1.2.9]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.8...v1.2.9

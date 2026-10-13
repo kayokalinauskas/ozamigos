@@ -13,10 +13,11 @@ function iniciais(nome: string): string {
   return letras.toUpperCase();
 }
 
-export function Avatar({ nome, tamanho = 36, aoVivo = false }: { nome: string; tamanho?: number; aoVivo?: boolean }) {
+// falando: o anel verde de quem está falando na voz (vale mais que o vermelho de ao vivo).
+export function Avatar({ nome, tamanho = 36, aoVivo = false, falando = false }: { nome: string; tamanho?: number; aoVivo?: boolean; falando?: boolean }) {
   return (
     <span
-      className={aoVivo ? 'avatar ao-vivo' : 'avatar'}
+      className={['avatar', aoVivo && 'ao-vivo', falando && 'falando'].filter(Boolean).join(' ')}
       style={{ width: tamanho, height: tamanho, background: corDe(nome), fontSize: tamanho * 0.38 }}
       aria-hidden="true"
     >

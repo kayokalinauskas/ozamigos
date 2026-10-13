@@ -381,7 +381,8 @@ class GravadorDaSala {
     const abrir = ponte?.estatisticas?.abrirPasta;
     if (motivo) cliente.avisar(motivo, avisarServidor ? 'info' : 'erro');
     if (salvoEm && abrir) {
-      cliente.avisar(`Estatísticas da sala salvas em ${salvoEm}`, 'info', { rotulo: 'Abrir a pasta', executar: () => void abrir(pasta) });
+      // O caminho inteiro não cabe no aviso: o botão abre a pasta.
+      cliente.avisar('Estatísticas da sala salvas em Documentos › Ozamigos › Estatísticas.', 'info', { rotulo: 'Abrir a pasta', executar: () => void abrir(pasta) });
     } else if (!ponte?.estatisticas) {
       cliente.avisar('Estatísticas da sala baixadas (veja a pasta de downloads).');
     }

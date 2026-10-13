@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { LoaderCircle, Maximize, Maximize2, PictureInPicture2, Volume1, Volume2, VolumeX, X } from 'lucide-react';
 import { cliente, type Metrica } from '../cliente';
-import { useCliente, useNumeroLembrado } from '../useCliente';
+import { useCliente, useNumeroLembrado, useVoz } from '../useCliente';
 import { Avatar } from './Avatar';
 
 // Silenciar vale enquanto a página estiver aberta, mesmo se a transmissão mudar de lugar no palco.
@@ -28,6 +28,7 @@ function saude(metrica: Metrica | undefined): { nivel: 'bom' | 'medio' | 'ruim';
 
 export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
   const { videos, metricas } = useCliente();
+  const { surdo, ajustes } = useVoz();
   const nome = cliente.nomeDe(id);
   const stream = videos[id];
   const video = useRef<HTMLVideoElement>(null);
@@ -48,9 +49,16 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
 
   useEffect(() => {
     if (!video.current) return;
-    video.current.volume = Math.min(1, (volume / 100) * (volumeGeral / 100));
-    video.current.muted = mudo;
-  }, [volume, volumeGeral, mudo]);
+    // O volume de saída e o som desligado da voz valem também para o som das transmissões, como no Discord.
+    video.current.volume = Math.min(1, (volume / 100) * (volumeGeral / 100) * (ajustes.volumeSaida / 100));
+    video.current.muted = mudo || surdo;
+  }, [volume, volumeGeral, mudo, surdo, ajustes.volumeSaida]);
+
+  // A saída de áudio escolhida na engrenagem.
+  useEffect(() => {
+    const elemento = video.current as (HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }) | null;
+    elemento?.setSinkId?.(ajustes.saida).catch(() => undefined);
+  }, [ajustes.saida, stream]);
 
   // Janela flutuante (picture-in-picture): fica por cima do jogo e das outras janelas.
   const [emJanela, setEmJanela] = useState(false);
@@ -93,7 +101,7 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
       <figcaption className="transmissao-topo">
         <span className="transmissao-nome">
           <Avatar nome={nome} tamanho={24} />
-          {nome}
+          <span className="transmissao-nome-texto">{nome}</span>
           <span className="selo-ao-vivo">Ao vivo</span>
         </span>
         {estado && (

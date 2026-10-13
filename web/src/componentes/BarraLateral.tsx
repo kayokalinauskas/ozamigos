@@ -1,15 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
-import { Bell, BellOff, Check, Eye, EyeOff, Link, LogOut, Server } from 'lucide-react';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { Check, Eye, EyeOff, HeadphoneOff, Headphones, Link, LogOut, Mic, MicOff, Settings, VolumeX } from 'lucide-react';
 import { LIMITE_POR_SALA, cliente, linkDaSala } from '../cliente';
-import { ponte } from '../ponte';
-import { ligarSons, sonsLigados } from '../sons';
-import { useCliente } from '../useCliente';
+import { useCliente, useVoz } from '../useCliente';
+import { EU, voz } from '../voz/voz';
 import { Avatar } from './Avatar';
+import { ConfiguracoesDeVoz } from './ConfiguracoesDeVoz';
 import { Logo } from './Logo';
 
 export function BarraLateral() {
   const { sala, pessoas, meuId, meuNome, transmitindo, plateias, assistindo } = useCliente();
+  const { falando, remotos } = useVoz();
   const [copiado, setCopiado] = useState(false);
+  const [menuDe, setMenuDe] = useState<string | null>(null); // o amigo com o menu de voz aberto
   const total = pessoas.length + 1;
 
   async function copiarLink() {
@@ -30,16 +32,23 @@ export function BarraLateral() {
 
   return (
     <aside className="barra-lateral" aria-label="Sala e pessoas">
-      <Logo />
+      <div className="barra-lateral-topo">
+        <Logo />
+        <button type="button" className="botao-icone botao-sair" aria-label="Sair da sala" title="Sair da sala" onClick={() => cliente.sair()}>
+          <LogOut size={18} />
+        </button>
+      </div>
 
       <section className="cartao-sala">
         <div>
           <span className="rotulo">Sala</span>
-          <code className="codigo-sala">{sala}</code>
+          <code className="codigo-sala" title={sala}>
+            {sala}
+          </code>
         </div>
         <button type="button" className="botao botao-secundario botao-pequeno" onClick={copiarLink}>
           {copiado ? <Check size={14} /> : <Link size={14} />}
-          {copiado ? 'Link copiado' : 'Copiar link'}
+          {copiado ? 'Copiado' : 'Copiar link'}
         </button>
       </section>
 
@@ -52,36 +61,63 @@ export function BarraLateral() {
             const aoVivo = transmitindo.includes(id);
             const plateia = plateias[id] ?? [];
             const assistoEssa = assistindo.includes(id);
+            const naVoz = remotos[id];
+            const menuAberto = menuDe === id;
+            const silenciado = voz.silenciadoParaMim(id);
             return (
-              <li key={id} className={aoVivo ? 'pessoa pessoa-ao-vivo' : 'pessoa'}>
-                <Avatar nome={nome} aoVivo={aoVivo} />
-                <div className="pessoa-texto">
-                  <span className="pessoa-nome">{nome}</span>
-                  <span className="pessoa-status">
-                    {aoVivo ? (
-                      <>
-                        <span className="selo-ao-vivo">Ao vivo</span>
-                        <span title={plateia.length ? `Assistindo: ${nomesDe(plateia)}` : 'Ninguém assistindo'}>
-                          <Eye size={12} aria-hidden="true" /> {plateia.length}
-                        </span>
-                      </>
-                    ) : (
-                      'Na sala'
-                    )}
-                  </span>
-                </div>
-                {aoVivo && (
+              <Fragment key={id}>
+                <li className={menuAberto ? 'pessoa aberta' : 'pessoa'}>
                   <button
                     type="button"
-                    className={assistoEssa ? 'botao botao-secundario botao-pequeno' : 'botao botao-primario botao-pequeno'}
-                    onClick={() => (assistoEssa ? cliente.deixarDeAssistir(id) : cliente.assistir(id))}
-                    aria-label={assistoEssa ? `Parar de assistir ${nome}` : `Assistir ${nome}`}
+                    className="pessoa-abrir"
+                    aria-expanded={menuAberto}
+                    aria-label={`${nome}: volume da voz e silenciar`}
+                    title="Volume da voz e silenciar"
+                    onClick={() => setMenuDe(menuAberto ? null : id)}
                   >
-                    {assistoEssa ? <EyeOff size={14} /> : <Eye size={14} />}
-                    {assistoEssa ? 'Parar' : 'Assistir'}
+                    <Avatar nome={nome} aoVivo={aoVivo} falando={falando.includes(id)} />
+                    <span className="pessoa-texto">
+                      <span className="pessoa-nome">
+                        <span className="pessoa-nome-texto">{nome}</span>
+                        {(naVoz?.surdo || naVoz?.mudo || silenciado) && (
+                          <span className="pessoa-voz">
+                            {naVoz?.surdo ? (
+                              <HeadphoneOff size={13} aria-label="som desligado" />
+                            ) : naVoz?.mudo ? (
+                              <MicOff size={13} aria-label="microfone desligado" />
+                            ) : null}
+                            {silenciado && <VolumeX size={13} aria-label="silenciado para você" />}
+                          </span>
+                        )}
+                      </span>
+                      <span className="pessoa-status">
+                        {aoVivo ? (
+                          <>
+                            <span className="selo-ao-vivo">Ao vivo</span>
+                            <span className="pessoa-plateia" title={plateia.length ? `Assistindo: ${nomesDe(plateia)}` : 'Ninguém assistindo'}>
+                              <Eye size={12} aria-hidden="true" /> {plateia.length}
+                            </span>
+                          </>
+                        ) : (
+                          'Na sala'
+                        )}
+                      </span>
+                    </span>
                   </button>
-                )}
-              </li>
+                  {aoVivo && (
+                    <button
+                      type="button"
+                      className={assistoEssa ? 'botao-quadrado' : 'botao-quadrado primario'}
+                      onClick={() => (assistoEssa ? cliente.deixarDeAssistir(id) : cliente.assistir(id))}
+                      aria-label={assistoEssa ? `Parar de assistir ${nome}` : `Assistir ${nome}`}
+                      title={assistoEssa ? 'Parar de assistir' : 'Assistir'}
+                    >
+                      {assistoEssa ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  )}
+                </li>
+                {menuAberto && <MenuDaVoz id={id} nome={nome} aoFechar={() => setMenuDe(null)} />}
+              </Fragment>
             );
           })}
           {pessoas.length === 0 && (
@@ -97,11 +133,15 @@ export function BarraLateral() {
   );
 }
 
-/** O cartão de baixo: você, a prévia da sua transmissão e quem está te assistindo. */
+/** O cartão de baixo: você, a prévia da sua transmissão, quem te assiste, e o microfone, o som e a engrenagem. */
 function Voce({ nome, plateia, nomesDe }: { nome: string; plateia: string[] | null; nomesDe: (ids: string[]) => string }) {
   const { minhaTela } = useCliente();
+  const { mudo, surdo, falando, microfone } = useVoz();
   const previa = useRef<HTMLVideoElement>(null);
-  const [sons, setSons] = useState(sonsLigados);
+  const [configuracoes, setConfiguracoes] = useState(false);
+  const semMicrofone = microfone !== 'ok' && microfone !== 'ligando';
+  const microfoneDesligado = mudo || surdo || semMicrofone;
+  const status = semMicrofone ? 'Sem microfone' : surdo ? 'Som desligado' : mudo ? 'Mudo' : minhaTela ? 'Ao vivo' : 'Na voz';
 
   useEffect(() => {
     if (previa.current) previa.current.srcObject = minhaTela;
@@ -122,38 +162,85 @@ function Voce({ nome, plateia, nomesDe }: { nome: string; plateia: string[] | nu
               <Eye size={14} aria-hidden="true" /> Assistindo você: {nomesDe(plateia)}
             </>
           ) : (
-            'Ninguém está assistindo você ainda: o vídeo só sai do seu PC quando alguém clica em Assistir.'
+            'Ninguém assiste você ainda: o vídeo só sai do seu PC quando alguém clica em Assistir.'
           )}
         </p>
       )}
       <div className="voce-linha">
-        <Avatar nome={nome} aoVivo={Boolean(minhaTela)} />
+        <Avatar nome={nome} aoVivo={Boolean(minhaTela)} falando={falando.includes(EU)} />
         <div className="pessoa-texto">
-          <span className="pessoa-nome">{nome}</span>
-          <span className="pessoa-status">{minhaTela ? cliente.descreverFonte() : 'Você'}</span>
+          <span className="pessoa-nome" title={nome}>
+            <span className="pessoa-nome-texto">{nome}</span>
+          </span>
+          <span className={microfoneDesligado ? 'pessoa-status desligado' : 'pessoa-status'} title={minhaTela ? cliente.descreverFonte() : undefined}>
+            {status}
+          </span>
         </div>
-        <button
-          type="button"
-          className="botao-icone"
-          aria-pressed={sons}
-          aria-label={sons ? 'Desligar sons de aviso' : 'Ligar sons de aviso'}
-          title={sons ? 'Sons de aviso ligados' : 'Sons de aviso desligados'}
-          onClick={() => {
-            ligarSons(!sons);
-            setSons(!sons);
-          }}
-        >
-          {sons ? <Bell size={18} /> : <BellOff size={18} />}
-        </button>
-        {ponte && (
-          <button type="button" className="botao-icone" aria-label="Trocar o servidor" title="Trocar o servidor" onClick={() => ponte!.trocarServidor()}>
-            <Server size={18} />
+        <div className="voce-botoes">
+          <button
+            type="button"
+            className={microfoneDesligado ? 'botao-icone desligado' : 'botao-icone'}
+            aria-pressed={mudo || surdo}
+            aria-label={mudo || surdo ? 'Ligar o microfone' : 'Desligar o microfone'}
+            title={semMicrofone ? 'Sem microfone: veja na engrenagem' : mudo || surdo ? 'Ligar o microfone' : 'Desligar o microfone'}
+            onClick={() => voz.alternarMudo()}
+          >
+            {microfoneDesligado ? <MicOff size={18} /> : <Mic size={18} />}
           </button>
-        )}
-        <button type="button" className="botao-icone botao-sair" aria-label="Sair da sala" title="Sair da sala" onClick={() => cliente.sair()}>
-          <LogOut size={18} />
-        </button>
+          <button
+            type="button"
+            className={surdo ? 'botao-icone desligado' : 'botao-icone'}
+            aria-pressed={surdo}
+            aria-label={surdo ? 'Ligar o som' : 'Desligar o som e o microfone'}
+            title={surdo ? 'Ligar o som' : 'Desligar o som (e o microfone)'}
+            onClick={() => voz.alternarSurdo()}
+          >
+            {surdo ? <HeadphoneOff size={18} /> : <Headphones size={18} />}
+          </button>
+          <button type="button" className="botao-icone" aria-label="Configurações de voz e áudio" title="Configurações de voz e áudio" onClick={() => setConfiguracoes(true)}>
+            <Settings size={18} />
+          </button>
+        </div>
       </div>
+      {configuracoes && <ConfiguracoesDeVoz aoFechar={() => setConfiguracoes(false)} />}
     </section>
+  );
+}
+
+/** Clicar num amigo: o volume da voz dele (0 a 200%) e "silenciar para mim", lembrados pelo nome. */
+function MenuDaVoz({ id, nome, aoFechar }: { id: string; nome: string; aoFechar: () => void }) {
+  useVoz(); // redesenha quando o volume muda
+  const volume = voz.volumeDe(id);
+  const silenciado = voz.silenciadoParaMim(id);
+  const caixa = useRef<HTMLLIElement>(null);
+
+  useEffect(() => {
+    caixa.current?.querySelector('input')?.focus();
+    const tecla = (e: KeyboardEvent) => e.key === 'Escape' && aoFechar();
+    addEventListener('keydown', tecla);
+    return () => removeEventListener('keydown', tecla);
+  }, [aoFechar]);
+
+  return (
+    <li ref={caixa} className="menu-da-voz" aria-label={`Voz de ${nome}`}>
+      <label className="campo">
+        <span>
+          Volume da voz <span className="volume-numero">{volume}%</span>
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={200}
+          step={5}
+          value={volume}
+          onChange={(e) => voz.mudarVolumeDe(id, Number(e.target.value))}
+          style={{ '--preenchido': `${volume / 2}%` } as React.CSSProperties}
+        />
+      </label>
+      <label className="interruptor">
+        <input type="checkbox" role="switch" checked={silenciado} onChange={(e) => voz.silenciarParaMim(id, e.target.checked)} />
+        <span>Silenciar para mim</span>
+      </label>
+    </li>
   );
 }

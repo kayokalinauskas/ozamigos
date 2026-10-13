@@ -34,6 +34,20 @@ body,
   height: 100%;
 }
 
+/* Telas grandes sem escala do Windows (2560×1440 a 100%): tudo 20% maior, como se o Windows estivesse em 125%.
+   Com escala de 125% ou mais, a tela já tem menos de 2200 px de CSS e nada muda. */
+@media (min-width: 2200px) and (min-height: 1200px) {
+  body {
+    zoom: 1.2;
+  }
+}
+
+/* Barras de rolagem finas, na cor do painel (as do Windows, claras e largas, destoavam do app). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #33402c transparent;
+}
+
 body {
   margin: 0;
   background: var(--fundo);
@@ -64,6 +78,9 @@ body::before {
   z-index: 1000;
   height: var(--barra-da-janela);
   -webkit-app-region: drag;
+  /* Arrastar a janela vem da região (app-region), não do clique: sem isto, a faixa engoliria os cliques nos
+     botões que ficam embaixo dela (com -webkit-app-region: no-drag), como o de sair da sala. */
+  pointer-events: none;
 }
 
 h1,
@@ -335,7 +352,8 @@ code {
   font-size: 13px;
 }
 
-.campo input,
+.campo input:not([type='range']),
+.campo select,
 .seletor-qualidade select {
   width: 100%;
   height: 42px;
@@ -346,6 +364,7 @@ code {
 }
 
 .campo input:focus-visible,
+.campo select:focus-visible,
 .seletor-qualidade select:focus-visible {
   border-color: var(--destaque);
 }
@@ -424,6 +443,7 @@ code {
 .codigo-sala {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 15px;
   font-weight: 600;
 }
@@ -455,8 +475,14 @@ code {
   border-radius: var(--raio-pequeno);
 }
 
-.pessoa:hover {
+.pessoa:hover,
+.pessoa.aberta {
   background: var(--painel-2);
+}
+
+.pessoa {
+  gap: 8px;
+  padding: 6px 8px;
 }
 
 .pessoa-texto {
@@ -467,10 +493,17 @@ code {
 }
 
 .pessoa-nome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.pessoa-nome-texto {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
 }
 
 .pessoa-status {
@@ -485,6 +518,16 @@ code {
 
 .pessoa-status svg {
   vertical-align: -2px;
+}
+
+.pessoa-status.desligado {
+  color: #ff8297;
+}
+
+.pessoa-plateia {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .pessoa-vazia {
@@ -504,8 +547,19 @@ code {
 }
 
 .voce-linha {
-  gap: 8px;
+  gap: 10px;
   padding: 0;
+}
+
+.voce-botoes {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.voce-botoes .botao-icone {
+  width: 32px;
+  height: 32px;
 }
 
 .previa {
@@ -736,8 +790,13 @@ input[type='range']::-moz-range-thumb {
   display: flex;
 }
 
+/* A principal fica em 16:9 (sem faixas pretas enormes quando o painel de estatísticas aperta o palco). */
 .videos-destaque .transmissao-principal {
   flex: 1;
+  align-self: flex-start;
+  height: auto;
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
 }
 
 .coluna-lateral {
@@ -828,8 +887,21 @@ input[type='range']::-moz-range-thumb {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   font-weight: 600;
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+}
+
+.transmissao-nome-texto {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transmissao-nome .avatar,
+.transmissao-nome .selo-ao-vivo,
+.saude {
+  flex: none;
 }
 
 .saude {
@@ -975,6 +1047,13 @@ input[type='range']::-moz-range-thumb {
 
 .cartao-disponivel .botao {
   border-radius: 999px;
+}
+
+.cartao-disponivel-nome {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ===== Barra de controles ===== */
@@ -1151,7 +1230,7 @@ input[type='range']::-moz-range-thumb {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 8px 10px 14px;
+  padding: 10px 8px 10px 12px;
   border: 1px solid var(--borda);
   border-radius: var(--raio);
   background: var(--painel-2);
@@ -1159,12 +1238,36 @@ input[type='range']::-moz-range-thumb {
   animation: entrar 0.2s ease-out;
 }
 
-.aviso span {
+.aviso-icone {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 1px;
+  color: var(--destaque);
+}
+
+.aviso-texto {
   flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.aviso .botao {
+  flex: none;
+}
+
+.aviso-fechar {
+  width: 28px;
+  height: 28px;
 }
 
 .aviso-erro {
   border-color: rgb(255 84 112 / 0.5);
+}
+
+.aviso-erro .aviso-icone {
+  color: var(--ruim);
 }
 
 @keyframes entrar {
@@ -2101,6 +2204,308 @@ input[type='range']::-moz-range-thumb {
 
   .teste-modos,
   .teste-kpis {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Voz: anel de quem fala, microfone e fone, menu de cada amigo ===== */
+.avatar {
+  transition: box-shadow 0.12s ease-out;
+}
+
+.avatar.falando {
+  box-shadow:
+    0 0 0 2px var(--painel),
+    0 0 0 4px var(--bom);
+}
+
+.pessoa-abrir {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  border-radius: var(--raio-pequeno);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pessoa-voz {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  color: var(--ruim);
+}
+
+.botao-quadrado {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-pequeno);
+  background: var(--painel-3);
+  color: var(--texto-2);
+  cursor: pointer;
+  transition:
+    filter 0.15s,
+    background 0.15s;
+}
+
+.botao-quadrado:hover {
+  background: #26301f;
+  color: var(--texto);
+}
+
+.botao-quadrado.primario {
+  border-color: transparent;
+  background: var(--destaque);
+  color: var(--no-destaque);
+}
+
+.botao-quadrado.primario:hover {
+  filter: brightness(1.1);
+}
+
+/* O topo da barra lateral: o logo e o botão de sair. No app, o botão fica fora da faixa que arrasta a janela. */
+.barra-lateral-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.barra-lateral-topo .botao-icone {
+  -webkit-app-region: no-drag;
+}
+
+.botao-icone.desligado {
+  color: var(--ruim);
+}
+
+.menu-da-voz {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 6px;
+  padding: 12px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-pequeno);
+  background: var(--painel-2);
+}
+
+.menu-da-voz .campo > span:first-child,
+.configuracoes .campo > span:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Interruptor (checkbox com role="switch") */
+.interruptor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.interruptor input {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  background: var(--painel-3);
+  cursor: pointer;
+  appearance: none;
+  transition: background 0.15s;
+}
+
+.interruptor input::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--texto-2);
+  transition: transform 0.15s;
+}
+
+.interruptor input:checked {
+  border-color: var(--destaque);
+  background: var(--destaque);
+}
+
+.interruptor input:checked::before {
+  background: var(--no-destaque);
+  transform: translateX(16px);
+}
+
+.interruptor small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+/* ===== Configurações de voz e áudio (engrenagem) ===== */
+.configuracoes {
+  width: min(720px, calc(100vw - 32px));
+}
+
+.configuracoes-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.configuracoes h3 {
+  font-size: 15px;
+}
+
+.configuracoes-alerta {
+  padding: 10px 12px;
+  border-left: 3px solid var(--ruim);
+  border-radius: var(--raio-pequeno);
+  background: rgb(255 84 112 / 0.1);
+  font-size: 13px;
+}
+
+.configuracoes-duas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+}
+
+.configuracoes-secao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--borda);
+}
+
+.configuracoes-secao > * {
+  align-self: stretch;
+}
+
+.configuracoes-secao > .botao {
+  align-self: flex-start;
+}
+
+.configuracoes-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.configuracoes-linha .botao {
+  flex: none;
+}
+
+.opcoes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.opcoes legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.opcao {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-pequeno);
+  cursor: pointer;
+}
+
+.opcao.escolhida {
+  border-color: var(--destaque);
+  background: rgb(182 242 74 / 0.06);
+}
+
+.opcao input {
+  margin: 3px 0 0;
+  accent-color: var(--destaque);
+}
+
+.opcao small {
+  display: block;
+  color: var(--texto-2);
+  font-size: 12px;
+}
+
+/* O medidor do microfone: a barra fica verde com o microfone aberto; na sensibilidade manual, o limite é arrastável. */
+.medidor {
+  position: relative;
+  height: 24px;
+}
+
+.medidor-trilha {
+  position: absolute;
+  inset: 8px 0;
+  border-radius: 999px;
+  background: var(--painel-3);
+}
+
+.medidor-nivel {
+  width: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--medio);
+  transition: width 0.05s linear;
+}
+
+.medidor-nivel.aberto {
+  background: var(--bom);
+}
+
+.medidor-limite {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  background: var(--texto);
+}
+
+.medidor-controle {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+}
+
+input[type='range'].medidor-controle::-webkit-slider-runnable-track {
+  background: transparent;
+}
+
+input[type='range'].medidor-controle::-moz-range-track,
+input[type='range'].medidor-controle::-moz-range-progress {
+  background: transparent;
+}
+
+@media (max-width: 600px) {
+  .configuracoes-duas {
     grid-template-columns: 1fr;
   }
 }

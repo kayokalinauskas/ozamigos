@@ -6,6 +6,8 @@ import { QUALIDADES, QUALIDADE_PADRAO, ehQualidade, type Qualidade } from './qua
 import { tocar } from './sons';
 import { noApp, ponte, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';
 import { pararSomDoApp, trilhaDoSomDoApp } from './somDoApp';
+import { voz } from './voz/voz';
+import { FOLGA, FolgaAdaptativa } from './folga';
 
 // STUN: servidores públicos que dizem ao navegador qual é o seu endereço visto da internet.
 // Dois de empresas diferentes: se uma rede bloquear um, o outro responde.
@@ -77,9 +79,6 @@ const SILENCIO_MAXIMO = 70_000;
 const JANELA_DE_VOLTA = 120_000;
 // Conexão de vídeo "desconectada" por mais que isso é refeita (antes ficava congelada até desistir).
 const ESPERA_DESCONECTADO = 2_000;
-// Quem assiste segura ~200 ms de imagem antes de mostrar. Sem isso, cada soluço do Wi-Fi (ida e volta
-// pulando de 8 para 222 ms, num relatório real) virava um congelamento. Para assistir, 200 ms não se notam.
-const FOLGA_DE_REDE = 200;
 // Com a tela parada, a captura do Chromium só entrega quadro quando algo muda (até 1 fps). Quem assiste via
 // isso como congelamento (51 num relatório real, mostrando o Explorer). Com um piso, o Chromium repete o último
 // quadro quando nenhum chega em 100 ms. É baixo de propósito: cada repetição é uma captura a mais, e o jogo
@@ -94,7 +93,8 @@ export const AJUSTES_DA_TRANSMISSAO = {
   turn: false,
   topologia: 'malha P2P: uma RTCPeerConnection e uma codificação por pessoa assistindo',
   codecPreferido: 'H264 (setCodecPreferences), depois os outros',
-  folgaDeRedeMs: FOLGA_DE_REDE,
+  folgaDeRedeMs: FOLGA.inicial,
+  folgaDeRede: `adaptativa por conexão (web/src/folga.ts): começa em ${FOLGA.inicial} ms, fica entre ${FOLGA.minima} e ${FOLGA.maxima} ms; sobe com o jitter e a cada congelamento, desce devagar com a rede calma`,
   fpsMinimoDaCaptura: FPS_MINIMO_DA_CAPTURA,
   contentHint: 'motion',
   bundlePolicy: 'max-bundle',
@@ -152,6 +152,7 @@ class Cliente {
   private readonly anteriores = new Map<string, { bytes: number; momento: number }>();
   private readonly historicoDeCongelamentos = new Map<string, number[]>();
   private readonly tentativasDeVideo = new Map<string, number>(); // id -> conexões de vídeo refeitas seguidas
+  private readonly folgas = new Map<string, FolgaAdaptativa>(); // quem eu assisto -> folga de rede (folga.ts)
   private readonly linhasDoRelatorio: LinhaDoRelatorio[] = [];
   // Conexões de envio que não são de ninguém da sala: os espectadores simulados do teste de desempenho.
   private readonly enviosExtras = new Set<RTCPeerConnection>();
@@ -198,6 +199,13 @@ class Cliente {
       if (this.estado.conexaoPerdida) this.reconectar();
     });
     setInterval(() => void this.medir(), 1000);
+    voz.ligar({
+      enviar: (msg) => this.enviar(msg as Mensagem),
+      nomeDe: (id) => this.nomeDe(id),
+      avisar: (texto, tipo) => this.avisar(texto, tipo),
+      registrar: (evento) => this.registrar(evento),
+      servidoresIce: SERVIDORES_ICE,
+    });
   }
 
   // ===== Estado para o React =====
@@ -288,6 +296,7 @@ class Cliente {
     this.senha = senha;
     this.ficha = '';
     this.mudar({ fase: 'entrando', erro: '', meuNome: nome.trim() || 'Amigo' });
+    voz.preparar(); // no clique: o navegador só deixa tocar som depois de um gesto
     this.conectar();
   }
 
@@ -382,6 +391,7 @@ class Cliente {
       gravacaoDaSala: msg.gravando ?? null,
     });
     if (this.estado.minhaTela) this.enviar({ tipo: 'comecei' }); // continuo transmitindo, agora com o id novo
+    void voz.entrarNaSala((msg.outros as Pessoa[]).map((p) => p.id)); // a voz também é refeita, com o id novo
     for (const id of msg.compartilhando as string[]) {
       if (this.voltandoQuemEuAssistia(id)) this.assistir(id);
     }
@@ -412,6 +422,7 @@ class Cliente {
     this.recusado = true;
     this.pararDeTransmitir(false);
     this.conexoes.forEach(({ pc }) => pc.close());
+    voz.sair();
     this.ws?.close();
     location.reload(); // volta para a entrada, com a mesma sala no link
   }
@@ -445,6 +456,7 @@ class Cliente {
           void Notification.requestPermission().catch(() => undefined);
         }
         aquecerWebRtc();
+        void voz.entrarNaSala((msg.outros as Pessoa[]).map((p) => p.id)); // quem chega liga a voz para todos
         break;
       }
       case 'entrou': {
@@ -465,6 +477,7 @@ class Cliente {
         this.lembrarSaida(nomeQueSaiu, e.assistindo.includes(msg.id));
         this.fecharConexao('envio', msg.id);
         this.fecharConexao('recebimento', msg.id);
+        voz.pessoaSaiu(msg.id);
         const plateias = { ...e.plateias };
         delete plateias[msg.id];
         this.mudar({
@@ -524,14 +537,10 @@ class Cliente {
         this.fecharConexao('envio', msg.de);
         break;
       case 'oferta':
-        await this.receberOferta(msg.de, msg.sdp);
-        break;
       case 'resposta':
-        await this.receberResposta(msg.de, msg.sdp);
-        break;
       case 'candidato':
-        // O canal vem do ponto de vista de quem mandou: o "envio" dele é o meu "recebimento".
-        await this.receberCandidato(msg.de, msg.canal === 'envio' ? 'recebimento' : 'envio', msg.candidato);
+        if (msg.canal === 'voz') await voz.tratarSinal(msg as Parameters<typeof voz.tratarSinal>[0]);
+        else await this.tratarSinalDeVideo(msg);
         break;
       case 'gravacao-da-sala': {
         const minha = msg.id === e.meuId;
@@ -560,7 +569,16 @@ class Cliente {
     }
   }
 
+  private async tratarSinalDeVideo(msg: Mensagem) {
+    if (msg.tipo === 'oferta') await this.receberOferta(msg.de, msg.sdp);
+    else if (msg.tipo === 'resposta') await this.receberResposta(msg.de, msg.sdp);
+    // O canal vem do ponto de vista de quem mandou: o "envio" dele é o meu "recebimento".
+    else await this.receberCandidato(msg.de, msg.canal === 'envio' ? 'recebimento' : 'envio', msg.candidato);
+  }
+
   private tratarErro(motivo: string) {
+    // Um sinal para quem acabou de sair: a saída já cuida de fechar a conexão.
+    if (motivo === 'destinatario-nao-esta-na-sala') return;
     const textos: Record<string, string> = {
       'senha-errada': 'Senha errada. Confira com quem mandou o link.',
       'sala-cheia': `A sala está cheia (máximo de ${LIMITE_POR_SALA} pessoas).`,
@@ -574,6 +592,7 @@ class Cliente {
         // Recusado ao reconectar (a senha mudou, a sala encheu): desfaz tudo e volta para a entrada.
         this.pararDeTransmitir(false);
         for (const { canal, id } of [...this.conexoes.values()]) this.fecharConexao(canal, id);
+        voz.sair();
         this.mudar({ meuId: null, pessoas: [], transmitindo: [], plateias: {}, assistindo: [], videos: {}, conexaoPerdida: false, gravacaoDaSala: null });
       }
       this.mudar({ fase: 'entrada', erro: texto });
@@ -865,6 +884,7 @@ class Cliente {
       if (chaveDoRelatorio.startsWith(prefixo)) this.anteriores.delete(chaveDoRelatorio);
     }
     this.historicoDeCongelamentos.delete(chave(canal, idRemoto));
+    if (canal === 'recebimento') this.folgas.delete(idRemoto);
     const metricas = { ...this.estado.metricas };
     delete metricas[chave(canal, idRemoto)];
     const parcial: Partial<Estado> = { metricas };
@@ -972,13 +992,11 @@ class Cliente {
     if (!this.estado.assistindo.includes(idTransmissor)) return; // desisti de assistir no meio do caminho
     this.fecharConexao('recebimento', idTransmissor);
     const conexao = this.novaConexao('recebimento', idTransmissor);
+    const folga = new FolgaAdaptativa();
+    this.folgas.set(idTransmissor, folga);
     conexao.pc.ontrack = (evento) => {
-      // Folga contra soluços do Wi-Fi de quem assiste (veja FOLGA_DE_REDE); vale para vídeo e som, que andam juntos.
-      try {
-        (evento.receiver as RTCRtpReceiver & { jitterBufferTarget: number | null }).jitterBufferTarget = FOLGA_DE_REDE;
-      } catch (erro) {
-        console.warn('O navegador não aceitou a folga de rede', erro);
-      }
+      // Folga contra soluços do Wi-Fi de quem assiste (folga.ts); vale para vídeo e som, que andam juntos.
+      definirFolga(evento.receiver, folga.alvo);
       this.mudar({ videos: { ...this.estado.videos, [idTransmissor]: evento.streams[0] } });
     };
     await conexao.pc.setRemoteDescription(sdp);
@@ -1021,6 +1039,17 @@ class Cliente {
     return congelamentos > historico[0];
   }
 
+  /** A folga de quem eu assisto acompanha a rede: sobe com jitter e congelamentos, desce com a rede calma. */
+  private ajustarFolga(id: string, pc: RTCPeerConnection, jitter: number | undefined, congelamentos: number) {
+    const folga = this.folgas.get(id);
+    if (!folga) return;
+    const antes = folga.alvo;
+    const alvo = folga.medir(jitter != null ? jitter * 1000 : null, congelamentos);
+    if (alvo === antes) return;
+    for (const receptor of pc.getReceivers()) definirFolga(receptor, alvo);
+    if (Math.abs(alvo - antes) >= 25) this.registrar(`folga de rede vendo ${this.nomeDe(id)}: ${alvo} ms`);
+  }
+
   private async medir() {
     if (this.conexoes.size === 0) {
       if (Object.keys(this.estado.metricas).length > 0) this.mudar({ metricas: {} });
@@ -1053,6 +1082,7 @@ class Cliente {
         // O Firefox gera ids de relatório novos a cada consulta: o ssrc identifica o fluxo nos dois navegadores.
         const mbps = this.mbpsDesde(`${chaveDaConexao}:${r.type}:${r.ssrc}`, enviando ? r.bytesSent : r.bytesReceived, r.timestamp);
         const congelamentos = r.freezeCount ?? 0;
+        if (!enviando) this.ajustarFolga(id, pc, r.jitter, congelamentos);
         metricas[chaveDaConexao] = {
           canal,
           id,
@@ -1090,6 +1120,14 @@ function opusEstereo(sdp: string): string {
   return sdp.replace(new RegExp(`(a=fmtp:${tipo} [^\\r\\n]*)`), (linha) =>
     linha.includes('stereo=1') ? linha : `${linha};stereo=1;sprop-stereo=1;maxaveragebitrate=128000`,
   );
+}
+
+function definirFolga(receptor: RTCRtpReceiver, ms: number) {
+  try {
+    (receptor as RTCRtpReceiver & { jitterBufferTarget: number | null }).jitterBufferTarget = ms;
+  } catch (erro) {
+    console.warn('O navegador não aceitou a folga de rede', erro);
+  }
 }
 
 /**

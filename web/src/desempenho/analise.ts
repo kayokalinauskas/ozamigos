@@ -314,7 +314,7 @@ const CODIGO = {
   qualidades: 'web/src/qualidade.ts (QUALIDADES: bitrate, fps, altura e degradationPreference de cada opção)',
   captura: 'web/src/cliente.ts (tamanhoDaCaptura, FPS_MINIMO_DA_CAPTURA, usarTela) e desktop/main.js (desktopCapturer, setDisplayMediaRequestHandler)',
   codificador: 'web/src/cliente.ts (montarEnvio, codificacao, preferirH264, aplicarQualidade) e desktop/main.js (force-fieldtrials WebRTC-FrameDropper/Disabled)',
-  buffer: 'web/src/cliente.ts (FOLGA_DE_REDE = jitterBufferTarget de quem assiste, em receberOferta)',
+  buffer: 'web/src/folga.ts (FolgaAdaptativa: o jitterBufferTarget de quem assiste) e web/src/cliente.ts (ajustarFolga)',
   rede: 'web/src/cliente.ts (SERVIDORES_ICE: só STUN, sem TURN; refazerVideo)',
   interface: 'web/src/cliente.ts (medir(): getStats de todas as conexões a cada 1 s e mudar() que re-renderiza o React) e web/src/componentes/',
   malha: 'web/src/cliente.ts (enviarOferta: uma RTCPeerConnection e uma codificação por espectador)',
@@ -568,7 +568,8 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
   // Atraso
   const comAtraso = validos.filter((t) => t.atraso.total > 0);
   const recomendado = comAtraso.find((t) => t.trecho.qualidade === g.qualidadeDaPessoa) ?? comAtraso[0];
-  if (recomendado && recomendado.atraso.buffer > recomendado.atraso.total * 0.55) {
+  // A folga adaptativa fica em 80–100 ms com a rede boa: só vale apontar quando ela ficou bem acima disso.
+  if (recomendado && recomendado.atraso.buffer > 130 && recomendado.atraso.buffer > recomendado.atraso.total * 0.55) {
     lista.push({
       gravidade: 'baixa',
       codigo: 'atraso-no-buffer',
@@ -576,9 +577,9 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
       detalhe: 'Quem assiste segura quadros para absorver variações da rede (jitterBufferTarget). É uma escolha: menos buffer = menos atraso, mais risco de congelar em Wi-Fi instável.',
       evidencias: [
         `${recomendado.trecho.nome}: codificação ${fmt(recomendado.atraso.codificacao, ' ms')}, fila ${fmt(recomendado.atraso.fila, ' ms')}, rede ${fmt(recomendado.atraso.rede, ' ms')}, buffer ${fmt(recomendado.atraso.buffer, ' ms')}, decodificação ${fmt(recomendado.atraso.decodificacao, ' ms')}`,
-        `jitterBufferTarget configurado: ${g.ajustes.folgaDeRedeMs ?? '?'} ms`,
+        `jitterBufferTarget: ${g.ajustes.folgaDeRede ?? `${g.ajustes.folgaDeRedeMs ?? '?'} ms`}`,
       ],
-      paraOApp: 'Testar uma folga menor (ex.: 80–120 ms) para quem tem rede estável, ou ajustar sozinho pelo jitter medido.',
+      paraOApp: 'Rever os limites da folga adaptativa (FOLGA em folga.ts) e quanto ela sobe a cada congelamento.',
       ondeNoCodigo: [CODIGO.buffer],
     });
   }
