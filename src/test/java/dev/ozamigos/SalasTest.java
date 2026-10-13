@@ -11,12 +11,12 @@ class SalasTest {
     private final Salas salas = new Salas();
 
     @Test
-    void sextaPessoaNaoEntra() {
-        for (String id : new String[] {"a", "b", "c", "d", "e"}) {
+    void nonaPessoaNaoEntra() {
+        for (String id : new String[] {"a", "b", "c", "d", "e", "f", "g", "h"}) {
             assertThat(salas.entrar("sala123", id, id, "", null)).isNotNull();
         }
 
-        assertThat(salas.entrar("sala123", "f", "Fabi", "", null)).isNull();
+        assertThat(salas.entrar("sala123", "i", "Iara", "", null)).isNull();
     }
 
     @Test

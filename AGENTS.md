@@ -67,7 +67,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 - `Salas`: estado **em memória**, com todos os métodos `synchronized`.
   - Cada sala guarda `participantes` (id → sessão), `nomes` e `plateias` (quem transmite → quem assiste).
   - **Existir uma chave em `plateias` é o que significa "está transmitindo".**
-  - Limite: `LIMITE_POR_SALA = 5`.
+  - Limite: `LIMITE_POR_SALA = 8` (eram 5 até 13/10/2026). O gargalo não é o servidor: quem transmite manda uma cópia (e uma codificação na placa) para cada pessoa que assiste, ~6 Mbps cada em 1080p · 30 fps. Com 7 assistindo, são ~42 Mbps de upload; acima de 8, seria preciso limitar quantos assistem cada transmissão.
 - `SinalizacaoHandler`:
   - **a senha é conferida antes de tudo**; quem erra recebe `senha-errada` e a conexão é fechada;
   - o servidor **carimba `de`** em tudo o que repassa (o cliente nunca diz quem é) e só repassa dentro da mesma sala;

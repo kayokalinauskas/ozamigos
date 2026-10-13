@@ -23,7 +23,7 @@ import org.springframework.web.socket.WebSocketSession;
 @Component
 public class Salas {
 
-    public static final int LIMITE_POR_SALA = 5;
+    public static final int LIMITE_POR_SALA = 8;
 
     /**
      * O que quem acabou de entrar precisa saber: quem já está (id -> nome),

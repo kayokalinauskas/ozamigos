@@ -82,7 +82,7 @@
 **Na sala**
 - **Presença em tempo real:** quem está na sala, quem está **ao vivo** e quantas pessoas assistem cada transmissão.
 - **Assistir sob demanda:** você escolhe uma ou mais transmissões. O vídeo só sai do PC de quem transmite para quem clicou em **Assistir**, o que poupa o upload e a placa de vídeo de quem transmite.
-- **Todos podem transmitir ao mesmo tempo**, em salas de até 5 pessoas.
+- **Todos podem transmitir ao mesmo tempo**, em salas de até 8 pessoas.
 - **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura. Dois cliques no vídeo abrem a tela cheia, e o botão **Janela flutuante** solta a transmissão numa janelinha que fica por cima do jogo.
 - **Áudio por transmissão:** volume e silenciar de cada uma, lembrados por amigo, mais um volume geral.
 - **Qualidade ajustável ao vivo:** 1080p ou 720p, a 30 ou 60 fps, sem derrubar ninguém. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
@@ -355,7 +355,7 @@ gh release delete v1.0.1 --cleanup-tag --yes
 
 | Limite | Valor |
 |---|---|
-| Pessoas por sala | 5 |
+| Pessoas por sala | 8 |
 | Código da sala | 6 a 20 letras e números |
 | Nome exibido | até 20 caracteres (vazio vira "Amigo") |
 | Mensagem de sinalização | até 64 KB |
@@ -405,7 +405,7 @@ Cada pessoa que assiste é mais um vídeo saindo do PC de quem transmite. O code
 | 720p · 60 fps | ~6 Mbps | Fluidez com menos banda |
 | 720p · 30 fps | ~4 Mbps | Internet fraca |
 
-Exemplo: em 1080p a 30 fps para 4 amigos, são cerca de 25 Mbps de upload. Nos primeiros 15 a 25 segundos, uma resolução menor é normal: o WebRTC está medindo a rede.
+Exemplo: em 1080p a 30 fps para 4 amigos, são cerca de 25 Mbps de upload; para 7 (a sala cheia), cerca de 42 Mbps, o que pede cabo e um plano com upload folgado. Nos primeiros 15 a 25 segundos, uma resolução menor é normal: o WebRTC está medindo a rede.
 
 **Fps baixo ou travando.** Abra **Estatísticas** no PC de quem transmite:
 

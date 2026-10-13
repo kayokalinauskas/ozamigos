@@ -691,6 +691,18 @@ input[type='range']::-moz-range-thumb {
   grid-template-rows: 1fr 1fr;
 }
 
+/* Salas de até 8: quem assiste pode ter até 7 transmissões na grade. */
+.videos-5,
+.videos-6 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr 1fr;
+}
+
+.videos-7 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
 /* Destaque: a principal ocupa todo o espaço; as outras ficam numa coluna à direita. */
 .videos-destaque {
   display: flex;
@@ -1311,6 +1323,9 @@ input[type='range']::-moz-range-thumb {
   .videos-2,
   .videos-3,
   .videos-4,
+  .videos-5,
+  .videos-6,
+  .videos-7,
   .videos-destaque {
     grid-template-columns: 1fr;
     grid-template-rows: none;

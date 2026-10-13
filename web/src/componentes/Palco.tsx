@@ -80,7 +80,7 @@ export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
           </div>
         </div>
       ) : noPalco.length > 0 ? (
-        <div className={`videos videos-${Math.min(noPalco.length, 4)}`}>
+        <div className={`videos videos-${Math.min(noPalco.length, 7)}`}>
           {noPalco.map((id) => (
             <Transmissao
               key={id}

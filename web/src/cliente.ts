@@ -11,7 +11,7 @@ import { pararSomDoApp, trilhaDoSomDoApp } from './somDoApp';
 // Dois de empresas diferentes: se uma rede bloquear um, o outro responde.
 const SERVIDORES_ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
 
-export const LIMITE_POR_SALA = 5;
+export const LIMITE_POR_SALA = 8;
 
 export type Pessoa = { id: string; nome: string };
 
