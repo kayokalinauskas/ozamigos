@@ -17,7 +17,7 @@
 
 <p align="center">
   <a href="../../releases/latest"><img src="https://img.shields.io/badge/Baixar%20para%20Windows-b6f24a?style=for-the-badge" alt="Baixar para Windows" height="34"></a>
-  <a href="https://ozamigos.onrender.com"><img src="https://img.shields.io/badge/Conhecer%20o%20site-1f261c?style=for-the-badge" alt="Conhecer o site" height="34"></a>
+  <a href="https://kayokalinauskas.github.io/ozamigos/"><img src="https://img.shields.io/badge/Conhecer%20o%20site-1f261c?style=for-the-badge" alt="Conhecer o site" height="34"></a>
 </p>
 
 <p align="center">
@@ -109,7 +109,7 @@
 
 **Sem instalar:** use o `Ozamigos-Portatil-x.y.z.exe`, que abre com dois cliques.
 
-**Pelo navegador:** abra o endereço do servidor no Chrome ou no Edge. Na primeira visita aparece a página de apresentação, que recomenda o app e tem o botão **Usar no navegador**. Quem chega por um link de sala vai direto para a entrada. Pelo navegador dá para assistir e transmitir, mas o som do PC vai inteiro, sem a exclusão do Discord.
+**Pelo navegador:** abra o endereço do servidor no Chrome ou no Edge. A entrada tem um link para o [site](https://kayokalinauskas.github.io/ozamigos/), que apresenta e baixa o app para Windows. Pelo navegador dá para assistir e transmitir, mas o som do PC vai inteiro, sem a exclusão do Discord.
 
 **Requisitos:** Windows 10 (versão 2004 ou mais nova) ou Windows 11, 64 bits.
 
@@ -182,8 +182,8 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │       ├── cliente.ts                Núcleo: sinalização, WebRTC, qualidade e estatísticas
 │       ├── somDoApp.ts               Faixa de áudio do auxiliar de som (AudioWorklet)
 │       ├── ponte.ts                  Contrato com o app Electron
-│       ├── versaoDoApp.ts            Instalador mais recente, lido das releases do GitHub
-│       └── componentes/              Apresentacao (site), Entrada, Sala, BarraLateral, Palco, ...
+│       └── componentes/              Entrada, Sala, BarraLateral, Palco, Transmissao, ...
+├── site/                   Site de apresentação (HTML e CSS puros), publicado no GitHub Pages
 ├── desktop/                App para Windows (Electron 44)
 │   ├── main.js                       Janela, permissões, seletor de fontes e auxiliar de som
 │   ├── preload.js                    Ponte segura entre a página e o app
@@ -192,7 +192,7 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │   └── som/                          Auxiliar de som em C# (.NET 10): OzamigosSom.exe
 ├── docs/imagens/           Logotipo, telas e GIF de demonstração deste README
 ├── docs/vitrine/           Scripts que geram as imagens de docs/imagens
-├── .github/                CI, release do app, Dependabot e modelos de issue e PR
+├── .github/                CI, release do app, site, Dependabot e modelos de issue e PR
 ├── CHANGELOG.md            Histórico de versões do app
 ├── Dockerfile              Build em 3 etapas: Node (interface) → JDK (servidor) → JRE (imagem final)
 └── pom.xml
@@ -450,7 +450,7 @@ Os testes cobrem:
 
 Para verificar os tipos da interface: `cd web` e depois `npm run typecheck`.
 
-O workflow [CI](.github/workflows/ci.yml) roda tudo isso em cada push na `main` e em cada pull request: o build da interface, os testes do servidor e a checagem dos scripts do app. O [Dependabot](.github/dependabot.yml) abre pull requests quando sai versão nova das dependências.
+O workflow [CI](.github/workflows/ci.yml) roda tudo isso em cada push na `main` e em cada pull request: o build da interface, os testes do servidor e a checagem dos scripts do app. O workflow [Site](.github/workflows/site.yml) publica a pasta `site/` no [GitHub Pages](https://kayokalinauskas.github.io/ozamigos/) sempre que ela muda. O site não tem build: é HTML, CSS e um script pequeno que só melhora a página (link direto do instalador, versão e tamanho). Sem JavaScript, os botões continuam funcionando. O [Dependabot](.github/dependabot.yml) abre pull requests quando sai versão nova das dependências.
 
 ---
 

@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ozamigos: transmita seu jogo para os amigos</title>
+    <meta
+      name="description"
+      content="Transmita seu jogo para os amigos em até 1080p, direto de um PC para o outro. Salas com senha, várias transmissões ao mesmo tempo e som sem o eco do Discord. Grátis, para Windows e navegador."
+    />
+    <link rel="canonical" href="https://kayokalinauskas.github.io/ozamigos/" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0b0e0a" />
+
+    <link rel="icon" href="icone.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="imagens/icone-180.png" />
+
+    <!-- As duas fontes do primeiro quadro: carregam junto com a página, sem piscar. -->
+    <link rel="preload" href="fontes/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="fontes/sora.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- O servidor das salas e a API das releases: a conexão já fica aberta quando a pessoa clica. -->
+    <link rel="preconnect" href="https://ozamigos.onrender.com" />
+    <link rel="preconnect" href="https://api.github.com" crossorigin />
+    <link rel="stylesheet" href="estilo.css" />
+    <script src="site.js" defer></script>
+
+    <!-- Prévia do link no WhatsApp, no Discord e nas redes sociais. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Ozamigos" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:url" content="https://kayokalinauskas.github.io/ozamigos/" />
+    <meta property="og:title" content="Ozamigos: transmita seu jogo para os amigos" />
+    <meta
+      property="og:description"
+      content="Até 1080p, direto de um PC para o outro. Salas com senha e som sem o eco do Discord. Grátis, para Windows e navegador."
+    />
+    <meta property="og:image" content="https://kayokalinauskas.github.io/ozamigos/imagens/social.png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Logotipo do Ozamigos" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Ozamigos",
+        "description": "Transmita seu jogo para os amigos em até 1080p, direto de um PC para o outro.",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Windows 10, Windows 11",
+        "url": "https://kayokalinauskas.github.io/ozamigos/",
+        "downloadUrl": "https://github.com/kayokalinauskas/ozamigos/releases/latest",
+        "image": "https://kayokalinauskas.github.io/ozamigos/imagens/sala-destaque-1600.webp",
+        "license": "https://opensource.org/licenses/MIT",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "BRL" }
+      }
+    </script>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+      <symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></symbol>
+      <symbol id="i-volume-2" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></symbol>
+      <symbol id="i-picture-in-picture-2" viewBox="0 0 24 24"><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"/><rect width="10" height="7" x="12" y="13" rx="2"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+      <symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+      <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+      <symbol id="i-external-link" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+      <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+    </svg>
+
+    <a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+    <header class="topo">
+      <div class="largura topo-conteudo">
+        <a href="./" class="marca" aria-label="Ozamigos, início">
+          <span class="logo" aria-hidden="true"><span class="tecla">O</span><span class="tecla">Z</span><span>amigos</span></span>
+        </a>
+        <nav class="nav" aria-label="Seções">
+          <a href="#recursos">Recursos</a>
+          <a href="#como-funciona">Como funciona</a>
+          <a href="#duvidas">Dúvidas</a>
+        </nav>
+        <a class="botao botao-secundario botao-pequeno" href="https://ozamigos.onrender.com/">
+          <svg class="icone" aria-hidden="true"><use href="#i-globe" /></svg> Abrir no navegador
+        </a>
+      </div>
+    </header>
+
+    <main id="conteudo">
+      <section class="largura heroi" aria-labelledby="titulo-heroi">
+        <div class="heroi-texto">
+          <p class="selo">Grátis e de código aberto</p>
+          <h1 id="titulo-heroi">Transmita seu jogo <span class="realce">para os amigos.</span></h1>
+          <p class="lead">
+            Até 1080p a 60 fps, direto de um PC para o outro. Salas com senha, todo mundo transmitindo ao mesmo tempo e o som
+            do jogo sem o eco do Discord.
+          </p>
+          <div class="chamada">
+            <div class="chamada-botoes">
+              <a class="botao botao-grande botao-primario" data-baixar href="https://github.com/kayokalinauskas/ozamigos/releases/latest">
+                <svg class="icone" aria-hidden="true"><use href="#i-download" /></svg> Baixar para Windows
+              </a>
+              <a class="botao botao-grande botao-secundario" data-navegador href="https://ozamigos.onrender.com/">
+                <svg class="icone" aria-hidden="true"><use href="#i-globe" /></svg> Usar no navegador
+              </a>
+            </div>
+            <p class="detalhes"><span data-versao></span>Windows 10 e 11, 64 bits</p>
+            <p class="depois" data-depois role="status" hidden>
+              Abra o arquivo baixado. Se o Windows mostrar <b>“O Windows protegeu o computador”</b>, clique em
+              <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>.
+            </p>
+          </div>
+        </div>
+        <figure class="moldura">
+          <div class="moldura-barra" aria-hidden="true"><span></span><span></span><span></span></div>
+          <img
+            src="imagens/sala-destaque-1600.webp"
+            srcset="imagens/sala-destaque-800.webp 800w, imagens/sala-destaque-1600.webp 1600w"
+            sizes="(max-width: 960px) calc(100vw - 32px), 640px"
+            width="1600"
+            height="900"
+            fetchpriority="high"
+            alt="Uma sala do Ozamigos: uma transmissão em destaque, as outras ao lado e quem está ao vivo na lateral"
+          />
+        </figure>
+      </section>
+
+      <section id="recursos" class="largura secao" aria-labelledby="titulo-recursos">
+        <h2 id="titulo-recursos">Feito para jogar junto</h2>
+        <p class="secao-lead">Tudo o que o grupo precisa para assistir a partida dos amigos, sem complicação.</p>
+        <ul class="recursos">
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-gauge" /></svg></span>
+            <h3>Até 1080p a 60 fps</h3>
+            <p>Qualidade ajustável ao vivo, com indicador de saúde e estatísticas de cada conexão.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-users" /></svg></span>
+            <h3>Todos transmitem juntos</h3>
+            <p>Salas de até 5 pessoas. Assista uma ou várias transmissões, em grade ou com uma em destaque.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-volume-2" /></svg></span>
+            <h3>Som sem eco</h3>
+            <p>O app manda o som do PC sem o Discord: os amigos não ouvem a própria voz de volta.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-picture-in-picture-2" /></svg></span>
+            <h3>Janela flutuante</h3>
+            <p>Solte uma transmissão numa janelinha que fica por cima do jogo.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-lock" /></svg></span>
+            <h3>Só para o seu grupo</h3>
+            <p>Salas protegidas pela senha do grupo. O vídeo vai direto de um PC para o outro.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-refresh-cw" /></svg></span>
+            <h3>Sempre atualizado</h3>
+            <p>O app se atualiza sozinho ao abrir e volta para a sala se a internet oscilar.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="largura secao dupla" aria-labelledby="titulo-comparacao">
+        <div>
+          <h2 id="titulo-comparacao">App ou navegador?</h2>
+          <p class="secao-lead">
+            Os dois entram nas mesmas salas. O app para Windows faz o que o navegador não consegue: manda o som do jogo sem
+            a voz do Discord junto.
+          </p>
+        </div>
+        <div class="tabela-rolagem">
+          <table class="tabela">
+            <thead>
+              <tr>
+                <th scope="col"><span class="so-para-leitores">Recurso</span></th>
+                <th scope="col">App para Windows</th>
+                <th scope="col">Navegador</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Assistir e transmitir em até 1080p</th>
+                <td><svg class="icone sim" role="img" aria-label="Sim"><use href="#i-check" /></svg></td>
+                <td><svg class="icone sim" role="img" aria-label="Sim"><use href="#i-check" /></svg></td>
+              </tr>
+              <tr>
+                <th scope="row">Várias transmissões ao mesmo tempo</th>
+                <td><svg class="icone sim" role="img" aria-label="Sim"><use href="#i-check" /></svg></td>
+                <td><svg class="icone sim" role="img" aria-label="Sim"><use href="#i-check" /></svg></td>
+              </tr>
+              <tr>
+                <th scope="row">Som do PC sem o Discord e sem eco</th>
+                <td><svg class="icone sim" role="img" aria-label="Sim"><use href="#i-check" /></svg></td>
+                <td><svg class="icone nao" role="img" aria-label="Não"><use href="#i-minus" /></svg></td>
+              </tr>
+              <tr>
+                <th scope="row">Seletor de janelas com miniaturas</th>
+                <td><svg class="icone sim" role="img" aria-label="Sim"><use href="#i-check" /></svg></td>
+                <td><svg class="icone nao" role="img" aria-label="Não"><use href="#i-minus" /></svg></td>
+              </tr>
+              <tr>
+                <th scope="row">Sem engasgos com o jogo na frente</th>
+                <td><svg class="icone sim" role="img" aria-label="Sim"><use href="#i-check" /></svg></td>
+                <td><svg class="icone nao" role="img" aria-label="Não"><use href="#i-minus" /></svg></td>
+              </tr>
+              <tr>
+                <th scope="row">Funciona sem instalar nada</th>
+                <td><svg class="icone nao" role="img" aria-label="Não"><use href="#i-minus" /></svg></td>
+                <td><svg class="icone sim" role="img" aria-label="Sim"><use href="#i-check" /></svg></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="como-funciona" class="largura secao" aria-labelledby="titulo-como-funciona">
+        <h2 id="titulo-como-funciona">Como funciona</h2>
+        <ol class="passos">
+          <li>
+            <h3>Instale o app</h3>
+            <p>Baixe o instalador e abra. Daí em diante, ele se atualiza sozinho.</p>
+          </li>
+          <li>
+            <h3>Entre com a senha do grupo</h3>
+            <p>Escolha como os amigos te chamam e use a senha que quem te convidou passou.</p>
+          </li>
+          <li>
+            <h3>Mande o link da sala</h3>
+            <p>Crie uma sala, copie o link e mande no chat. Clique em Transmitir e escolha a janela do jogo.</p>
+          </li>
+        </ol>
+        <figure class="moldura moldura-larga">
+          <div class="moldura-barra" aria-hidden="true"><span></span><span></span><span></span></div>
+          <img
+            src="imagens/sala-grade-1600.webp"
+            srcset="imagens/sala-grade-800.webp 800w, imagens/sala-grade-1600.webp 1600w"
+            sizes="(max-width: 1272px) calc(100vw - 32px), 1240px"
+            width="1600"
+            height="900"
+            loading="lazy"
+            decoding="async"
+            alt="Sala em grade com quatro transmissões ao vivo lado a lado"
+          />
+        </figure>
+      </section>
+
+      <section id="duvidas" class="largura secao estreita" aria-labelledby="titulo-duvidas">
+        <h2 id="titulo-duvidas">Dúvidas</h2>
+        <div class="duvidas">
+          <details>
+            <summary>O Windows disse que protegeu o computador. É seguro?</summary>
+            <p>
+              O aviso aparece porque o instalador não tem assinatura digital paga. Clique em <b>Mais informações</b> e depois
+              em <b>Executar assim mesmo</b>. O código é aberto, e cada instalador é gerado pelo GitHub a partir dele, com um
+              histórico público de cada versão.
+            </p>
+          </details>
+          <details>
+            <summary>Preciso de senha?</summary>
+            <p>Sim, a senha do grupo. Peça para quem te convidou: ela impede que estranhos entrem nas salas.</p>
+          </details>
+          <details>
+            <summary>É de graça?</summary>
+            <p>Sim. O Ozamigos é gratuito e de código aberto, com licença MIT.</p>
+          </details>
+          <details>
+            <summary>Dá para usar sem instalar?</summary>
+            <p>
+              Dá. A versão portátil abre com dois cliques e está na
+              <a href="https://github.com/kayokalinauskas/ozamigos/releases/latest">página de downloads</a>. Ou
+              <a href="https://ozamigos.onrender.com/">use pelo navegador</a> (Chrome ou Edge), sem o som separado do
+              Discord.
+            </p>
+          </details>
+          <details>
+            <summary>Funciona no Mac, no Linux ou no celular?</summary>
+            <p>O app é só para Windows 10 e 11. Nos outros sistemas, use pelo navegador Chrome ou Edge no computador.</p>
+          </details>
+          <details>
+            <summary>O meu vídeo passa por algum servidor?</summary>
+            <p>
+              Não. O servidor só apresenta as pessoas da sala e confere a senha. O vídeo e o som vão direto de quem transmite
+              para quem assiste, por WebRTC, e só para quem clicou em <b>Assistir</b>.
+            </p>
+          </details>
+          <details>
+            <summary>Por que o navegador às vezes demora para abrir a sala?</summary>
+            <p>
+              O servidor fica num plano gratuito que “cochila” quando ninguém usa. A primeira visita depois de um tempo pode
+              levar até um minuto; depois disso, abre na hora.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="largura final" aria-labelledby="titulo-final">
+        <h2 id="titulo-final">Bora jogar junto?</h2>
+        <div class="chamada">
+          <div class="chamada-botoes">
+            <a class="botao botao-grande botao-primario" data-baixar href="https://github.com/kayokalinauskas/ozamigos/releases/latest">
+              <svg class="icone" aria-hidden="true"><use href="#i-download" /></svg> Baixar para Windows
+            </a>
+            <a class="botao botao-grande botao-secundario" data-navegador href="https://ozamigos.onrender.com/">
+              <svg class="icone" aria-hidden="true"><use href="#i-globe" /></svg> Usar no navegador
+            </a>
+          </div>
+          <p class="detalhes"><span data-versao></span>Windows 10 e 11, 64 bits</p>
+          <p class="depois" data-depois role="status" hidden>
+            Abra o arquivo baixado. Se o Windows mostrar <b>“O Windows protegeu o computador”</b>, clique em
+            <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="rodape">
+      <div class="largura rodape-conteudo">
+        <span class="logo" aria-hidden="true"><span class="tecla">O</span><span class="tecla">Z</span><span>amigos</span></span>
+        <nav aria-label="Links do projeto">
+          <a href="https://github.com/kayokalinauskas/ozamigos">Código no GitHub</a>
+          <a href="https://github.com/kayokalinauskas/ozamigos/blob/main/CHANGELOG.md">Novidades</a>
+          <a href="https://github.com/kayokalinauskas/ozamigos/releases">Todas as versões</a>
+          <a href="https://github.com/kayokalinauskas/ozamigos/issues/new/choose">Relatar um problema</a>
+        </nav>
+        <p>Código aberto, licença MIT.</p>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,33 @@
+# Publica a pasta site/ no GitHub Pages: https://kayokalinauskas.github.io/ozamigos/
+# O site é estático (HTML, CSS e um script pequeno), sem build. Só roda quando site/ muda.
+name: Site
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/site.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency: # nunca duas publicações ao mesmo tempo; a mais nova vence
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publicacao.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: publicacao
+        uses: actions/deploy-pages@v4

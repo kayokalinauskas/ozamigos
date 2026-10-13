@@ -102,12 +102,18 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 - **Janela flutuante:** `requestPictureInPicture()` no `<video>` da transmissão (funciona no Chrome, no Edge e no Electron). O volume continua valendo, porque é o mesmo elemento.
 - **Volume:** é o `video.volume` (de 0 a 1, multiplicado pelo volume geral), lembrado por **nome** (`ozamigos-volume:<nome>`).
 - O `localStorage` está sempre dentro de `try/catch` (`armazenamento.ts`).
-- **Página de apresentação** (`Apresentacao.tsx` + `apresentacao.css`): no navegador, a raiz `/` mostra o site, que recomenda o app para Windows. Vão direto para a entrada:
-  - o app Electron (`noApp`), que sempre carrega `/`: **o app nunca pode cair na apresentação**;
-  - quem chega por link de sala (`veioPorConvite`, lido antes de a entrada mexer no endereço);
-  - quem já clicou em **Usar no navegador** (`ozamigos-no-navegador` no `localStorage`). O botão "Baixar o app para Windows" da entrada apaga a escolha e volta para o site.
-  - O construtor do cliente **não** grava `?sala=` no endereço; isso só acontece ao entrar (`trocarSala`). Assim, o site fica com o endereço limpo.
-  - O botão de baixar consulta a API do GitHub (`versaoDoApp.ts`) para pegar o link direto, a versão e o tamanho do instalador. Se falhar, ele leva para `releases/latest`.
+- A raiz `/` do servidor é sempre a entrada (o app Electron carrega `/`). No navegador, a entrada tem um link para o site (`SITE` em `Entrada.tsx`).
+
+### Site (`site/`, GitHub Pages)
+
+- Endereço: https://kayokalinauskas.github.io/ozamigos/. Publicado pelo workflow `site.yml` a cada push na `main` que mexe em `site/`.
+- HTML, CSS e JS puros, **sem build e sem dependências**. Caminhos relativos (o site mora em `/ozamigos/`), exceto no `404.html`, que usa `/ozamigos/...` porque o Pages o serve em qualquer caminho.
+- Precisa funcionar sem JavaScript: os botões apontam para `releases/latest` e para `https://ozamigos.onrender.com/`. O `site.js` só melhora a página:
+  - troca o link pelo instalador direto, com versão e tamanho (API do GitHub, guardado 10 min no `sessionStorage`);
+  - fora do Windows, põe "Usar no navegador" como botão principal;
+  - faz um pedido pequeno ao Render para acordar o servidor gratuito.
+- Imagens em WebP (800 e 1600 px, com `srcset`), geradas de `docs/imagens/*.png`. Fontes Inter e Sora (só latin) em `site/fontes/`, com as licenças OFL. Ícones: sprite SVG do Lucide no próprio HTML.
+- Mudou a captura de tela? Gere de novo o WebP; não coloque PNG grande no site.
 
 ### App Electron (`desktop/`)
 

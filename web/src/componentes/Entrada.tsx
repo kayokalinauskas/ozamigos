@@ -6,8 +6,10 @@ import { ponte } from '../ponte';
 import { useCliente } from '../useCliente';
 import { Logo } from './Logo';
 
-/** aoConhecerOApp: no navegador, volta para a apresentação, com o botão de baixar o app. */
-export function Entrada({ aoConhecerOApp }: { aoConhecerOApp: () => void }) {
+/** O site do Ozamigos (GitHub Pages, pasta site/): apresenta e baixa o app para Windows. */
+const SITE = 'https://kayokalinauskas.github.io/ozamigos/';
+
+export function Entrada() {
   const { fase, erro, sala, meuNome } = useCliente();
   const [nome, setNome] = useState(meuNome);
   const [senha, setSenha] = useState(() => lembrado('ozamigos-senha'));
@@ -113,9 +115,9 @@ export function Entrada({ aoConhecerOApp }: { aoConhecerOApp: () => void }) {
             <Server size={14} /> Servidor: {location.host}
           </button>
         ) : (
-          <button type="button" className="botao botao-fantasma botao-pequeno trocar-servidor" onClick={aoConhecerOApp}>
+          <a className="botao botao-fantasma botao-pequeno trocar-servidor" href={SITE}>
             <Download size={14} /> Baixar o app para Windows (som sem o Discord)
-          </button>
+          </a>
         )}
       </form>
     </main>
