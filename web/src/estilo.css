@@ -394,7 +394,8 @@ code {
   flex-direction: column;
   gap: 20px;
   min-height: 0;
-  padding: calc(20px + var(--barra-da-janela)) 16px 16px;
+  /* O logo fica no alto, ao lado dos botões da janela (a barra lateral não fica embaixo deles). */
+  padding: 14px 16px 16px;
   border-right: 1px solid var(--borda);
   background: var(--painel);
 }
@@ -570,7 +571,8 @@ code {
   flex: 1;
   gap: 16px;
   min-width: 0;
-  padding: calc(20px + var(--barra-da-janela)) 24px 16px;
+  /* No app, o topo do palco fica logo abaixo dos botões da janela: o volume, à direita, embaixo deles. */
+  padding: max(16px, calc(var(--barra-da-janela) + 6px)) 24px 16px;
 }
 
 .palco-topo {
@@ -1073,7 +1075,7 @@ input[type='range']::-moz-range-thumb {
   gap: 12px;
   width: 340px;
   flex: none;
-  padding: calc(20px + var(--barra-da-janela)) 16px 20px;
+  padding: max(20px, calc(var(--barra-da-janela) + 10px)) 16px 20px;
   overflow-y: auto;
   border-left: 1px solid var(--borda);
   background: var(--painel);
