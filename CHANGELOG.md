@@ -8,6 +8,8 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.2.12] - 2026-10-14
+
 ### Adicionado
 - **Conversa por voz na sala**: quem entra já está na conversa, sem outro programa, e o microfone abre só quando a pessoa fala.
   - Supressão de ruído com o **RNNoise** por padrão, ou a do navegador, ou nenhuma.
@@ -31,9 +33,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
   - Barras de rolagem finas, na cor do app.
   - Em telas de 2560×1440 sem escala do Windows, a interface fica 20% maior.
 - **Suíte de testes** (`.\testar.ps1`, também na CI): sinalização com clientes WebSocket de verdade, regressão do áudio do microfone, ponta a ponta com navegadores (entrar, transmitir, assistir, falar e sair) e fumaça do app para Windows.
-
 - **Por dentro:** as mensagens com o servidor ganharam um tipo para cada uma (`web/src/conexao/protocolo.ts`), e o núcleo da interface foi dividido em peças menores (sinalização, captura, medições, relatório). O servidor ganhou a verificação de saúde `/actuator/health`, para o Render reiniciá-lo se travar.
-
 - **Menos atraso com o som do jogo:** a folga contra soluços da rede passou a valer só para o vídeo. Com ela também no som, a imagem esperava o som para os dois saírem juntos, e chegava ~200 ms mais tarde (medido num celular pelo Wi-Fi).
 - **Menos congelamentos quando alguém começa a assistir:** cada pessoa nova recebe com metade do bitrate nos primeiros 6 segundos, enquanto o WebRTC mede a rede.
 - **Captura abaixo da qualidade:** o aviso e o relatório agora apontam a causa mais comum, o jogo sem limite de fps ocupando a placa de vídeo, e sugerem limitar o jogo a 60 (num teste, a captura foi de 21 para 29 fps).
@@ -200,7 +200,8 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
-[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.11...HEAD
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.12...HEAD
+[1.2.12]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.11...v1.2.12
 [1.2.11]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.10...v1.2.11
 [1.2.10]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.9...v1.2.10
 [1.2.9]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.8...v1.2.9

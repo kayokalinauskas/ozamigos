@@ -362,7 +362,7 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
       ),
       paraVoce: 'Limite o fps do jogo a 60 (ou ligue o VSync). Num teste com o Path of Exile, a captura foi de 21 para 29 fps só com isso.',
       paraOApp:
-        'Tirar a cópia do caminho (captura em textura: WebRtcAllowWgcUsingTexture + ZeroCopyDesktopCapture) e dar prioridade na placa ao processo de vídeo do Ozamigos (D3DKMTSetProcessSchedulingPriorityClass).',
+        'Tirar a cópia do caminho. A captura em textura do Chromium (WebRtcAllowWgcUsingTexture + ZeroCopyDesktopCapture) resolve na bancada, mas derrubou a página ao codificar no Electron 44.7.2: refazer o teste a cada Electron novo (AGENTS.md). Outra saída: uma captura própria pelo auxiliar C#.',
       ondeNoCodigo: [CODIGO.captura],
     });
   } else {
