@@ -204,11 +204,14 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │   │   ├── SinalizacaoHandler.java   WebSocket /sinal: entrada, plateias e repasse de SDP/ICE
 │   │   ├── Salas.java                Estado das salas em memória (participantes e plateias)
 │   │   ├── SenhaDoGrupo.java         Senha do grupo (variável de ambiente, comparação em tempo constante)
+│   │   ├── TentativasDeSenha.java    Freio de senhas erradas por endereço (10 a cada 5 minutos)
 │   │   └── WebSocketConfig.java      Registro do /sinal e limite de mensagem
 │   └── test/                         Testes do servidor (JUnit + AssertJ), com a sinalização de ponta a ponta
 ├── web/                    Interface (React 19 + TypeScript + Vite)
 │   └── src/
-│       ├── cliente.ts                Núcleo: sinalização, WebRTC, qualidade e estatísticas
+│       ├── cliente.ts                Núcleo: a sala, transmitir, assistir e as conexões de vídeo
+│       ├── conexao/                  Peças do núcleo: protocolo (mensagens com tipo), sinalização (WebSocket e
+│       │                             reconexão), captura, medidor (estatísticas), relatório e ajustes do WebRTC
 │       ├── voz/                      Conversa por voz: conexões, processador (RNNoise e porta) e ajustes
 │       ├── folga.ts                  Folga de rede do vídeo, ajustada à conexão de cada um
 │       ├── somDoApp.ts               Faixa de áudio do auxiliar de som (AudioWorklet)
@@ -300,7 +303,8 @@ Na tela de início, use `http://localhost:8080`. O app só aceita `http://` para
    - **Branch:** `main`;
    - **Instance Type:** Free (ou Starter, para não dormir).
 4. Em **Environment Variables**, adicione `OZAMIGOS_SENHA` com a senha do grupo.
-5. Clique em **Deploy Web Service**. O build leva de 5 a 10 minutos e termina com `Tomcat started on port 10000` no log.
+5. Em **Advanced** → **Health Check Path**, coloque `/actuator/health`: o Render confere por ele se o servidor está de pé e o reinicia se travar. (Num serviço que já existe, fica em **Settings** → **Health Checks**.)
+6. Clique em **Deploy Web Service**. O build leva de 5 a 10 minutos e termina com `Tomcat started on port 10000` no log.
 
 A cada `git push` na `main`, o Render publica de novo sozinho. Depois, coloque o endereço do seu serviço em `desktop/package.json` (`ozamigos.servidor`) e gere o instalador: é o endereço com que o app abre.
 
@@ -400,7 +404,7 @@ gh release delete v1.0.1 --cleanup-tag --yes
 
 ## Protocolo de sinalização
 
-WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O servidor carimba o remetente (`de`) em tudo o que repassa; o cliente nunca informa quem ele é.
+WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O servidor carimba o remetente (`de`) em tudo o que repassa; o cliente nunca informa quem ele é. Os tipos de cada mensagem estão em [`web/src/conexao/protocolo.ts`](web/src/conexao/protocolo.ts).
 
 **Cliente → servidor**
 
@@ -428,9 +432,9 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `oferta` / `resposta` / `candidato` | `de`, ... | Repasse do WebRTC |
 | `gravacao-da-sala` | `ligada`, `id`, `nome` | Alguém começou ou parou de gravar as estatísticas da sala (ou saiu da sala gravando) |
 | `medidas` | `de`, `pacote` | (para quem grava a sala) as medidas de um segundo de outra pessoa |
-| `erro` | `motivo` | `senha-errada`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, ... |
+| `erro` | `motivo` | `senha-errada`, `muitas-tentativas`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `mensagem-invalida`, ... |
 
-Com `senha-errada` e `sala-cheia`, o servidor fecha a conexão logo depois de avisar.
+Com `senha-errada`, `muitas-tentativas` (10 senhas erradas do mesmo endereço em 5 minutos) e `sala-cheia`, o servidor fecha a conexão logo depois de avisar. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.
 
 ---
 

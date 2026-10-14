@@ -1,5 +1,6 @@
 import { Download, X } from 'lucide-react';
-import { cliente, type Metrica } from '../cliente';
+import { cliente } from '../cliente';
+import type { Metrica } from '../conexao/medidor';
 import { QUALIDADES, capturaAbaixo, type Qualidade } from '../qualidade';
 import { useCliente } from '../useCliente';
 

@@ -26,7 +26,7 @@ Falhas de segurança **não** vão em issue: veja [SECURITY.md](SECURITY.md).
 
 - **Português do Brasil** no código, nos identificadores, nos comentários, nas mensagens de commit e nos textos da interface. Os comentários explicam o *porquê*.
 - Siga o estilo do código ao redor. O [AGENTS.md](AGENTS.md) explica a arquitetura, os contratos (como o protocolo de sinalização) e as armadilhas conhecidas.
-- Mudou o protocolo? Mude o servidor (`src/`), o `web/src/cliente.ts` e a seção do protocolo no README juntos.
+- Mudou o protocolo? Mude o servidor (`src/`), o `web/src/conexao/protocolo.ts` e a seção do protocolo no README juntos.
 
 ## Marca
 

@@ -32,6 +32,8 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
   - Em telas de 2560×1440 sem escala do Windows, a interface fica 20% maior.
 - **Suíte de testes** (`.\testar.ps1`, também na CI): sinalização com clientes WebSocket de verdade, regressão do áudio do microfone, ponta a ponta com navegadores (entrar, transmitir, assistir, falar e sair) e fumaça do app para Windows.
 
+- **Por dentro:** as mensagens com o servidor ganharam um tipo para cada uma (`web/src/conexao/protocolo.ts`), e o núcleo da interface foi dividido em peças menores (sinalização, captura, medições, relatório). O servidor ganhou a verificação de saúde `/actuator/health`, para o Render reiniciá-lo se travar.
+
 ### Corrigido
 - Quando duas pessoas saíam da sala ao mesmo tempo, quem ficava podia não ser avisado de uma delas e continuava vendo um "fantasma" na lista.
 - A voz com um amigo cuja rede não deixa conectar ficava tentando ligar de novo para sempre, sem nunca avisar. Agora são 3 tentativas e um aviso.

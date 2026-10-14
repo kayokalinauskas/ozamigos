@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Eye, LayoutGrid, Link, MonitorUp, RectangleHorizontal, Volume2, VolumeX } from 'lucide-react';
-import { cliente, linkDaSala } from '../cliente';
+import { cliente } from '../cliente';
+import { linkDaSala } from '../conexao/codigoDaSala';
 import { useCliente, useNumeroLembrado } from '../useCliente';
 import { Avatar } from './Avatar';
 import { Transmissao } from './Transmissao';

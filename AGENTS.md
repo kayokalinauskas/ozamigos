@@ -75,11 +75,12 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - o servidor **carimba `de`** em tudo o que repassa (o cliente nunca diz quem é) e só repassa dentro da mesma sala;
   - os envios usam `ConcurrentWebSocketSessionDecorator` (a sessão "segura").
 - `WebSocketConfig`: **sem `setAllowedOrigins`**. Só páginas do próprio servidor conectam; o app Electron funciona porque carrega a interface do servidor. Mensagens de texto vão até 64 KB.
-- Protocolo completo: seção "Protocolo de sinalização" do `README.md`. **Se mudar o protocolo, mude o servidor, o `web/src/cliente.ts` e o README juntos.**
+- Protocolo completo: seção "Protocolo de sinalização" do `README.md`. **Se mudar o protocolo, mude o servidor, os tipos em `web/src/conexao/protocolo.ts` e o README juntos.** O teste `conexao.test.ts` falha se o servidor mandar uma mensagem ou um erro que o `protocolo.ts` não conhece, e o `switch` de `tratar` no `cliente.ts` não compila sem um caso para cada mensagem.
 
 ### Interface (`web/src/`)
 
 - `cliente.ts` é o núcleo, sem React: um *store* com `inscrever`/`ler` consumido por `useSyncExternalStore` (`useCliente`). Os componentes só leem o estado e chamam as ações.
+- As peças do núcleo ficam em `conexao/`, sem estado da sala: `protocolo.ts` (as mensagens), `sinalizacao.ts` (o WebSocket, a fila de mensagens e as esperas da reconexão), `captura.ts` (getDisplayMedia e codificador por qualidade), `medidor.ts` (as `Metrica` de cada segundo), `relatorio.ts`, `webrtc.ts` (STUN, Opus no SDP, H.264, candidatos tolerantes) e `codigoDaSala.ts`. A voz usa as mesmas de `webrtc.ts`.
 - **Duas conexões por par, uma por sentido:** a chave é `${canal}:${id}`, com `canal` igual a `'envio'` (minha tela para a pessoa) ou `'recebimento'` (a tela dela para mim).
   - O candidato ICE carrega o `canal` **do ponto de vista de quem mandou**, e quem recebe inverte (`envio` ↔ `recebimento`). Não remova essa inversão.
   - Quem transmite **sempre** é quem faz a oferta; isso evita colisão de ofertas (*glare*).

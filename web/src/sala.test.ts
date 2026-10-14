@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { codigoDe, codigoValido, linkDaSala, novoCodigo } from './cliente';
+import { codigoDe, codigoValido, linkDaSala, novoCodigo } from './conexao/codigoDaSala';
 
 describe('código da sala', () => {
   it('aceita de 6 a 20 letras e números, e nada além disso', () => {

@@ -9,6 +9,8 @@
 // Mudo e surdo de cada um vão direto para os outros, por um canal de dados na própria conexão de voz.
 
 import { criarLimitador } from './limitador';
+import type { SinalDeVozParaEnviar, SinalDoServidor } from '../conexao/protocolo';
+import { adicionarCandidato, novaPeerConnection, opusDeVoz } from '../conexao/webrtc';
 import urlDoRnnoise from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url';
 import urlDoRnnoiseSimd from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url';
 import { tocar } from '../sons';
@@ -47,14 +49,11 @@ export type EstadoDaVoz = {
 
 /** O que a voz precisa do cliente (sinalização e avisos), sem importar o cliente (que importa a voz). */
 export type LigacaoComOCliente = {
-  enviar(msg: Record<string, unknown>): void;
+  enviar(msg: SinalDeVozParaEnviar): void;
   nomeDe(id: string): string;
   avisar(texto: string, tipo?: 'info' | 'erro'): void;
   registrar(evento: string): void;
-  servidoresIce: RTCIceServer[];
 };
-
-type Sinal = { tipo: string; de: string; sdp?: RTCSessionDescriptionInit; candidato?: RTCIceCandidateInit };
 
 type ConexaoDeVoz = {
   id: string;
@@ -452,7 +451,7 @@ class Voz {
     // uma rede que não deixa conectar fazia ligar de novo para sempre, sem nunca avisar).
     const tentativas = this.conexoes.get(id)?.tentativas ?? 0;
     this.fechar(id);
-    const pc = new RTCPeerConnection({ iceServers: this.cliente?.servidoresIce ?? [], bundlePolicy: 'max-bundle' });
+    const pc = novaPeerConnection();
     // O canal de dados é combinado (mesmo id dos dois lados): não precisa de mais sinalização.
     const canal = pc.createDataChannel('estado', { negotiated: true, id: 0 });
     const c: ConexaoDeVoz = { id, pc, oferente, pendentes: [], canal, ultimaFala: 0, tentativas };
@@ -467,7 +466,7 @@ class Voz {
       }
     };
     pc.onicecandidate = (e) => {
-      if (e.candidate) this.cliente?.enviar({ tipo: 'candidato', para: id, canal: 'voz', candidato: e.candidate });
+      if (e.candidate) this.cliente?.enviar({ tipo: 'candidato', para: id, canal: 'voz', candidato: e.candidate.toJSON() });
     };
     pc.ontrack = (e) => this.ouvir(c, e);
     pc.onconnectionstatechange = () => {
@@ -517,8 +516,9 @@ class Voz {
     const c = this.novaConexao(id, true);
     c.pc.addTransceiver(this.minhaTrilha() ?? 'audio', { direction: 'sendrecv' });
     const oferta = await c.pc.createOffer();
-    await c.pc.setLocalDescription({ type: 'offer', sdp: opusDeVoz(oferta.sdp ?? '') });
-    this.cliente?.enviar({ tipo: 'oferta', para: id, canal: 'voz', sdp: c.pc.localDescription });
+    const descricao: RTCSessionDescriptionInit = { type: 'offer', sdp: opusDeVoz(oferta.sdp ?? '') };
+    await c.pc.setLocalDescription(descricao);
+    this.cliente?.enviar({ tipo: 'oferta', para: id, canal: 'voz', sdp: descricao });
   }
 
   /** A conexão caiu: quem ligou liga de novo (até 3 vezes seguidas); o outro lado espera a ligação nova. */
@@ -537,9 +537,9 @@ class Voz {
     void this.ligarPara(c.id);
   }
 
-  async tratarSinal(msg: Sinal) {
+  async tratarSinal(msg: SinalDoServidor) {
     if (!this.naSala) return;
-    if (msg.tipo === 'oferta' && msg.sdp) {
+    if (msg.tipo === 'oferta') {
       await this.montagem;
       const c = this.novaConexao(msg.de, false);
       await c.pc.setRemoteDescription(msg.sdp);
@@ -550,23 +550,24 @@ class Voz {
       }
       await this.aplicarPendentes(c);
       const resposta = await c.pc.createAnswer();
-      await c.pc.setLocalDescription({ type: 'answer', sdp: opusDeVoz(resposta.sdp ?? '') });
-      this.cliente?.enviar({ tipo: 'resposta', para: msg.de, canal: 'voz', sdp: c.pc.localDescription });
-    } else if (msg.tipo === 'resposta' && msg.sdp) {
+      const descricao: RTCSessionDescriptionInit = { type: 'answer', sdp: opusDeVoz(resposta.sdp ?? '') };
+      await c.pc.setLocalDescription(descricao);
+      this.cliente?.enviar({ tipo: 'resposta', para: msg.de, canal: 'voz', sdp: descricao });
+    } else if (msg.tipo === 'resposta') {
       const c = this.conexoes.get(msg.de);
       if (!c || c.pc.signalingState !== 'have-local-offer') return;
       await c.pc.setRemoteDescription(msg.sdp);
       await this.aplicarPendentes(c);
-    } else if (msg.tipo === 'candidato' && msg.candidato) {
+    } else {
       const c = this.conexoes.get(msg.de);
       if (!c) return;
-      if (c.pc.remoteDescription) await c.pc.addIceCandidate(msg.candidato).catch(() => undefined);
+      if (c.pc.remoteDescription) await adicionarCandidato(c.pc, msg.candidato);
       else c.pendentes.push(msg.candidato);
     }
   }
 
   private async aplicarPendentes(c: ConexaoDeVoz) {
-    for (const candidato of c.pendentes) await c.pc.addIceCandidate(candidato).catch(() => undefined);
+    for (const candidato of c.pendentes) await adicionarCandidato(c.pc, candidato);
     c.pendentes = [];
   }
 
@@ -586,17 +587,6 @@ class Voz {
   resumo(): string {
     return [...this.conexoes.values()].map((c) => `${this.nomeDe(c.id)}: ${c.pc.connectionState}`).join(', ');
   }
-}
-
-/**
- * Voz em Opus mono, como no Discord: 64 kbps, correção de perda (FEC) e quase nada enviado no silêncio (DTX).
- */
-function opusDeVoz(sdp: string): string {
-  const tipo = /a=rtpmap:(\d+) opus\/48000\/2/i.exec(sdp)?.[1];
-  if (!tipo) return sdp;
-  return sdp.replace(new RegExp(`(a=fmtp:${tipo} [^\\r\\n]*)`), (linha) =>
-    linha.includes('usedtx') ? linha : `${linha};useinbandfec=1;usedtx=1;maxaveragebitrate=64000`,
-  );
 }
 
 /** O binário do RNNoise, na versão com SIMD (mais rápida) quando o navegador tem. */

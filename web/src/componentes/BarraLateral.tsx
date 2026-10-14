@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Check, Eye, EyeOff, HeadphoneOff, Headphones, Link, LogOut, Mic, MicOff, Settings, VolumeX } from 'lucide-react';
-import { LIMITE_POR_SALA, cliente, linkDaSala } from '../cliente';
+import { cliente } from '../cliente';
+import { LIMITE_POR_SALA, linkDaSala } from '../conexao/codigoDaSala';
 import { useCliente, useVoz } from '../useCliente';
 import { EU, voz } from '../voz/voz';
 import { Avatar } from './Avatar';

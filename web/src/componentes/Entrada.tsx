@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Download, Eye, EyeOff, LoaderCircle, RefreshCw, Server } from 'lucide-react';
-import { cliente, codigoDe, codigoValido, novoCodigo } from '../cliente';
+import { cliente } from '../cliente';
+import { codigoDe, codigoValido, novoCodigo } from '../conexao/codigoDaSala';
 import { lembrado } from '../armazenamento';
 import { ponte } from '../ponte';
 import { useCliente } from '../useCliente';

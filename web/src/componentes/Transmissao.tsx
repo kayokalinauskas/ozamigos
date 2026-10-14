@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { LoaderCircle, Maximize, Maximize2, PictureInPicture2, Volume1, Volume2, VolumeX, X } from 'lucide-react';
-import { cliente, type Metrica } from '../cliente';
+import { cliente } from '../cliente';
+import type { Metrica } from '../conexao/medidor';
 import { useCliente, useNumeroLembrado, useVoz } from '../useCliente';
 import { Avatar } from './Avatar';
 
