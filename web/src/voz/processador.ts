@@ -1,7 +1,7 @@
 // O processador de áudio do microfone, numa thread de áudio (AudioWorklet), em quadros de 10 ms:
 // volume de entrada → RNNoise (tira o ruído e diz a chance de ser voz) → porta (abre só com fala).
 // Manda para a página, 20 vezes por segundo, o volume e se a porta está aberta (medidor e anel de quem fala).
-import { Porta, QUADRO, nivelEmDb, type AjustesDaPorta } from './porta';
+import { ANTECIPAR, Porta, QUADRO, nivelEmDb, picoNoQuadro, type AjustesDaPorta } from './porta';
 
 declare function registerProcessor(nome: string, classe: unknown): void;
 declare class AudioWorkletProcessor {
@@ -66,6 +66,11 @@ class ProcessadorDeVoz extends AudioWorkletProcessor {
   private noQuadro = 0;
   // Fila de saída: começa com um quadro de silêncio, para nunca faltar amostra (10 ms de atraso, fixo).
   private readonly fila = new Float32Array(TAMANHO_DA_FILA);
+  // Os últimos quadros e o que a porta decidiu em cada um: sai o mais antigo, aberto se a porta abriu nele ou depois
+  // (+30 ms de atraso, para o começo sem voz das palavras passar; ver ANTECIPAR em porta.ts).
+  private readonly guardados = Array.from({ length: ANTECIPAR + 1 }, () => new Float32Array(QUADRO));
+  private readonly decisoes: boolean[] = new Array(ANTECIPAR + 1).fill(false);
+  private vez = 0;
   private ler = 0;
   private escrever = QUADRO;
   private abertura = 0;
@@ -115,12 +120,17 @@ class ProcessadorDeVoz extends AudioWorkletProcessor {
       }
     }
     const nivelDb = nivelEmDb(q);
-    const aberta = this.porta.decidir(nivelDb, chanceDeVoz, this.ajustes);
-    const alvo = aberta ? 1 : 0;
-    const passo = aberta ? ABRIR : FECHAR;
+    const aberta = this.porta.decidir(nivelDb, chanceDeVoz, this.ajustes, picoNoQuadro(q));
+    this.guardados[this.vez].set(q);
+    this.decisoes[this.vez] = aberta;
+    this.vez = (this.vez + 1) % (ANTECIPAR + 1);
+    const saindo = this.guardados[this.vez];
+    const abrir = this.decisoes.includes(true);
+    const alvo = abrir ? 1 : 0;
+    const passo = abrir ? ABRIR : FECHAR;
     for (let i = 0; i < QUADRO; i++) {
       this.abertura += (alvo - this.abertura) * passo;
-      this.fila[this.escrever] = q[i] * this.abertura;
+      this.fila[this.escrever] = saindo[i] * this.abertura;
       this.escrever = (this.escrever + 1) % TAMANHO_DA_FILA;
     }
     this.maiorNivel = Math.max(this.maiorNivel, nivelDb);

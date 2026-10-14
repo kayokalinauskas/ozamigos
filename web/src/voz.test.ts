@@ -17,6 +17,19 @@ describe('porta do microfone', () => {
     expect(porta.aberta).toBe(false);
   });
 
+  it('na automática, abre no chiado do começo da palavra ("S", "F"), mas não com cliques', () => {
+    const porta = new Porta();
+    for (let i = 0; i < 100; i++) porta.decidir(-60, 0.01, AUTOMATICA);
+    for (let i = 0; i < 5; i++) porta.decidir(-35, 0.05, AUTOMATICA, 4); // cliques: alto, energia num pedaço só
+    expect(porta.aberta).toBe(false);
+    for (let i = 0; i < 10; i++) porta.decidir(-60, 0.01, AUTOMATICA);
+    porta.decidir(-42, 0.1, AUTOMATICA, 1.3);
+    porta.decidir(-41, 0.1, AUTOMATICA, 1.4);
+    expect(porta.decidir(-40, 0.15, AUTOMATICA, 1.2)).toBe(true); // 3 quadros de chiado: abre (e a saída volta 30 ms)
+    for (let i = 0; i < 25; i++) porta.decidir(-40, 0.15, AUTOMATICA, 1.2); // chiado que nunca vira voz (sopro)
+    expect(porta.aberta).toBe(false);
+  });
+
   it('na manual, abre só acima do limite escolhido', () => {
     const porta = new Porta();
     expect(porta.decidir(-55, 0.99, { automatica: false, limiarDb: -50 })).toBe(false);

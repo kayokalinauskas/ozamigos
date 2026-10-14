@@ -16,6 +16,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
   - Engrenagem com microfone, saída de áudio, volumes de entrada e de saída, teste do microfone, cancelamento de eco, controle automático de ganho e os sons de aviso.
   - Volume da voz de cada amigo (até 200%) e "silenciar para mim", clicando no avatar dele.
   - Um limitador suave antes da caixa de som: vários amigos falando juntos, ou um volume em 200%, não estouram.
+  - A sensibilidade automática não corta mais o começo das palavras que abrem com chiado ("**s**im", "**f**ala", "**ch**ega"), ao custo de 30 ms a mais de atraso na voz. Cliques de teclado continuam de fora.
 
 ### Alterado
 - **Menos atraso para quem assiste:** a folga contra soluços da rede era fixa em 200 ms e agora se ajusta à rede de cada um (de 80 a 250 ms, começando em 100). Na bancada, o atraso estimado caiu de ~195 ms para ~100 ms.
