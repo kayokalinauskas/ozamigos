@@ -291,9 +291,18 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         enviar(segura(sessao), json.createObjectNode().put("tipo", "erro").put("motivo", motivo));
     }
 
-    private void enviar(WebSocketSession destino, JsonNode msg) throws IOException {
-        if (destino != null && destino.isOpen()) {
+    /**
+     * Uma conexão pode fechar entre o isOpen e o envio (duas pessoas saindo juntas): essa falha fica só com ela,
+     * para não interromper os avisos aos outros da sala.
+     */
+    private void enviar(WebSocketSession destino, JsonNode msg) {
+        if (destino == null || !destino.isOpen()) {
+            return;
+        }
+        try {
             destino.sendMessage(new TextMessage(json.writeValueAsString(msg)));
+        } catch (IOException | IllegalStateException e) {
+            log.debug("não deu para enviar para uma conexão que fechou: {}", e.getMessage());
         }
     }
 }

@@ -8,6 +8,7 @@
 // Quem chega na sala (ou volta depois de cair) liga para todos os que já estavam: nunca os dois ligam ao mesmo tempo.
 // Mudo e surdo de cada um vão direto para os outros, por um canal de dados na própria conexão de voz.
 
+import { criarLimitador } from './limitador';
 import urlDoRnnoise from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url';
 import urlDoRnnoiseSimd from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url';
 import { tocar } from '../sons';
@@ -583,25 +584,6 @@ function opusDeVoz(sdp: string): string {
   return sdp.replace(new RegExp(`(a=fmtp:${tipo} [^\\r\\n]*)`), (linha) =>
     linha.includes('usedtx') ? linha : `${linha};useinbandfec=1;usedtx=1;maxaveragebitrate=64000`,
   );
-}
-
-/**
- * Limitador suave, sem atraso, já ligado na caixa de som: abaixo de -2 dB o som passa igual; acima, o pico é
- * arredondado até 0 dB em vez de estourar (o estalo de saturação). Aguenta até o dobro do máximo (+6 dB).
- */
-function criarLimitador(ctx: AudioContext): AudioNode {
-  const entrada = ctx.createGain();
-  entrada.gain.value = 0.5; // a curva cobre de -2 a 2
-  const curva = new Float32Array(4097);
-  for (let i = 0; i < curva.length; i++) {
-    const x = ((i / (curva.length - 1)) * 2 - 1) * 2;
-    const a = Math.abs(x);
-    curva[i] = Math.sign(x) * (a <= 0.8 ? a : 0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2));
-  }
-  const formador = ctx.createWaveShaper();
-  formador.curve = curva;
-  entrada.connect(formador).connect(ctx.destination);
-  return entrada;
 }
 
 /** O binário do RNNoise, na versão com SIMD (mais rápida) quando o navegador tem. */

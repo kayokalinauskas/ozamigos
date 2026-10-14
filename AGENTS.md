@@ -21,7 +21,7 @@ Deploy: Render (Docker). O `Dockerfile` tem 3 etapas: Node monta `web/`, o JDK c
 - **Idioma:** código, identificadores, comentários, mensagens de commit e textos da interface em **português do Brasil**. Os comentários explicam o *porquê*, no tom dos já existentes.
 - **Commits:** adicione **caminhos explícitos** (`git add caminho/arquivo`), nunca `git add -A` ou `git add .`. Faça push só quando pedirem.
 - **Terminal do dono:** é o PowerShell 5.1, que **não aceita `&&`**. Nas instruções para ele, use um comando por linha ou `;`.
-- **Testes:** só o básico (JUnit no servidor). As mudanças de comportamento se verificam rodando o app (veja "Como testar").
+- **Testes:** poucos e essenciais, um por comportamento que importa (pedido do dono). Rode `.\testar.ps1` antes de commitar (servidor, interface, áudio, ponta a ponta e app; a seção "Testes" do README explica cada camada). Mudança de comportamento ganha teste na camada certa; o resto se verifica rodando o app (veja "Como testar").
 - **Telas prioritárias:** 1920×1080 e 2560×1440. A interface é tema escuro, com os tokens CSS em `web/src/estilo.css`.
 - **Segredos:** a senha do grupo vem só da variável `OZAMIGOS_SENHA`. Nunca coloque segredos no código.
 
@@ -47,6 +47,8 @@ $env:OZAMIGOS_SENHA = "teste"
 .\mvnw.cmd spring-boot:run
 # Testes do servidor
 .\mvnw.cmd test
+# A suíte inteira (servidor, interface, áudio, ponta a ponta na porta 8090 e fumaça do app); -Rapido pula navegadores e app
+.\testar.ps1
 # App Electron em desenvolvimento (compila o auxiliar de som antes)
 cd desktop; npm install; npm run som; npm start
 # Instalador e versão portátil (desktop\dist); compila o auxiliar também

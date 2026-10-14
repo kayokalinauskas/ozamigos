@@ -205,7 +205,7 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │   │   ├── Salas.java                Estado das salas em memória (participantes e plateias)
 │   │   ├── SenhaDoGrupo.java         Senha do grupo (variável de ambiente, comparação em tempo constante)
 │   │   └── WebSocketConfig.java      Registro do /sinal e limite de mensagem
-│   └── test/                         Testes (JUnit + AssertJ)
+│   └── test/                         Testes do servidor (JUnit + AssertJ), com a sinalização de ponta a ponta
 ├── web/                    Interface (React 19 + TypeScript + Vite)
 │   └── src/
 │       ├── cliente.ts                Núcleo: sinalização, WebRTC, qualidade e estatísticas
@@ -507,25 +507,31 @@ A **fluidez** é a porcentagem de quadros que chegaram à tela a tempo: interval
 
 ## Testes
 
-```powershell
-.\mvnw.cmd test
-```
-
-Os testes cobrem:
-- o limite de pessoas por sala;
-- o que quem chega depois recebe (transmissões e plateias);
-- as regras de plateia;
-- a senha do grupo;
-- a subida da aplicação.
-
-Na interface (`cd web`):
+Um comando roda a suíte inteira, da camada mais rápida para a mais lenta, e mostra um resumo:
 
 ```powershell
-npm test           # Vitest: código e link da sala, preferências, qualidade, porta da voz, folga de rede e ajustes de voz
-npm run typecheck  # tipos
+.\testar.ps1           # tudo (~1 min depois da primeira vez)
+.\testar.ps1 -Rapido   # só servidor e interface (~15 s)
 ```
 
-O workflow [CI](.github/workflows/ci.yml) roda tudo isso em cada push na `main` e em cada pull request: os testes e o build da interface, os testes do servidor e a checagem dos scripts do app. O workflow [Site](.github/workflows/site.yml) publica a pasta `site/` no [GitHub Pages](https://kayokalinauskas.github.io/ozamigos/) sempre que ela muda. O site não tem build: é HTML, CSS e um script pequeno que só melhora a página (link direto do instalador, versão e tamanho). Sem JavaScript, os botões continuam funcionando. O [Dependabot](.github/dependabot.yml) abre pull requests quando sai versão nova das dependências.
+| Camada | Onde | O que garante |
+|---|---|---|
+| **Servidor** (JUnit + AssertJ) | `src/test/` | Regras das salas (limite de pessoas, plateias, gravação, reconexão pela ficha) e a senha do grupo. A **sinalização** roda com clientes WebSocket de verdade contra o Tomcat: senha errada fecha a conexão, oferta só vai para o destinatário e com o remetente carimbado pelo servidor, nada atravessa salas, e quem sai (mesmo duas pessoas juntas) é avisado aos outros. |
+| **Interface** (Vitest) | `web/src/**/*.test.ts` | Código e link da sala, preferências, qualidade, folga de rede, ajustes de voz e a análise do teste de desempenho. |
+| **Áudio** (Vitest) | `web/src/voz/audio.test.ts` | O processador real do microfone (RNNoise + porta) com sons sintéticos: o começo das palavras que abrem com chiado ("**s**im") não é cortado, o ruído da sala não passa, cliques de teclado quase não passam e o limitador da saída nunca estoura. |
+| **Ponta a ponta** (Playwright) | `web/e2e/` | Navegadores de verdade, com microfone falso e um "jogo" desenhado, contra o servidor de verdade (porta 8090): senha errada não entra, a transmissão chega em movimento para quem assiste, a voz chega na caixa de som de quem ouve, o microfone desligado silencia e quem sai some da sala. |
+| **App do Windows** (Playwright + Electron) | `desktop/teste/` | O app abre a interface do servidor com a ponte (`window.ozamigos`) e sem acesso ao Node; sem servidor, mostra a tela de início com o erro. Roda com uma pasta de dados temporária e outro AppUserModelID, sem tocar no app instalado. |
+
+Cada camada também roda sozinha:
+
+```powershell
+.\mvnw.cmd test                         # servidor
+cd web; npm test                         # interface e áudio
+cd web; npm run build; npm run test:e2e  # ponta a ponta (a primeira vez: npx playwright install chromium)
+cd desktop; npm test                     # app do Windows
+```
+
+O workflow [CI](.github/workflows/ci.yml) roda as cinco camadas em cada push na `main` e em cada pull request (o ponta a ponta no Linux, o app no Windows). Quando um teste ponta a ponta falha, o rastro do Playwright (tela, rede e console passo a passo) fica nos artefatos da execução por 7 dias. O workflow [Site](.github/workflows/site.yml) publica a pasta `site/` no [GitHub Pages](https://kayokalinauskas.github.io/ozamigos/) sempre que ela muda. O site não tem build: é HTML, CSS e um script pequeno que só melhora a página (link direto do instalador, versão e tamanho). Sem JavaScript, os botões continuam funcionando. O [Dependabot](.github/dependabot.yml) abre pull requests quando sai versão nova das dependências.
 
 ---
 

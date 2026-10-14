@@ -30,6 +30,10 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
   - No modo Destaque, a transmissão principal fica em 16:9. Quando o palco não é largo (estatísticas abertas, janela estreita), as outras vão para uma fileira embaixo dela, e ela fica bem maior.
   - Barras de rolagem finas, na cor do app.
   - Em telas de 2560×1440 sem escala do Windows, a interface fica 20% maior.
+- **Suíte de testes** (`.\testar.ps1`, também na CI): sinalização com clientes WebSocket de verdade, regressão do áudio do microfone, ponta a ponta com navegadores (entrar, transmitir, assistir, falar e sair) e fumaça do app para Windows.
+
+### Corrigido
+- Quando duas pessoas saíam da sala ao mesmo tempo, quem ficava podia não ser avisado de uma delas e continuava vendo um "fantasma" na lista.
 
 ## [1.2.11] - 2026-10-13
 

@@ -1,4 +1,5 @@
-# Confere cada push e pull request: a interface compila e os testes do servidor passam.
+# Confere cada push e pull request: os testes do servidor e da interface, o ponta a ponta com navegadores
+# de verdade e a fumaça do app para Windows (a mesma suíte do .	estar.ps1).
 # O selo "CI" do README mostra o resultado do último push na main.
 name: CI
 
@@ -45,6 +46,36 @@ jobs:
           cache: maven
       - run: chmod +x mvnw && ./mvnw -B test
 
+  ponta-a-ponta:
+    name: Ponta a ponta (Playwright)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build # o servidor entrega a interface compilada
+      - run: npx playwright install --with-deps chromium
+      - run: chmod +x ../mvnw && npm run test:e2e
+      - name: Guardar o rastro dos testes que falharam
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rastro-ponta-a-ponta
+          path: web/test-results/
+          retention-days: 7
+
   app:
     name: App para Windows
     runs-on: windows-latest
@@ -62,3 +93,5 @@ jobs:
       - name: Conferir a sintaxe dos scripts
         run: Get-ChildItem *.js, build/*.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { exit 1 } }
         shell: pwsh
+      - name: Fumaça do app (abre, confere a janela e a ponte, fecha)
+        run: npm test
