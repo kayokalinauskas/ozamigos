@@ -11,7 +11,7 @@
 <h3 align="center">Transmita seu jogo e converse com os amigos, direto de um PC para o outro.</h3>
 
 <p align="center">
-  Vídeo em até 1080p a 60 fps e voz com redução de ruído, sem servidor de mídia no meio.<br>
+  Vídeo em 720p ou 1080p e voz com redução de ruído, sem servidor de mídia no meio.<br>
   App para Windows e versão web, com salas protegidas por senha e todo mundo transmitindo ao mesmo tempo.
 </p>
 
@@ -97,7 +97,7 @@
 - **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura (ao lado ou numa fileira embaixo, conforme o espaço). Dois cliques no vídeo abrem a tela cheia, e o botão **Janela flutuante** solta a transmissão numa janelinha que fica por cima do jogo.
 - **Áudio por transmissão:** volume e silenciar de cada uma, lembrados por amigo, mais um volume geral.
 - **Pouco atraso para quem assiste:** a folga contra soluços da rede se ajusta à conexão de cada um, de 80 a 250 ms.
-- **Qualidade ajustável ao vivo:** 1080p ou 720p, a 30 ou 60 fps, sem derrubar ninguém. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
+- **Qualidade ajustável ao vivo:** 720p (padrão) ou 1080p, a 30 fps, sem derrubar ninguém. Se o PC ou a internet de quem transmite não der conta de 1080p, a transmissão desce sozinha para 720p em vez de travar, e volta quando folgar. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
 - **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos, que dá para desligar, e notificação do Windows quando o app está atrás do jogo.
 - **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
 - **Reconexão automática:** se a internet oscilar ou o servidor reiniciar, o app volta sozinho para a sala. Quem transmitia continua transmitindo, e quem assistia continua assistindo. As transmissões já abertas não param enquanto isso.
@@ -446,12 +446,14 @@ A voz pesa pouco: Opus mono a 64 kbps para cada amigo da sala, e quase nada enqu
 
 | Qualidade | Upload por pessoa assistindo | Quando usar |
 |---|---|---|
-| 1080p · 30 fps (padrão) | ~6 Mbps | Imagem nítida, metade do trabalho do PC |
-| 1080p · 60 fps | ~10 Mbps | Jogos rápidos, com upload sobrando |
-| 720p · 60 fps | ~6 Mbps | Fluidez com menos banda |
-| 720p · 30 fps | ~4 Mbps | Internet fraca |
+| 720p · 30 fps (padrão) | ~4 Mbps | Quase sempre: leve para quem transmite e para quem assiste, como no Discord sem Nitro |
+| 1080p · 30 fps | ~6 Mbps | Imagem mais nítida, com PC e upload sobrando |
 
-Exemplo: em 1080p a 30 fps para 4 amigos, são cerca de 25 Mbps de upload; para 7 (a sala cheia), cerca de 42 Mbps, o que pede cabo e um plano com upload folgado. Nos primeiros 15 a 25 segundos, uma resolução menor é normal: o WebRTC está medindo a rede.
+Não há opção a 60 fps: em jogo pesado, a captura do navegador já fica entre 21 e 29 fps, e os 60 dobravam o custo de codificar e de enviar.
+
+Em 1080p, o app acompanha quem transmite a cada segundo. Se o processador ou a placa de vídeo limitarem o codificador, ou se a banda estimada ficar abaixo de ~3 Mbps, por 6 de 10 segundos, a transmissão desce para 720p e aparece **Em 720p** ao lado da qualidade. Ela volta para 1080p depois de 30 segundos sem aperto e de 2 minutos da descida (a espera dobra a cada nova descida, até 16 minutos). Em 720p, se ainda faltar fôlego, o próprio WebRTC reduz a imagem em vez de travar.
+
+Exemplo: em 720p para 4 amigos, são cerca de 16 Mbps de upload; para 7 (a sala cheia), cerca de 28 Mbps. Em 1080p, cerca de 25 e 42 Mbps, o que pede cabo e um plano com upload folgado. Nos primeiros 15 a 25 segundos, uma resolução menor é normal: o WebRTC está medindo a rede.
 
 **Fps baixo ou travando.** Abra **Estatísticas** no PC de quem transmite:
 

@@ -687,7 +687,7 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
 
 // ===== Recomendação =====
 
-const PREFERENCIA: Qualidade[] = ['maxima', 'nitida', 'equilibrada', 'leve'];
+const PREFERENCIA: Qualidade[] = ['nitida', 'leve'];
 const contar = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 const passou = (t: ResumoDoTrecho) => t.resultado === 'otimo' || t.resultado === 'bom';
 
@@ -731,7 +731,7 @@ export function recomendar(g: Gravacao, trechos: ResumoDoTrecho[], diagnosticos:
       melhor
         ? `Entre as ${base.size} qualidades testadas, a melhor que passou sem engasgos foi ${QUALIDADES[melhor].rotulo}.`
         : capturaLimita
-          ? 'Nenhuma qualidade recebeu da captura os fps que pede: os amigos veem no máximo o que a captura entrega, seja qual for a qualidade. Uma qualidade a 30 fps gasta menos sem perder nada.'
+          ? 'Nenhuma qualidade recebeu da captura os fps que pede: os amigos veem no máximo o que a captura entrega, seja qual for a qualidade. Baixar a qualidade não muda isso.'
           : 'Nenhuma das qualidades testadas passou sem engasgos.',
     );
   }

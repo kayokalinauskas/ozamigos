@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppWindow, ChartColumn, ChevronUp, Monitor, MonitorUp, MonitorX, RefreshCw, TriangleAlert } from 'lucide-react';
+import { AppWindow, ArrowDown, ChartColumn, ChevronUp, Monitor, MonitorUp, MonitorX, RefreshCw, TriangleAlert } from 'lucide-react';
 import { cliente } from '../cliente';
 import { noApp } from '../ponte';
 import { QUALIDADES, capturaAbaixo, ehQualidade } from '../qualidade';
@@ -8,7 +8,7 @@ import { useCliente } from '../useCliente';
 type Props = { estatisticasAbertas: boolean; aoAlternarEstatisticas: () => void };
 
 export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props) {
-  const { minhaTela, qualidade, metricas } = useCliente();
+  const { minhaTela, qualidade, qualidadeEscolhida, qualidadeReduzida, metricas } = useCliente();
   const podeCapturar = Boolean(navigator.mediaDevices?.getDisplayMedia);
   const transmitindo = minhaTela !== null;
   const capturaBaixa = transmitindo
@@ -44,12 +44,22 @@ export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props
             <TriangleAlert size={16} aria-hidden="true" /> Captura a {capturaBaixa} fps
           </button>
         )}
+        {transmitindo && qualidadeReduzida && (
+          <button
+            type="button"
+            className="aviso-captura"
+            onClick={() => !estatisticasAbertas && aoAlternarEstatisticas()}
+            title={`${qualidadeReduzida === 'pc' ? 'Seu PC' : 'Sua internet'} não estava dando conta de ${QUALIDADES[qualidadeEscolhida].rotulo}, e a transmissão desceu sozinha para não travar. Ela volta quando folgar. Clique para ver as estatísticas.`}
+          >
+            <ArrowDown size={16} aria-hidden="true" /> Em {QUALIDADES[qualidade].rotulo.split(' ')[0]}
+          </button>
+        )}
         <label className="seletor-qualidade">
           <span className="rotulo">Qualidade</span>
           <select
-            value={qualidade}
+            value={qualidadeEscolhida}
             onChange={(e) => ehQualidade(e.target.value) && void cliente.mudarQualidade(e.target.value)}
-            title="Muda na hora, sem derrubar ninguém"
+            title="Muda na hora, sem derrubar ninguém. A 1080p pesa mais para o seu PC, a sua internet e o PC de quem assiste; se não der conta, a transmissão desce sozinha para 720p."
           >
             {Object.entries(QUALIDADES).map(([valor, { rotulo, detalhe }]) => (
               <option key={valor} value={valor}>

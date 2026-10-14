@@ -137,7 +137,7 @@ class Teste {
       this.mudar({ erro: `${e.gravacaoDaSala.id === e.meuId ? 'Você está' : `${e.gravacaoDaSala.nome} está`} gravando as estatísticas da sala. Espere terminar (Ctrl+Shift+G).` });
       return;
     }
-    const etapas = etapasDoRoteiro(roteiro, e.qualidade);
+    const etapas = etapasDoRoteiro(roteiro, e.qualidadeEscolhida);
     const [video] = e.minhaTela.getVideoTracks();
     this.gravacao = {
       formato: FORMATO,
@@ -150,7 +150,7 @@ class Teste {
       navegador: navigator.userAgent,
       pc: (await ponte?.desempenho?.pc().catch(() => null)) ?? null,
       tela: `${screen.width}x${screen.height} @${devicePixelRatio}`,
-      qualidadeDaPessoa: e.qualidade,
+      qualidadeDaPessoa: e.qualidadeEscolhida,
       fonte: `${cliente.descreverFonte()} · "${video?.label ?? '?'}" · captura ${JSON.stringify(video?.getSettings() ?? {})}`,
       ajustes: { ...AJUSTES_DA_TRANSMISSAO },
       qualidades: { ...QUALIDADES },
@@ -433,7 +433,7 @@ class Teste {
     this.simulados = [];
     medidorDaPagina.desligar();
     contadoresDoPc.desligar();
-    if (cliente.ler().minhaTela && cliente.ler().qualidade !== g.qualidadeDaPessoa) await cliente.qualidadeTemporaria(g.qualidadeDaPessoa);
+    await cliente.voltarQualidade(); // mesmo se a transmissão parou no meio: a descida automática volta a valer
     cliente.registrar('teste de desempenho: terminou');
     this.gravacao = null;
     this.mudar({ fase: 'pronto', simulados: [], gravacao: g });

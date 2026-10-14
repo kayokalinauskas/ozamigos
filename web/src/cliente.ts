@@ -5,7 +5,8 @@
 //   medidor.ts      as estatísticas de cada segundo               relatorio.ts  o relatório da sessão
 
 import { lembrado, lembrar } from './armazenamento';
-import { QUALIDADES, QUALIDADE_PADRAO, ehQualidade, type Qualidade } from './qualidade';
+import { QUALIDADES, qualidadeGuardada, type Qualidade } from './qualidade';
+import { AUTOMATICA, QualidadeAutomatica, type Motivo } from './qualidadeAutomatica';
 import { tocar } from './sons';
 import { noApp, ponte, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';
 import { pararSomDoApp, trilhaDoSomDoApp } from './somDoApp';
@@ -53,7 +54,9 @@ export type Estado = {
   assistindo: string[]; // quem eu escolhi assistir (continua valendo se a pessoa parar e voltar)
   videos: Record<string, MediaStream>; // o que chega de cada pessoa que eu assisto
   minhaTela: MediaStream | null;
-  qualidade: Qualidade;
+  qualidade: Qualidade; // a que está valendo agora
+  qualidadeEscolhida: Qualidade; // a que a pessoa escolheu; difere da de agora quando desceu sozinha (qualidadeAutomatica.ts)
+  qualidadeReduzida: Motivo | null; // por que desceu: o PC ou a internet de quem transmite
   metricas: Record<string, Metrica>; // `${canal}:${id}` -> medição
   avisos: Aviso[];
   conexaoPerdida: boolean; // caiu a conexão com o servidor; o cliente já está tentando voltar sozinho
@@ -98,6 +101,7 @@ export const AJUSTES_DA_TRANSMISSAO = {
   bundlePolicy: 'max-bundle',
   audio: 'Opus estéreo até 128 kbps, sem cancelamento de eco/ruído',
   escalaNoCodificador: 'scaleResolutionDownBy 1 (a captura já sai no tamanho da qualidade)',
+  qualidadeAutomatica: `quem escolheu 1080p desce sozinho para 720p (web/src/qualidadeAutomatica.ts) com aperto em ${AUTOMATICA.apertados} de ${AUTOMATICA.janela} s (qualityLimitationReason cpu ou bandwidth, ou banda estimada abaixo de ${AUTOMATICA.bandaMinima * 100}% do bitrate), e volta depois de ${AUTOMATICA.calmaParaSubir} s sem aperto e ${AUTOMATICA.esperaInicial / 60} min (a espera dobra a cada descida)`,
 };
 
 /** Uma conexão de vídeo com alguém da sala: quem me assiste (envio) ou quem eu assisto (recebimento). */
@@ -126,6 +130,8 @@ class Cliente {
   private medindo = false;
   // Conexões de envio que não são de ninguém da sala: os espectadores simulados do teste de desempenho.
   private readonly enviosExtras = new Set<RTCPeerConnection>();
+  private readonly qualidadeAutomatica = new QualidadeAutomatica();
+  private qualidadeEmTeste = false; // o teste de desempenho troca a qualidade: a descida automática fica parada
   /** Quem grava as estatísticas da sala recebe aqui as medidas de cada pessoa (desempenho/gravadorDaSala.ts). */
   aoReceberMedidas: ((de: string, pacote: unknown) => void) | null = null;
   /** O servidor recusou começar a gravação: outra pessoa já grava. */
@@ -134,7 +140,9 @@ class Cliente {
   constructor() {
     const daUrl = new URLSearchParams(location.search).get('sala');
     const sala = daUrl && codigoValido(daUrl) ? daUrl : novoCodigo();
-    const qualidade = lembrado('ozamigos-qualidade');
+    const guardada = lembrado('ozamigos-qualidade');
+    const qualidade = qualidadeGuardada(guardada);
+    if (guardada && guardada !== qualidade) lembrar('ozamigos-qualidade', qualidade); // uma opção que saiu (60 fps)
     this.estado = {
       fase: 'entrada',
       erro: '',
@@ -147,7 +155,9 @@ class Cliente {
       assistindo: [],
       videos: {},
       minhaTela: null,
-      qualidade: ehQualidade(qualidade) ? qualidade : QUALIDADE_PADRAO,
+      qualidade,
+      qualidadeEscolhida: qualidade,
+      qualidadeReduzida: null,
       metricas: {},
       avisos: [],
       conexaoPerdida: false,
@@ -616,10 +626,14 @@ class Cliente {
     }
     const plateias = { ...this.estado.plateias };
     if (meuId) delete plateias[meuId];
+    // A próxima transmissão começa na qualidade escolhida.
+    this.qualidadeAutomatica.reiniciar();
     this.mudar({
       minhaTela: null,
       transmitindo: this.estado.transmitindo.filter((id) => id !== meuId),
       plateias,
+      qualidade: this.estado.qualidadeEscolhida,
+      qualidadeReduzida: null,
     });
     if (avisarServidor) this.enviar({ tipo: 'parei' });
   }
@@ -630,17 +644,45 @@ class Cliente {
 
   // ===== Qualidade =====
 
-  /** Troca a qualidade sem guardar a escolha: o teste de desempenho passa por todas e volta para a da pessoa. */
+  /** Troca a qualidade sem guardar a escolha: o teste de desempenho passa por todas e depois chama voltarQualidade. */
   async qualidadeTemporaria(qualidade: Qualidade) {
     this.registrar(`qualidade (teste): ${qualidade}`);
+    this.qualidadeEmTeste = true;
     this.mudar({ qualidade });
     await this.aplicarQualidade();
+  }
+
+  /** Fim do teste de desempenho: volta para a qualidade escolhida, com a descida automática do zero. */
+  async voltarQualidade() {
+    this.qualidadeEmTeste = false;
+    await this.mudarQualidade(this.estado.qualidadeEscolhida);
   }
 
   async mudarQualidade(qualidade: Qualidade) {
     this.registrar(`qualidade: ${qualidade}`);
     lembrar('ozamigos-qualidade', qualidade);
-    this.mudar({ qualidade });
+    this.qualidadeAutomatica.reiniciar();
+    const mudou = qualidade !== this.estado.qualidade;
+    this.mudar({ qualidade, qualidadeEscolhida: qualidade, qualidadeReduzida: null });
+    if (mudou) await this.aplicarQualidade();
+  }
+
+  /** A cada medição: quem escolheu 1080p e não está dando conta desce para 720p, e volta quando folgar. */
+  private async ajustarQualidade(metricas: Record<string, Metrica>) {
+    if (!this.estado.minhaTela || this.qualidadeEmTeste) return;
+    const envios = Object.values(metricas).filter((m) => m.canal === 'envio');
+    const decisao = this.qualidadeAutomatica.medir(Date.now(), this.estado.qualidadeEscolhida, envios);
+    if (!decisao) return;
+    const { rotulo } = QUALIDADES[decisao.qualidade];
+    if (decisao.acao === 'descer') {
+      const causa = decisao.motivo === 'pc' ? 'seu PC não estava dando conta' : 'sua internet não estava dando conta';
+      this.registrar(`qualidade automática: desceu para ${decisao.qualidade} (${decisao.motivo})`);
+      this.avisar(`A transmissão foi para ${rotulo}: ${causa}. Ela volta sozinha quando folgar.`);
+      this.mudar({ qualidade: decisao.qualidade, qualidadeReduzida: decisao.motivo });
+    } else {
+      this.registrar(`qualidade automática: voltou para ${decisao.qualidade}`);
+      this.mudar({ qualidade: decisao.qualidade, qualidadeReduzida: null });
+    }
     await this.aplicarQualidade();
   }
 
@@ -918,6 +960,7 @@ class Cliente {
       const metricas = await this.medidor.medir(this.conexoes);
       this.mudar({ metricas });
       this.relatorioDaSessao.registrarMedidas(metricas, (id) => this.nomeDe(id));
+      await this.ajustarQualidade(metricas);
     } finally {
       this.medindo = false;
     }
