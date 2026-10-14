@@ -395,6 +395,22 @@ h1 {
   margin-top: 48px;
 }
 
+/* Voz: o texto e a lista à esquerda; a engrenagem, na proporção dela, à direita. */
+.privacidade-lista.voz-lista {
+  margin-top: 28px;
+}
+
+.moldura-voz {
+  justify-self: center;
+  width: 100%;
+  max-width: 720px;
+}
+
+.moldura-voz img {
+  height: auto;
+  aspect-ratio: auto;
+}
+
 /* ===== Seções ===== */
 .secao {
   padding-block: 72px;

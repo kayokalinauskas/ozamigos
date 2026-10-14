@@ -101,13 +101,15 @@ export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
 
       {noPalco.length > 0 && destaque ? (
         <div className="videos videos-destaque">
-          <Transmissao key={emFoco} id={emFoco} volumeGeral={volume} principal />
-          <div className="coluna-lateral">
-            {noPalco
-              .filter((id) => id !== emFoco)
-              .map((id) => (
-                <Transmissao key={id} id={id} volumeGeral={volume} principal={false} aoDestacar={() => aoDestacar(id)} />
-              ))}
+          <div className="destaque-arranjo">
+            <Transmissao key={emFoco} id={emFoco} volumeGeral={volume} principal />
+            <div className="coluna-lateral">
+              {noPalco
+                .filter((id) => id !== emFoco)
+                .map((id) => (
+                  <Transmissao key={id} id={id} volumeGeral={volume} principal={false} aoDestacar={() => aoDestacar(id)} />
+                ))}
+            </div>
           </div>
         </div>
       ) : noPalco.length > 0 ? (

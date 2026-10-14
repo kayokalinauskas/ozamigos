@@ -30,7 +30,7 @@ export function Entrada() {
     <main className="entrada">
       <form className="cartao-entrada" onSubmit={enviar}>
         <Logo grande />
-        <p className="subtitulo">Transmita seu jogo para os amigos em até 1080p, direto de um PC para o outro.</p>
+        <p className="subtitulo">Transmita seu jogo e converse com os amigos, direto de um PC para o outro.</p>
 
         <label className="campo">
           <span>Seu nome</span>
@@ -116,7 +116,7 @@ export function Entrada() {
           </button>
         ) : (
           <a className="botao botao-fantasma botao-pequeno trocar-servidor" href={SITE}>
-            <Download size={14} /> Baixar o app para Windows (som sem o Discord)
+            <Download size={14} /> Baixar o app para Windows (som do jogo sem eco)
           </a>
         )}
       </form>

@@ -787,7 +787,20 @@ input[type='range']::-moz-range-thumb {
 
 /* Destaque: a principal ocupa todo o espaço; as outras ficam numa coluna à direita. */
 .videos-destaque {
+  display: block;
+}
+
+.destaque-arranjo {
   display: flex;
+  gap: 12px;
+  height: 100%;
+}
+
+/* O palco do computador mede o espaço do destaque para escolher o arranjo (no celular, a altura vem do conteúdo). */
+@media (min-width: 901px) {
+  .videos-destaque {
+    container: destaque / size;
+  }
 }
 
 /* A principal fica em 16:9 (sem faixas pretas enormes quando o painel de estatísticas aperta o palco). */
@@ -812,6 +825,38 @@ input[type='range']::-moz-range-thumb {
   height: auto;
   aspect-ratio: 16 / 9;
   flex: none;
+}
+
+/* Palco pouco largo (estatísticas abertas, janela estreita): a principal em cima, o maior 16:9 que couber, e as
+   outras numa fileira embaixo, como no Discord. Na coluna à direita, sobraria uma faixa vazia enorme embaixo. */
+@container destaque (max-aspect-ratio: 9 / 5) {
+  .destaque-arranjo {
+    --fileira: clamp(90px, 17cqh, 150px);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .destaque-arranjo .transmissao-principal {
+    flex: none;
+    align-self: center;
+    width: min(100cqw, (100cqh - var(--fileira) - 12px) * 16 / 9);
+    max-height: none;
+  }
+
+  .destaque-arranjo .coluna-lateral {
+    flex-direction: row;
+    justify-content: center;
+    width: 100%;
+    height: var(--fileira);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .destaque-arranjo .coluna-lateral .transmissao {
+    height: 100%;
+    width: auto;
+  }
 }
 
 /* Miniaturas: só o essencial no topo (nome e a bolinha de qualidade). */
@@ -1462,7 +1507,7 @@ input[type='range']::-moz-range-thumb {
     grid-template-rows: none;
   }
 
-  .videos-destaque {
+  .destaque-arranjo {
     flex-direction: column;
   }
 

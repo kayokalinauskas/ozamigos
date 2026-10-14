@@ -1,5 +1,6 @@
 // Gera as telas e o GIF do README: cinco amigos fictícios numa sala do servidor local (porta 8090,
-// senha "teste"), cada um com um "jogo" desenhado por código (jogo-falso.js).
+// senha "teste"), cada um com um "jogo" desenhado por código (jogo-falso.js) e um microfone falso.
+// Na voz, a Ana está falando (anel verde) e o Caio está com o microfone desligado.
 // Uso, a partir da raiz do repositório, com o servidor rodando e o ffmpeg no PATH:
 //   desktop\node_modules\.bin\electron docs\vitrine\captura.js
 // As imagens saem em docs/imagens. Depois, para o logo e a prévia de link: desktop\node_modules\.bin\electron docs\vitrine\marca.js
@@ -9,13 +10,32 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-app.commandLine.appendSwitch('force-device-scale-factor', '1');
-
 const AQUI = __dirname;
 const SAIDA = path.join(AQUI, '..', 'imagens');
 const QUADROS = path.join(os.tmpdir(), 'ozamigos-quadros');
-const SALA = 'http://localhost:8090/?sala=Ozamigos26';
+const SALA = `${process.env.OZAMIGOS_SERVIDOR ?? 'http://localhost:8090'}/?sala=Ozamigos26`;
+
+// O microfone falso de todos toca um zumbido grave. A sensibilidade automática não o confunde com voz, então só
+// abre o microfone de quem tem a sensibilidade manual no mínimo (a Ana): é ela que aparece falando.
+const ZUMBIDO = path.join(os.tmpdir(), 'ozamigos-zumbido.wav');
+{
+  const amostras = 48000 * 4;
+  const b = Buffer.alloc(44 + amostras * 2);
+  b.write('RIFF', 0); b.writeUInt32LE(36 + amostras * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(48000, 24); b.writeUInt32LE(96000, 28);
+  b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(amostras * 2, 40);
+  for (let i = 0; i < amostras; i++) {
+    const t = i / 48000;
+    b.writeInt16LE(Math.round((Math.sin(2 * Math.PI * 150 * t) * 0.15 + Math.sin(2 * Math.PI * 300 * t) * 0.08) * 32767), 44 + i * 2);
+  }
+  fs.writeFileSync(ZUMBIDO, b);
+}
+
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('force-device-scale-factor', '1');
+app.commandLine.appendSwitch('use-fake-device-for-media-stream');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+app.commandLine.appendSwitch('use-file-for-fake-audio-capture', ZUMBIDO);
 const JOGO = fs.readFileSync(path.join(AQUI, 'jogo-falso.js'), 'utf8');
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -54,10 +74,15 @@ function janela(nome, largura, altura) {
 
 const js = (w, codigo) => w.webContents.executeJavaScript(`(async () => { ${codigo} })()`, true);
 
-async function abrir(w) {
+async function abrir(w, ajustesDeVoz) {
   for (let tentativa = 1; ; tentativa++) {
     try {
       await w.loadURL(SALA);
+      if (ajustesDeVoz) {
+        // Os ajustes de voz são lidos quando a página abre: grava e abre de novo.
+        await w.webContents.executeJavaScript(`localStorage.setItem('ozamigos-voz', ${JSON.stringify(JSON.stringify(ajustesDeVoz))})`);
+        await w.loadURL(SALA);
+      }
       break;
     } catch (erro) {
       console.log('carregar falhou, tentativa', tentativa, erro.code);
@@ -82,6 +107,10 @@ async function entrar(w, nome) {
 async function transmitir(w, estilo) {
   await js(w, `
     window.__prepararJogo(${JSON.stringify(estilo)});
+    // 720p a 30 fps: é o que as fotos mostram, e quatro codificações em 1080p num PC só engasgam a bancada.
+    const qualidade = document.querySelector('.controles select');
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(qualidade, 'leve');
+    qualidade.dispatchEvent(new Event('change', { bubbles: true }));
     document.querySelector('.menu-transmitir > button').click();
     await new Promise((r) => setTimeout(r, 200));
     document.querySelectorAll('.menu button')[1].click();
@@ -130,6 +159,16 @@ async function arrastar(w, de, para, ms = 900) {
   w.webContents.sendInputEvent({ type: 'mouseDown', x: de.x, y: de.y, button: 'left', clickCount: 1 });
   await mover(w, para, ms);
   w.webContents.sendInputEvent({ type: 'mouseUp', x: para.x, y: para.y, button: 'left', clickCount: 1 });
+}
+
+// A bancada roda cinco PCs num só e às vezes engasga: a foto espera todas as transmissões saudáveis (até 1 min).
+async function esperarSaude(w) {
+  for (let i = 0; i < 60; i++) {
+    const ok = await js(w, `const s = [...document.querySelectorAll('.saude')].map((e) => e.textContent); return s.length > 0 && s.every((t) => !t.includes('instável') && +(t.match(/(\\d+) fps/) || [0, 0])[1] >= 24);`);
+    if (ok) return;
+    await espera(1000);
+  }
+  console.log('aviso: as transmissões não ficaram todas saudáveis; foto assim mesmo');
 }
 
 async function foto(w, arquivo, largura) {
@@ -195,9 +234,12 @@ app.whenReady().then(async () => {
     const eli = janela('eli', 960, 600);
     for (const [w, nome] of [[ana, 'Ana'], [beto, 'Beto'], [caio, 'Caio'], [eli, 'Eli']]) {
       w.webContents.setFrameRate(4); // ninguém fotografa essas janelas: menos trabalho para a placa de vídeo
-      await abrir(w);
+      // Cinco capturas de microfone num PC só pesam: quem não é fotografado usa a voz no modo mais leve.
+      const leve = { supressao: 'nenhuma', cancelarEco: false, ganhoAutomatico: false };
+      await abrir(w, nome === 'Ana' ? { ...leve, sensibilidadeAutomatica: false, limiarDb: -100 } : leve);
       await entrar(w, nome);
     }
+    await js(caio, `document.querySelector('[aria-label="Desligar o microfone"]').click()`);
     await transmitir(ana, 'corrida');
     await transmitir(beto, 'espaco');
     await transmitir(eli, 'estrategia');
@@ -241,7 +283,8 @@ app.whenReady().then(async () => {
     await duda.webContents.executeJavaScript(`window.__cursor(-200, -200)`);
     await assistirPeloCodigo(duda, 'Eli');
     await js(duda, `document.querySelector('.segmentado button[title="Grade"]').click();`);
-    await espera(6000);
+    await espera(15000); // a folga de rede e a qualidade se acertam antes da foto
+    await esperarSaude(duda);
     await foto(duda, 'sala-grade.png', 1600);
     await js(duda, `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('Estatísticas')).click();`);
     await espera(300);
@@ -249,8 +292,21 @@ app.whenReady().then(async () => {
     await clicar(duda, await centro(duda, '[aria-label="Destacar Ana"]'));
     await mover(duda, { x: 1910, y: 1075 }, 50);
     await duda.webContents.executeJavaScript(`window.__cursor(-200, -200)`);
-    await espera(8000);
+    await espera(15000);
+    await esperarSaude(duda);
     await foto(duda, 'sala-destaque.png', 1600);
+
+    // 6. A engrenagem da voz, só a caixa, em 2x (para o site): sala em 1440x900, ampliada.
+    await js(duda, `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('Estatísticas')).click();`);
+    duda.setContentSize(2880, 1800);
+    duda.webContents.setZoomFactor(2);
+    await espera(500);
+    await js(duda, `document.querySelector('[aria-label="Configurações de voz e áudio"]').click();`);
+    await espera(2500); // o medidor anda com o microfone falso
+    const caixa = await js(duda, `const b = document.querySelector('dialog.configuracoes').getBoundingClientRect(); return { x: b.left, y: b.top, width: b.width, height: b.height };`);
+    const voz = await duda.webContents.capturePage({ x: Math.round(caixa.x * 2), y: Math.round(caixa.y * 2), width: Math.round(caixa.width * 2), height: Math.round(caixa.height * 2) });
+    fs.writeFileSync(path.join(SAIDA, 'voz.png'), voz.toPNG());
+    console.log('foto voz.png', voz.getSize());
   } catch (erro) {
     console.error('falhou:', erro);
   }

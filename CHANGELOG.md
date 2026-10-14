@@ -9,7 +9,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ## [Não lançado]
 
 ### Adicionado
-- **Conversa por voz na sala**, como num canal de voz do Discord: quem entra já está na conversa, e o microfone abre só quando a pessoa fala.
+- **Conversa por voz na sala**: quem entra já está na conversa, sem outro programa, e o microfone abre só quando a pessoa fala.
   - Supressão de ruído com o **RNNoise** por padrão, ou a do navegador, ou nenhuma.
   - Sensibilidade do microfone **automática** (pela detecção de voz do RNNoise, acima do barulho do ambiente) ou manual, com medidor.
   - Botões de microfone e de som no seu cartão, e anel verde em quem está falando. Quem desliga o microfone ou o som aparece com o ícone para os outros.
@@ -26,7 +26,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
   - O botão de sair da sala foi para o alto da barra lateral, ao lado do logo.
   - Nas miniaturas, o nome não quebra mais em duas linhas.
   - Os avisos ganharam ícone e nunca passam da borda; o aviso de estatísticas salvas não mostra mais o caminho inteiro da pasta.
-  - No modo Destaque, a transmissão principal fica em 16:9, sem faixas pretas enormes quando as estatísticas estão abertas.
+  - No modo Destaque, a transmissão principal fica em 16:9. Quando o palco não é largo (estatísticas abertas, janela estreita), as outras vão para uma fileira embaixo dela, e ela fica bem maior.
   - Barras de rolagem finas, na cor do app.
   - Em telas de 2560×1440 sem escala do Windows, a interface fica 20% maior.
 

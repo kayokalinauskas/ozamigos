@@ -216,9 +216,11 @@ O logotipo, as telas e o GIF em `docs/imagens` são gerados por scripts em `docs
 1. Monte a interface (`npm run build` em `web`) e suba o servidor local na porta **8090** com a senha **teste**.
 2. Na raiz: `desktop\node_modules\.bin\electron docs\vitrine\captura.js`. São janelas invisíveis, com o som mudo e as notificações bloqueadas.
    - Cinco amigos fictícios (Ana, Beto, Caio, Duda e Eli) entram na sala `Ozamigos26`, cada um transmitindo um "jogo" desenhado por código (`jogo-falso.js`). Nunca use imagem de jogo de verdade.
-   - Saem `entrada.png`, `sala-grade.png`, `sala-destaque.png` e `demo.gif`. O GIF é montado pelo ffmpeg, que precisa estar no PATH.
+   - Saem `entrada.png`, `sala-grade.png`, `sala-destaque.png`, `voz.png` (a engrenagem da voz, em 2x) e `demo.gif`. O GIF é montado pelo ffmpeg, que precisa estar no PATH.
+   - Todos têm um microfone falso tocando um zumbido. A Ana usa sensibilidade manual e sem redução de ruído, então só ela aparece falando (anel verde); o Caio desliga o microfone.
    - No GIF, os cliques são eventos de mouse reais (`sendInputEvent`, para o `:hover` mostrar os controles), com um cursor desenhado por cima.
 3. Depois: `desktop\node_modules\.bin\electron docs\vitrine\marca.js`. Ele gera o logotipo do topo do README em duas versões com fundo transparente, `logo-tema-escuro.png` e `logo-tema-claro.png`, escolhidas pelo `<picture>` conforme o tema do GitHub. Gera também a `social.png` (prévia de link, enviada à mão em *Settings* → *Social preview* no GitHub).
+4. Por fim: `node docs\vitrine\site.js`. Ele converte as telas para WebP nas larguras do site (`site/imagens`) e copia a `social.png`.
 
 As janelas que ninguém fotografa rodam a 4 quadros por segundo, e os amigos fictícios não assistem uns aos outros. Sem isso, o PC fica sobrecarregado e as fotos saem com "instável" e congelamentos.
 

@@ -8,11 +8,11 @@
   </picture>
 </p>
 
-<h3 align="center">Transmita seu jogo para os amigos, direto de um PC para o outro.</h3>
+<h3 align="center">Transmita seu jogo e converse com os amigos, direto de um PC para o outro.</h3>
 
 <p align="center">
-  Até 1080p, sem servidor de vídeo no meio. App para Windows e versão web, com salas protegidas por senha,<br>
-  várias transmissões ao mesmo tempo e som do PC sem o eco do Discord.
+  Vídeo em até 1080p a 60 fps e voz com redução de ruído, sem servidor de mídia no meio.<br>
+  App para Windows e versão web, com salas protegidas por senha e todo mundo transmitindo ao mesmo tempo.
 </p>
 
 <p align="center">
@@ -29,12 +29,13 @@
   <img src="https://img.shields.io/badge/Spring%20Boot-4.1-1f261c?style=flat-square" alt="Spring Boot 4.1">
   <img src="https://img.shields.io/badge/React-19-1f261c?style=flat-square" alt="React 19">
   <img src="https://img.shields.io/badge/Electron-44-1f261c?style=flat-square" alt="Electron 44">
-  <img src="https://img.shields.io/badge/v%C3%ADdeo-WebRTC%20P2P-1f261c?style=flat-square" alt="Vídeo por WebRTC P2P">
+  <img src="https://img.shields.io/badge/voz%20e%20v%C3%ADdeo-WebRTC%20P2P-1f261c?style=flat-square" alt="Voz e vídeo por WebRTC P2P">
   <img src="https://img.shields.io/badge/licen%C3%A7a-MIT-b6f24a?style=flat-square" alt="Licença MIT">
 </p>
 
 <p align="center">
   <a href="#recursos">Recursos</a> ·
+  <a href="#instalação-para-quem-só-vai-usar">Instalação</a> ·
   <a href="#como-funciona">Como funciona</a> ·
   <a href="#rodar-localmente">Rodar localmente</a> ·
   <a href="#deploy-no-render">Deploy</a> ·
@@ -74,23 +75,28 @@
     <td width="50%"><img src="docs/imagens/sala-destaque.png" alt="Uma transmissão em destaque, as outras ao lado e o painel de estatísticas aberto"></td>
   </tr>
   <tr>
-    <td align="center"><sub><b>Grade:</b> até 4 transmissões lado a lado, e quem está ao vivo na lateral</sub></td>
-    <td align="center"><sub><b>Destaque:</b> uma grande, as outras ao lado, e as estatísticas de cada conexão</sub></td>
+    <td align="center"><sub><b>Grade:</b> as transmissões lado a lado e, na lateral, quem está ao vivo, falando ou com o microfone desligado</sub></td>
+    <td align="center"><sub><b>Destaque:</b> uma grande, as outras numa fileira, e as estatísticas de cada conexão</sub></td>
   </tr>
 </table>
 
-**Na sala**
-- **Conversa por voz, como num canal do Discord:** quem entra na sala já está na conversa, com o microfone aberto só quando fala.
-  - **Supressão de ruído com o RNNoise** (padrão): teclado, mouse e ventilador não chegam aos amigos. Dá para trocar pela do navegador ou desligar.
-  - **Sensibilidade automática:** o microfone abre quando o RNNoise reconhece voz acima do barulho do ambiente. Ou manual, arrastando o limite sobre o medidor.
-  - **Botões de microfone e de som** no seu cartão (desligar o som desliga o microfone também), e o **anel verde** em quem está falando.
-  - **Engrenagem:** microfone e saída de áudio, volumes de entrada e saída, teste do microfone, cancelamento de eco e controle automático de ganho.
-  - **Cada amigo:** clicando no avatar, volume da voz dele (até 200%) e "silenciar para mim", lembrados pelo nome.
+**Voz**
+- **Entrou na sala, já está na conversa:** sem chamada para iniciar e sem outro programa. O microfone só abre quando você fala.
+- **Redução de ruído com o RNNoise** (padrão), uma rede neural que roda no seu PC: teclado, mouse e ventilador não chegam aos amigos. Dá para trocar pela do navegador ou desligar.
+- **Sensibilidade automática:** o microfone abre quando o RNNoise reconhece voz acima do barulho do ambiente. Ou manual, arrastando o limite sobre o medidor.
+- **Microfone e som a um clique** no seu cartão (desligar o som desliga o microfone também). Os amigos veem o ícone, e quem está falando ganha um **anel verde**.
+- **Engrenagem:** microfone e saída de áudio, volumes de entrada e de saída, teste do microfone, cancelamento de eco e controle automático de ganho.
+- **Cada amigo do seu jeito:** clicando no nome, o volume da voz dele (até 200%) e "silenciar para mim", lembrados para as próximas vezes.
+- **Baixo atraso:** a voz tem a própria conexão, separada do vídeo, em Opus a 64 kbps com correção de perda. Na bancada, na mesma rede, ela chega em 60 a 90 ms.
+- **Sem estouro:** um limitador suave antes da caixa de som segura vários amigos falando juntos, ou um volume em 200%.
+
+**Transmissões**
 - **Presença em tempo real:** quem está na sala, quem está **ao vivo** e quantas pessoas assistem cada transmissão.
 - **Assistir sob demanda:** você escolhe uma ou mais transmissões. O vídeo só sai do PC de quem transmite para quem clicou em **Assistir**, o que poupa o upload e a placa de vídeo de quem transmite.
 - **Todos podem transmitir ao mesmo tempo**, em salas de até 8 pessoas.
-- **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura. Dois cliques no vídeo abrem a tela cheia, e o botão **Janela flutuante** solta a transmissão numa janelinha que fica por cima do jogo.
+- **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura (ao lado ou numa fileira embaixo, conforme o espaço). Dois cliques no vídeo abrem a tela cheia, e o botão **Janela flutuante** solta a transmissão numa janelinha que fica por cima do jogo.
 - **Áudio por transmissão:** volume e silenciar de cada uma, lembrados por amigo, mais um volume geral.
+- **Pouco atraso para quem assiste:** a folga contra soluços da rede se ajusta à conexão de cada um, de 80 a 250 ms.
 - **Qualidade ajustável ao vivo:** 1080p ou 720p, a 30 ou 60 fps, sem derrubar ninguém. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
 - **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos, que dá para desligar, e notificação do Windows quando o app está atrás do jogo.
 - **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
@@ -98,7 +104,7 @@
 
 **Só no app para Windows**
 - **Seletor próprio** de janelas e telas, com miniaturas e ícones.
-- **Som do PC sem eco:** captura o som de todos os programas, menos o **Discord** e o próprio **Ozamigos**. Os amigos não ouvem a própria voz nem o próprio jogo de volta. O áudio vai em estéreo.
+- **Som do jogo sem eco:** a transmissão leva o som de todos os programas do PC, menos o do próprio **Ozamigos** (a voz dos amigos e as transmissões que você assiste) e o de apps de chamada de voz. Ninguém ouve a própria voz nem o próprio jogo de volta. O áudio vai em estéreo.
 - **Sem engasgos atrás do jogo:** a janela não é freada pelo Windows quando fica escondida.
 - **Atualização automática da interface:** o app carrega a interface do servidor, então cada deploy chega a todos sem reinstalar.
 - **O app se atualiza sozinho** (a partir da 1.2.0, na versão instalada): ao abrir, ele procura uma versão nova nas releases, baixa, instala e abre de novo. A versão portátil continua sendo atualizada à mão.
@@ -110,12 +116,13 @@
 1. Baixe o `Ozamigos-Instalador-x.y.z.exe` na [última versão](../../releases/latest).
 2. Abra o arquivo. Se o Windows mostrar **"O Windows protegeu o computador"**, clique em **Mais informações** e depois em **Executar assim mesmo**. O instalador não tem assinatura digital paga.
 3. Entre com o seu nome e a **senha do grupo**, que quem administra o servidor passa para você.
+4. Pronto: você já está na conversa. Na primeira vez, permita o microfone. Para escolher o microfone ou a saída de áudio, clique na engrenagem do seu cartão, no canto de baixo.
 
 <p align="center"><img src="docs/imagens/entrada.png" alt="Tela de entrada com nome, senha do grupo e código da sala" width="640"></p>
 
 **Sem instalar:** use o `Ozamigos-Portatil-x.y.z.exe`, que abre com dois cliques.
 
-**Pelo navegador:** abra o endereço do servidor no Chrome ou no Edge. A entrada tem um link para o [site](https://kayokalinauskas.github.io/ozamigos/), que apresenta e baixa o app para Windows. Pelo navegador dá para assistir e transmitir, mas o som do PC vai inteiro, sem a exclusão do Discord.
+**Pelo navegador:** abra o endereço do servidor no Chrome ou no Edge. A entrada tem um link para o [site](https://kayokalinauskas.github.io/ozamigos/), que apresenta e baixa o app para Windows. Pelo navegador dá para conversar, assistir e transmitir, mas a transmissão leva o som do PC inteiro, sem a separação que o app faz.
 
 **Requisitos:** Windows 10 (versão 2004 ou mais nova) ou Windows 11, 64 bits.
 
@@ -123,7 +130,10 @@
 
 ## Como funciona
 
-O vídeo nunca passa pelo servidor. O servidor Java só apresenta as pessoas umas às outras (sinalização por WebSocket) e confere a senha. Depois disso, cada PC manda o vídeo direto para quem pediu, por WebRTC.
+Nem a voz nem o vídeo passam pelo servidor. O servidor Java só apresenta as pessoas umas às outras (sinalização por WebSocket) e confere a senha. Depois disso, tudo vai direto de um PC para o outro, por WebRTC:
+
+- **Voz:** cada par de pessoas da sala tem uma conexão só de voz, aberta assim que alguém entra.
+- **Vídeo e som do jogo:** saem do PC de quem transmite só para quem clicou em **Assistir**.
 
 ```mermaid
 flowchart LR
@@ -135,7 +145,8 @@ flowchart LR
     B["App ou navegador<br/>(quem assiste)"] -- WebSocket --> S
     A -. carrega a interface .-> UI
     B -. carrega a interface .-> UI
-    A == "vídeo + áudio (WebRTC P2P)" ==> B
+    A == "vídeo + som do jogo (sob demanda)" ==> B
+    B == "voz (sempre, nos dois sentidos)" ==> A
 ```
 
 **Assistir sob demanda:** quem transmite só abre uma conexão de vídeo para quem pediu.
@@ -157,10 +168,22 @@ sequenceDiagram
     T-->>V: vídeo e áudio direto (P2P)
 ```
 
-**Som do PC sem o Discord.** O Windows 10 (2004+) e o 11 capturam o som **de um programa (e dos que ele abriu) por vez**. O auxiliar `OzamigosSom.exe` (C#), que vai dentro do instalador:
+**A voz.** O microfone passa por um processador de áudio que roda numa thread própria (`AudioWorklet`), em quadros de 10 ms:
+
+```mermaid
+flowchart LR
+    M["Microfone"] --> V["Volume de entrada"] --> R["RNNoise<br/>tira o ruído e diz<br/>a chance de ser voz"] --> P["Porta<br/>abre só com fala"] --> C["Conexão de voz<br/>com cada amigo"]
+    C2["Cada amigo"] --> VA["Volume dele"] --> VS["Volume de saída"] --> L["Limitador"] --> S["Saída escolhida"]
+```
+
+- A **porta** abre quando o RNNoise dá mais de 50% de chance de voz e o volume está acima do ruído do ambiente, que ela acompanha sozinha. Ela segura 350 ms depois da última sílaba, para não cortar o fim das palavras.
+- **Mudo** manda silêncio pela mesma conexão, então ligar de novo é instantâneo. O estado de mudo e de som desligado vai para os amigos por um canal de dados da própria conexão.
+- Quem chega (ou volta depois de cair) liga para todos os que já estavam. Assim, dois nunca ligam um para o outro ao mesmo tempo. Se a conexão cair, quem ligou tenta de novo, até 3 vezes.
+
+**Som do jogo sem eco.** O Windows 10 (2004+) e o 11 capturam o som **de um programa (e dos que ele abriu) por vez**. O auxiliar `OzamigosSom.exe` (C#), que vai dentro do instalador:
 
 1. confere, a cada 2 segundos, quais programas estão tocando som, em todas as saídas ativas;
-2. captura cada um deles com o *loopback* de processo do Windows, menos o Discord (`Discord.exe`, `DiscordPTB.exe`, `DiscordCanary.exe`) e o processo do próprio app;
+2. captura cada um deles com o *loopback* de processo do Windows, menos o processo do próprio app (que toca a voz e as transmissões) e os apps de chamada de voz da lista `SEM_SOM_DE`;
 3. mistura tudo a 48 kHz em estéreo e entrega ao app pela saída padrão.
 
 No app, um `AudioWorklet` transforma esse fluxo numa faixa de áudio que vai junto com o vídeo. O auxiliar:
@@ -186,6 +209,8 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 ├── web/                    Interface (React 19 + TypeScript + Vite)
 │   └── src/
 │       ├── cliente.ts                Núcleo: sinalização, WebRTC, qualidade e estatísticas
+│       ├── voz/                      Conversa por voz: conexões, processador (RNNoise e porta) e ajustes
+│       ├── folga.ts                  Folga de rede do vídeo, ajustada à conexão de cada um
 │       ├── somDoApp.ts               Faixa de áudio do auxiliar de som (AudioWorklet)
 │       ├── ponte.ts                  Contrato com o app Electron
 │       ├── desempenho/               Teste de desempenho e gravação da sala: medição, análise e os relatórios (HTML e para IA)
@@ -255,6 +280,8 @@ npm run som
 npm start
 ```
 Na tela de início, use `http://localhost:8080`. O app só aceita `http://` para `localhost`; qualquer outro endereço precisa de `https://`.
+
+**Testar a voz no mesmo PC:** abra a sala em duas janelas (ou no app e no navegador). Use fone e silencie uma das janelas, senão o som de uma volta pelo microfone da outra.
 
 **Testar o som sem eco no mesmo PC:** a aba do navegador onde você faz o papel do amigo não está na lista de exclusão. Silencie a transmissão nessa aba, senão o som recebido volta para a transmissão. Para ouvir de verdade, use outro PC na mesma rede (`http://IP-DO-SEU-PC:8080`).
 
@@ -355,7 +382,7 @@ gh release delete v1.0.1 --cleanup-tag --yes
 |---|---|
 | `desktop/package.json` → `ozamigos.servidor` | Endereço do servidor que vem no instalador |
 | `%APPDATA%\Ozamigos Share\configuracao.json` | Endereço escolhido pela pessoa (tem prioridade) e posição da janela. A pasta mantém o nome antigo do app, para ninguém perder as configurações |
-| `desktop/main.js` → `SEM_SOM_DE` | Programas cujo som nunca vai na transmissão |
+| `desktop/main.js` → `SEM_SOM_DE` | Programas cujo som nunca vai na transmissão (apps de chamada de voz) |
 | Variável `OZAMIGOS_SERVIDOR` | Força um endereço, útil em testes |
 
 **Limites do servidor**
@@ -366,6 +393,8 @@ gh release delete v1.0.1 --cleanup-tag --yes
 | Código da sala | 6 a 20 letras e números |
 | Nome exibido | até 20 caracteres (vazio vira "Amigo") |
 | Mensagem de sinalização | até 64 KB |
+
+**Voz:** os ajustes da engrenagem, o volume de cada amigo e o estado de mudo e de som desligado ficam no navegador ou no app de cada pessoa (`localStorage`). O servidor não guarda nada disso.
 
 ---
 
@@ -407,7 +436,9 @@ Com `senha-errada` e `sala-cheia`, o servidor fecha a conexão logo depois de av
 
 ## Qualidade, banda e diagnóstico
 
-Cada pessoa que assiste é mais um vídeo saindo do PC de quem transmite. O codec de vídeo preferido é o H.264, codificado pela placa de vídeo; o áudio vai em Opus estéreo, a até 128 kbps.
+Cada pessoa que assiste é mais um vídeo saindo do PC de quem transmite. O codec de vídeo preferido é o H.264, codificado pela placa de vídeo; o som do jogo vai em Opus estéreo, a até 128 kbps.
+
+A voz pesa pouco: Opus mono a 64 kbps para cada amigo da sala, e quase nada enquanto você não fala. Numa sala cheia (7 amigos), são no máximo ~450 kbps de upload.
 
 | Qualidade | Upload por pessoa assistindo | Quando usar |
 |---|---|---|
@@ -490,7 +521,7 @@ Os testes cobrem:
 Na interface (`cd web`):
 
 ```powershell
-npm test           # Vitest: código e link da sala, preferências guardadas e opções de qualidade
+npm test           # Vitest: código e link da sala, preferências, qualidade, porta da voz, folga de rede e ajustes de voz
 npm run typecheck  # tipos
 ```
 
@@ -506,8 +537,12 @@ O workflow [CI](.github/workflows/ci.yml) roda tudo isso em cada push na `main` 
 | `localhost:8080` dá 404 | Interface não montada | `cd web`, depois `npm install` e `npm run build` |
 | App diz "Não foi possível abrir…" | Endereço errado, sem internet ou Render acordando | Confira o endereço; espere 1 minuto e clique em **Conectar** |
 | App abre num endereço antigo | O endereço guardado tem prioridade sobre o do instalador | Ícone de servidor na sala, ou Alt → **Trocar o servidor** |
+| Os amigos não me ouvem | Microfone sem permissão, desligado ou o errado | Veja o ícone no seu cartão; na engrenagem, escolha o microfone e use **Testar o microfone** |
+| O começo das palavras some | Sensibilidade manual alta demais | Ligue **Ajustar sozinho** ou arraste o limite para a esquerda |
+| Os amigos ouvem eco da própria voz | Caixa de som perto do microfone | Use fone, ou ligue o **Cancelamento de eco** na engrenagem |
+| Barulho de fundo chega aos amigos | Redução de ruído desligada | Na engrenagem, escolha **RNNoise** |
 | Amigos ouvem o próprio som de volta | Transmissão pelo navegador (som do PC inteiro) | Transmita pelo app para Windows |
-| Voz de chamada vai junto | Programa fora da lista (ex.: Discord no navegador) | Use o Discord instalado ou acrescente o programa em `SEM_SOM_DE` |
+| A voz de outro app de chamada vai junto | O app não está na lista `SEM_SOM_DE`, ou roda no navegador | Converse pela voz do próprio Ozamigos, ou acrescente o programa em `SEM_SOM_DE` |
 | Vídeo preto com o jogo em tela cheia | Tela cheia exclusiva não é capturável | "Janela sem bordas" ou transmita a tela inteira |
 | "Não foi possível conectar direto com…" | 4G/5G, CGNAT ou rede corporativa | Outra rede. Esses casos exigem TURN (veja Limitações) |
 | "A conexão com o servidor caiu. Reconectando…" | Render reiniciou ou a internet caiu | Espere: o app tenta de novo sozinho (1, 2, 5 e depois a cada 10 s). **Tentar agora** força uma tentativa |
@@ -518,10 +553,11 @@ O workflow [CI](.github/workflows/ci.yml) roda tudo isso em cada push na `main` 
 ## Limitações conhecidas
 
 - **Sem servidor TURN:** quem está atrás de CGNAT, em 4G/5G ou em rede corporativa pode não conseguir conectar (nem o vídeo nem a voz). O TURN repassa o vídeo e tem custo por GB.
-- **Voz sem apertar para falar:** por enquanto, só a detecção de voz. Apertar uma tecla para falar com o jogo em primeiro plano precisa de um gancho de teclado no auxiliar do Windows.
+- **Sem "apertar para falar":** por enquanto, a voz usa só a detecção de voz. Apertar uma tecla para falar com o jogo em primeiro plano precisa de um gancho de teclado no auxiliar do Windows.
+- **Voz em malha:** cada pessoa manda a própria voz para cada amigo. Com o limite de 8 pessoas por sala, isso fica em ~450 kbps de upload no pior caso.
 - **Senha única por servidor:** pensada para grupos de amigos, cada grupo com o próprio deploy. Para uso público, seriam necessários senha por sala e limite de tentativas.
 - **Estado em memória:** as salas vivem num servidor só. Para mais de um servidor, seria preciso um armazenamento compartilhado (ex.: Redis).
-- **Exclusão de som por grupo de processos:** programas abertos *a partir* do Discord ou do Ozamigos também ficam de fora. Jogos abertos pela Steam, pela Epic ou pelo menu Iniciar não são afetados.
+- **Exclusão de som por grupo de processos:** programas abertos *a partir* do Ozamigos ou de um app da lista `SEM_SOM_DE` também ficam de fora. Jogos abertos pela Steam, pela Epic ou pelo menu Iniciar não são afetados.
 - **Programa que começa a tocar no meio:** o som dele entra na transmissão em até 2 segundos.
 - **Instalador sem assinatura digital:** o SmartScreen avisa na primeira execução.
 - **Atualização da versão portátil:** o app instalado se atualiza sozinho (desde a 1.2.0), mas a versão portátil exige baixar o arquivo novo.
