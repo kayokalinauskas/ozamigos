@@ -7,6 +7,7 @@ const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { fileURLToPath } = require('node:url');
 
 // O app se chamava "Ozamigos Share". Com o nome novo, o Electron guardaria tudo numa pasta nova
 // e cada um perderia o servidor, o nome, a senha e os volumes: por isso a pasta continua a antiga.
@@ -23,6 +24,7 @@ const SERVIDORES_APOSENTADOS = new Set(['https://ozamigos-share-app.onrender.com
 const ARQUIVO_DE_CONFIGURACAO = path.join(app.getPath('userData'), 'configuracao.json');
 // O .ico traz cada tamanho desenhado à parte: com o PNG de 256, o ícone de 16 da barra de título saía torto.
 const ICONE = path.join(__dirname, 'build', 'icone.ico');
+const INICIO = path.join(__dirname, 'inicio.html');
 const PERMISSOES = new Set(['media', 'display-capture', 'notifications', 'fullscreen', 'clipboard-sanitized-write']);
 
 let janela = null;
@@ -74,6 +76,15 @@ function origemDoServidor() {
   return origemDe(servidor());
 }
 
+/** É a tela de início do app? Nenhum outro arquivo do disco: a página do servidor não pode abrir um file:// qualquer. */
+function ehOInicio(endereco) {
+  try {
+    return path.resolve(fileURLToPath(endereco)).toLowerCase() === path.resolve(INICIO).toLowerCase();
+  } catch {
+    return false; // não é file:
+  }
+}
+
 /** Só https, ou http no próprio computador (para testar o servidor rodando localmente). */
 function enderecoValido(texto) {
   try {
@@ -106,7 +117,7 @@ function abrirServidorOuInicio(erro) {
     // Sempre pergunta ao servidor pela página: um deploy novo aparece na hora, nunca a cópia guardada.
     janela.loadURL(`${origemDoServidor()}/`, { extraHeaders: 'pragma: no-cache\ncache-control: no-cache\n' });
   } else {
-    janela.loadFile(path.join(__dirname, 'inicio.html'), { query: erro ? { erro } : {} });
+    janela.loadFile(INICIO, { query: erro ? { erro } : {} });
   }
 }
 
@@ -177,7 +188,7 @@ function criarJanela(atualizando) {
   });
   // A janela só navega dentro do servidor; qualquer outro link abre no navegador de verdade.
   conteudo.on('will-navigate', (evento, url) => {
-    if (url.startsWith('file:') || origemDe(url) === origemDoServidor()) return;
+    if (ehOInicio(url) || origemDe(url) === origemDoServidor()) return;
     evento.preventDefault();
     abrirFora(url);
   });
@@ -343,7 +354,7 @@ function desligarAuxiliarDeSom() {
 // ===== Tela de início (escolher o servidor) =====
 
 function vindoDoInicio(evento) {
-  return Boolean(evento.senderFrame?.url?.startsWith('file:'));
+  return ehOInicio(evento.senderFrame?.url ?? '');
 }
 
 ipcMain.handle('servidor-atual', (evento) => (vindoDoInicio(evento) ? servidor() : null));
@@ -368,7 +379,7 @@ ipcMain.on('trocar-servidor', (evento) => {
 });
 
 function trocarServidor() {
-  janela?.loadFile(path.join(__dirname, 'inicio.html'));
+  janela?.loadFile(INICIO);
 }
 
 const vindoDaPagina = (evento) => origemDe(evento.senderFrame?.url) === origemDoServidor();

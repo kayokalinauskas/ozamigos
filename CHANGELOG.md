@@ -34,6 +34,17 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ### Corrigido
 - Quando duas pessoas saíam da sala ao mesmo tempo, quem ficava podia não ser avisado de uma delas e continuava vendo um "fantasma" na lista.
+- A voz com um amigo cuja rede não deixa conectar ficava tentando ligar de novo para sempre, sem nunca avisar. Agora são 3 tentativas e um aviso.
+- Trocar dois ajustes do microfone em seguida podia deixar valendo o microfone aberto com os ajustes antigos.
+- Um caminho de rede recusado pelo navegador interrompia a resposta à transmissão, e o vídeo ficava em "Conectando…" para sempre.
+- Alguém com a internet lenta demais para receber os avisos da sala podia derrubar a conexão de quem mandou a mensagem.
+- Uma mensagem malformada derrubava a conexão com o servidor; agora volta como erro.
+- Os nomes perdem caracteres invisíveis e os que invertem a direção do texto, e o limite de 20 caracteres não parte mais um emoji ao meio.
+
+### Segurança
+- Depois de 10 senhas erradas em 5 minutos, o mesmo endereço espera antes de tentar de novo: adivinhar a senha do grupo deixou de ser de graça.
+- No app para Windows, a página do servidor só pode voltar para a tela de início do app, nunca abrir outro arquivo do PC.
+- Electron 44.7.2, com as correções de segurança do Chromium.
 
 ## [1.2.11] - 2026-10-13
 

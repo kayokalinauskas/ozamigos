@@ -156,6 +156,7 @@ class Cliente {
   private readonly linhasDoRelatorio: LinhaDoRelatorio[] = [];
   // Conexões de envio que não são de ninguém da sala: os espectadores simulados do teste de desempenho.
   private readonly enviosExtras = new Set<RTCPeerConnection>();
+  private medindo = false;
   /** Quem grava as estatísticas da sala recebe aqui as medidas de cada pessoa (desempenho/gravadorDaSala.ts). */
   aoReceberMedidas: ((de: string, pacote: unknown) => void) | null = null;
   /** O servidor recusou começar a gravação: outra pessoa já grava. */
@@ -583,6 +584,7 @@ class Cliente {
       'senha-errada': 'Senha errada. Confira com quem mandou o link.',
       'sala-cheia': `A sala está cheia (máximo de ${LIMITE_POR_SALA} pessoas).`,
       'codigo-invalido': 'Código de sala inválido: use de 6 a 20 letras e números.',
+      'muitas-tentativas': 'Muitas senhas erradas seguidas deste endereço. Espere 5 minutos e tente de novo.',
     };
     const texto = textos[motivo] ?? `Erro: ${motivo}`;
     if (motivo in textos) {
@@ -1011,14 +1013,14 @@ class Cliente {
     const conexao = this.conexoes.get(chave(canal, idRemoto));
     if (!conexao) return;
     if (conexao.pc.remoteDescription) {
-      await conexao.pc.addIceCandidate(candidato);
+      await adicionarCandidato(conexao.pc, candidato);
     } else {
       conexao.pendentes.push(candidato);
     }
   }
 
   private async aplicarCandidatosPendentes(conexao: Conexao) {
-    for (const candidato of conexao.pendentes) await conexao.pc.addIceCandidate(candidato);
+    for (const candidato of conexao.pendentes) await adicionarCandidato(conexao.pc, candidato);
     conexao.pendentes = [];
   }
 
@@ -1050,7 +1052,18 @@ class Cliente {
     if (Math.abs(alvo - antes) >= 25) this.registrar(`folga de rede vendo ${this.nomeDe(id)}: ${alvo} ms`);
   }
 
+  /** Uma medição por vez: com muitas conexões, o getStats de todas pode passar de 1 s e as medições se empilhariam. */
   private async medir() {
+    if (this.medindo) return;
+    this.medindo = true;
+    try {
+      await this.medirAgora();
+    } finally {
+      this.medindo = false;
+    }
+  }
+
+  private async medirAgora() {
     if (this.conexoes.size === 0) {
       if (Object.keys(this.estado.metricas).length > 0) this.mudar({ metricas: {} });
       return;
@@ -1120,6 +1133,18 @@ function opusEstereo(sdp: string): string {
   return sdp.replace(new RegExp(`(a=fmtp:${tipo} [^\\r\\n]*)`), (linha) =>
     linha.includes('stereo=1') ? linha : `${linha};stereo=1;sprop-stereo=1;maxaveragebitrate=128000`,
   );
+}
+
+/**
+ * Um caminho de rede que o navegador recusa (de uma rede que ele não usa, ou que chegou com a conexão já
+ * fechada) só fica de fora. Antes, a recusa interrompia a resposta à oferta, e o vídeo nunca chegava.
+ */
+async function adicionarCandidato(pc: RTCPeerConnection, candidato: RTCIceCandidateInit) {
+  try {
+    await pc.addIceCandidate(candidato);
+  } catch (erro) {
+    console.warn('Candidato ICE recusado', erro);
+  }
 }
 
 function definirFolga(receptor: RTCRtpReceiver, ms: number) {

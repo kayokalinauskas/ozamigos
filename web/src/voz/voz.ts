@@ -103,6 +103,8 @@ class Voz {
   private monitor: GainNode | null = null;
   private microfone: MediaStream | null = null;
   private microfoneParado = false; // saí da sala: o microfone foi fechado e abre de novo na próxima entrada
+  // Cada abertura do microfone tem um número: só a mais recente vale (trocar dois ajustes seguidos abre duas vezes).
+  private aberturaDoMicrofone = 0;
   private fonteDoMicrofone: MediaStreamAudioSourceNode | null = null;
   private montagem: Promise<void> | null = null;
   private readonly conexoes = new Map<string, ConexaoDeVoz>();
@@ -184,6 +186,7 @@ class Voz {
 
   sair() {
     this.naSala = false;
+    this.aberturaDoMicrofone++; // um microfone ainda abrindo não fica ligado depois de sair
     for (const id of [...this.conexoes.keys()]) this.fechar(id);
     if (this.microfone) {
       this.microfone.getTracks().forEach((t) => t.stop());
@@ -333,10 +336,12 @@ class Voz {
       autoGainControl: a.ganhoAutomatico,
       channelCount: 1,
     });
+    const vez = ++this.aberturaDoMicrofone;
     let microfone: MediaStream;
     try {
       microfone = await navigator.mediaDevices.getUserMedia({ audio: restricoes(a.entrada) });
     } catch (erro) {
+      if (vez !== this.aberturaDoMicrofone) return; // já pediram outro: este erro não importa mais
       const nome = (erro as DOMException).name;
       if (a.entrada && (nome === 'OverconstrainedError' || nome === 'NotFoundError')) {
         // O microfone escolhido sumiu (desconectado): volta para o padrão do Windows.
@@ -354,6 +359,11 @@ class Voz {
           : 'Nenhum microfone encontrado: você ouve os amigos, mas eles não te ouvem. Conecte um e escolha na engrenagem.',
         'erro',
       );
+      return;
+    }
+    if (vez !== this.aberturaDoMicrofone) {
+      // Uma abertura mais nova (com os ajustes de agora) já está a caminho, ou a pessoa saiu: este fecha.
+      microfone.getTracks().forEach((t) => t.stop());
       return;
     }
     this.fonteDoMicrofone?.disconnect();
@@ -438,11 +448,14 @@ class Voz {
   // ===== As conexões de voz =====
 
   private novaConexao(id: string, oferente: boolean): ConexaoDeVoz {
+    // As tentativas seguidas passam para a conexão nova: lidas antes de fechar a antiga (senão a conta zerava e
+    // uma rede que não deixa conectar fazia ligar de novo para sempre, sem nunca avisar).
+    const tentativas = this.conexoes.get(id)?.tentativas ?? 0;
     this.fechar(id);
     const pc = new RTCPeerConnection({ iceServers: this.cliente?.servidoresIce ?? [], bundlePolicy: 'max-bundle' });
     // O canal de dados é combinado (mesmo id dos dois lados): não precisa de mais sinalização.
     const canal = pc.createDataChannel('estado', { negotiated: true, id: 0 });
-    const c: ConexaoDeVoz = { id, pc, oferente, pendentes: [], canal, ultimaFala: 0, tentativas: this.conexoes.get(id)?.tentativas ?? 0 };
+    const c: ConexaoDeVoz = { id, pc, oferente, pendentes: [], canal, ultimaFala: 0, tentativas };
     this.conexoes.set(id, c);
     canal.onopen = () => this.contarMeuEstado(c);
     canal.onmessage = (e) => {

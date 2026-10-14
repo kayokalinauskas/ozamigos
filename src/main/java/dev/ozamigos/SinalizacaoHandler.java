@@ -1,6 +1,7 @@
 package dev.ozamigos;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -13,8 +14,10 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
+import org.springframework.web.socket.handler.SessionLimitExceededException;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -33,11 +36,13 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
 
     private final Salas salas;
     private final SenhaDoGrupo senhaDoGrupo;
+    private final TentativasDeSenha tentativas;
     private final JsonMapper json;
 
-    public SinalizacaoHandler(Salas salas, SenhaDoGrupo senhaDoGrupo, JsonMapper json) {
+    public SinalizacaoHandler(Salas salas, SenhaDoGrupo senhaDoGrupo, TentativasDeSenha tentativas, JsonMapper json) {
         this.salas = salas;
         this.senhaDoGrupo = senhaDoGrupo;
+        this.tentativas = tentativas;
         this.json = json;
     }
 
@@ -52,7 +57,17 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession sessao, TextMessage mensagem) throws IOException {
-        JsonNode msg = json.readTree(mensagem.getPayload());
+        JsonNode msg;
+        try {
+            msg = json.readTree(mensagem.getPayload());
+        } catch (JacksonException e) {
+            msg = null;
+        }
+        // Lixo no lugar de JSON responde com erro, em vez de derrubar a conexão com um erro do servidor.
+        if (msg == null || !msg.isObject()) {
+            erro(sessao, "mensagem-invalida");
+            return;
+        }
         String id = (String) sessao.getAttributes().get("id");
         String sala = (String) sessao.getAttributes().get("sala");
         String tipo = msg.path("tipo").asString("");
@@ -80,8 +95,16 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     private void entrar(WebSocketSession sessao, String id, String codigo, String senha, String nome,
             String fichaAnterior) throws IOException {
         // A senha vem antes de tudo: sem ela, a pessoa não descobre nada sobre a sala.
+        String endereco = endereco(sessao);
+        if (tentativas.bloqueado(endereco)) {
+            log.warn("{} bloqueado: senhas erradas demais de {}", id, endereco);
+            erro(sessao, "muitas-tentativas");
+            sessao.close(CloseStatus.POLICY_VIOLATION);
+            return;
+        }
         if (!senhaDoGrupo.confere(senha)) {
             log.info("{} errou a senha", id);
+            tentativas.errou(endereco);
             erro(sessao, "senha-errada");
             sessao.close(CloseStatus.POLICY_VIOLATION);
             return;
@@ -274,13 +297,26 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
     }
 
-    /** O nome aparece para os outros: sem espaços nas pontas, até 20 caracteres, "Amigo" se vier vazio. */
-    private static String nomeLimpo(String nome) {
-        String limpo = nome.strip();
-        if (limpo.isEmpty()) {
-            return "Amigo";
+    /**
+     * O nome aparece para os outros: sem caracteres de controle nem os que invertem a direção do texto
+     * (que bagunçariam a lista da sala), sem espaços nas pontas, até 20 caracteres sem partir um emoji
+     * ao meio, e "Amigo" se vier vazio.
+     */
+    static String nomeLimpo(String nome) {
+        String limpo = nome.replaceAll("[\\p{Cc}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]", "").strip();
+        if (limpo.codePointCount(0, limpo.length()) > 20) {
+            limpo = limpo.substring(0, limpo.offsetByCodePoints(0, 20)).strip();
         }
-        return limpo.length() > 20 ? limpo.substring(0, 20) : limpo;
+        return limpo.isEmpty() ? "Amigo" : limpo;
+    }
+
+    /** O endereço de quem conectou (o do X-Forwarded-For atrás de proxy), para o freio de senhas erradas. */
+    private static String endereco(WebSocketSession sessao) {
+        InetSocketAddress remoto = sessao.getRemoteAddress();
+        if (remoto == null) {
+            return "?";
+        }
+        return remoto.getAddress() != null ? remoto.getAddress().getHostAddress() : remoto.getHostString();
     }
 
     private WebSocketSession segura(WebSocketSession sessao) {
@@ -292,8 +328,9 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     }
 
     /**
-     * Uma conexão pode fechar entre o isOpen e o envio (duas pessoas saindo juntas): essa falha fica só com ela,
-     * para não interromper os avisos aos outros da sala.
+     * Uma conexão pode fechar entre o isOpen e o envio (duas pessoas saindo juntas), ou ser derrubada por estar
+     * lenta demais para receber (fila cheia): essa falha fica só com ela. Sem isso, a exceção voltaria para quem
+     * mandou a mensagem, e o Spring derrubaria também a conexão dela.
      */
     private void enviar(WebSocketSession destino, JsonNode msg) {
         if (destino == null || !destino.isOpen()) {
@@ -301,7 +338,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
         try {
             destino.sendMessage(new TextMessage(json.writeValueAsString(msg)));
-        } catch (IOException | IllegalStateException e) {
+        } catch (IOException | IllegalStateException | SessionLimitExceededException e) {
             log.debug("não deu para enviar para uma conexão que fechou: {}", e.getMessage());
         }
     }

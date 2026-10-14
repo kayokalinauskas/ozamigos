@@ -147,6 +147,26 @@ class SinalizacaoTest {
         assertThat(ana.fechou.poll(5, TimeUnit.SECONDS)).isNotNull();
     }
 
+    @Test
+    void mensagemQueNaoEhJsonRespondeComErroSemDerrubarAConexao() throws Exception {
+        Cliente ana = entrar(sala, "Ana");
+
+        ana.enviar("isso não é json");
+        ana.enviar("[1,2]");
+
+        assertThat(ana.esperar("erro").path("motivo").asString()).isEqualTo("mensagem-invalida");
+        assertThat(ana.esperar("erro").path("motivo").asString()).isEqualTo("mensagem-invalida");
+        ana.enviar("{\"tipo\":\"ping\"}");
+        ana.esperar("pong");
+    }
+
+    @Test
+    void nomeSemControleNemInversaoECortadoSemPartirEmoji() {
+        assertThat(SinalizacaoHandler.nomeLimpo("  Ana‮\u0007  ")).isEqualTo("Ana");
+        assertThat(SinalizacaoHandler.nomeLimpo("\u0000 ")).isEqualTo("Amigo");
+        assertThat(SinalizacaoHandler.nomeLimpo("😀".repeat(21))).isEqualTo("😀".repeat(20));
+    }
+
     private Cliente entrar(String sala, String nome) throws Exception {
         Cliente c = conectar();
         c.enviar("{\"tipo\":\"entrar\",\"sala\":\"" + sala + "\",\"senha\":\"teste\",\"nome\":\"" + nome + "\"}");
