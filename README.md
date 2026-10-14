@@ -451,7 +451,12 @@ A voz pesa pouco: Opus mono a 64 kbps para cada amigo da sala, e quase nada enqu
 
 Não há opção a 60 fps: em jogo pesado, a captura do navegador já fica entre 21 e 29 fps, e os 60 dobravam o custo de codificar e de enviar.
 
-Em 1080p, o app acompanha quem transmite a cada segundo. Se o processador ou a placa de vídeo limitarem o codificador, ou se a banda estimada ficar abaixo de ~3 Mbps, por 6 de 10 segundos, a transmissão desce para 720p e aparece **Em 720p** ao lado da qualidade. Ela volta para 1080p depois de 30 segundos sem aperto e de 2 minutos da descida (a espera dobra a cada nova descida, até 16 minutos). Em 720p, se ainda faltar fôlego, o próprio WebRTC reduz a imagem em vez de travar.
+Em 1080p, o app acompanha a transmissão a cada segundo, e desce para 720p o que não estiver dando conta por 6 de 10 segundos:
+
+- **O PC de quem transmite** (o processador ou a placa de vídeo limitam o codificador): a transmissão inteira desce, e aparece **Em 720p** ao lado da qualidade.
+- **A conexão com um amigo** (a banda estimada até ele fica abaixo de ~3 Mbps): só esse amigo recebe 720p, e aparece **720p para** o nome dele. Os outros continuam em 1080p.
+
+Volta para 1080p depois de 30 segundos sem aperto e de 2 minutos da descida (a espera dobra a cada nova descida, até 16 minutos). Em 720p, se ainda faltar fôlego, o próprio WebRTC reduz a imagem em vez de travar.
 
 Exemplo: em 720p para 4 amigos, são cerca de 16 Mbps de upload; para 7 (a sala cheia), cerca de 28 Mbps. Em 1080p, cerca de 25 e 42 Mbps, o que pede cabo e um plano com upload folgado. Nos primeiros 15 a 25 segundos, uma resolução menor é normal: o WebRTC está medindo a rede.
 

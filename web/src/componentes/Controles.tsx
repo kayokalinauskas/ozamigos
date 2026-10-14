@@ -8,7 +8,7 @@ import { useCliente } from '../useCliente';
 type Props = { estatisticasAbertas: boolean; aoAlternarEstatisticas: () => void };
 
 export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props) {
-  const { minhaTela, qualidade, qualidadeEscolhida, qualidadeReduzida, metricas } = useCliente();
+  const { minhaTela, qualidade, qualidadeEscolhida, qualidadeReduzida, enviosReduzidos, metricas } = useCliente();
   const podeCapturar = Boolean(navigator.mediaDevices?.getDisplayMedia);
   const transmitindo = minhaTela !== null;
   const capturaBaixa = transmitindo
@@ -44,14 +44,21 @@ export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props
             <TriangleAlert size={16} aria-hidden="true" /> Captura a {capturaBaixa} fps
           </button>
         )}
-        {transmitindo && qualidadeReduzida && (
+        {transmitindo && (qualidadeReduzida || enviosReduzidos.length > 0) && (
           <button
             type="button"
             className="aviso-captura"
             onClick={() => !estatisticasAbertas && aoAlternarEstatisticas()}
-            title={`${qualidadeReduzida === 'pc' ? 'Seu PC' : 'Sua internet'} não estava dando conta de ${QUALIDADES[qualidadeEscolhida].rotulo}, e a transmissão desceu sozinha para não travar. Ela volta quando folgar. Clique para ver as estatísticas.`}
+            title={
+              qualidadeReduzida
+                ? `Seu PC não estava dando conta de ${QUALIDADES[qualidadeEscolhida].rotulo}, e a transmissão desceu sozinha para não travar. Ela volta quando folgar. Clique para ver as estatísticas.`
+                : `A conexão com ${enviosReduzidos.map((id) => cliente.nomeDe(id)).join(', ')} não aguentava ${QUALIDADES[qualidadeEscolhida].rotulo}: só ${enviosReduzidos.length === 1 ? 'essa pessoa recebe' : 'essas pessoas recebem'} uma imagem menor, e os outros continuam na qualidade escolhida. Volta sozinho quando folgar. Clique para ver as estatísticas.`
+            }
           >
-            <ArrowDown size={16} aria-hidden="true" /> Em {QUALIDADES[qualidade].rotulo.split(' ')[0]}
+            <ArrowDown size={16} aria-hidden="true" />{' '}
+            {qualidadeReduzida
+              ? `Em ${QUALIDADES[qualidade].rotulo.split(' ')[0]}`
+              : `720p para ${enviosReduzidos.length === 1 ? cliente.nomeDe(enviosReduzidos[0]) : `${enviosReduzidos.length} amigos`}`}
           </button>
         )}
         <label className="seletor-qualidade">

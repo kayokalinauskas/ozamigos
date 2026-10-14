@@ -68,42 +68,50 @@ describe('capturaAbaixo', () => {
 });
 
 describe('qualidade automática', () => {
-  const folgado: EnvioMedido = { id: 'a', limite: 'none', banda: 8 };
-  const semPc: EnvioMedido = { id: 'a', limite: 'cpu', banda: 8 };
-  /** Mede `segundos` vezes, um por segundo a partir de `inicio` (s), e devolve as trocas pedidas. */
-  function medir(auto: QualidadeAutomatica, inicio: number, segundos: number, envio: EnvioMedido) {
+  const folgado = (id = 'a'): EnvioMedido => ({ id, limite: 'none', banda: 8 });
+  const semPc = (id = 'a'): EnvioMedido => ({ id, limite: 'cpu', banda: 8 });
+  const semBanda = (id = 'a'): EnvioMedido => ({ id, limite: 'none', banda: 2 });
+  /** Mede `segundos` vezes, um por segundo a partir de `inicio` (s), e devolve as trocas pedidas com o segundo. */
+  function medir(auto: QualidadeAutomatica, inicio: number, segundos: number, envios: EnvioMedido[]) {
     const trocas = [];
     for (let t = inicio; t < inicio + segundos; t++) {
-      const decisao = auto.medir(t * 1000, 'nitida', [envio]);
-      if (decisao) trocas.push({ t, ...decisao });
+      for (const decisao of auto.medir(t * 1000, 'nitida', envios)) trocas.push({ t, ...decisao });
     }
     return trocas;
   }
 
-  it('quem escolheu 1080p desce para 720p só com o aperto durando, e nunca nos primeiros segundos de quem assiste', () => {
+  it('com o PC apertado, a captura desce para todos só com o aperto durando, e nunca nos primeiros segundos de quem assiste', () => {
     const auto = new QualidadeAutomatica();
-    expect(medir(auto, 0, AUTOMATICA.maduraDepois, semPc)).toEqual([]); // conexão nova: o bitrate ainda está subindo
+    expect(medir(auto, 0, AUTOMATICA.carencia, [semPc()])).toEqual([]); // conexão nova: o bitrate ainda está subindo
     const curto = new QualidadeAutomatica();
-    medir(curto, 0, 20, folgado);
-    expect(medir(curto, 20, AUTOMATICA.apertados - 1, semPc)).toEqual([]); // um aperto curto não derruba
-    expect(medir(curto, 25, 10, folgado)).toEqual([]);
-    expect(medir(auto, AUTOMATICA.maduraDepois, 10, semPc)).toEqual([{ t: 15, acao: 'descer', qualidade: 'leve', motivo: 'pc' }]);
-    expect(new QualidadeAutomatica().medir(0, 'leve', [semPc])).toBeNull(); // 720p não desce: lá, o WebRTC baixa a imagem
+    medir(curto, 0, 20, [folgado()]);
+    expect(medir(curto, 20, AUTOMATICA.apertados - 1, [semPc()])).toEqual([]); // um aperto curto não derruba
+    expect(medir(curto, 25, 10, [folgado()])).toEqual([]);
+    expect(medir(auto, AUTOMATICA.carencia, 10, [semPc()])).toEqual([{ t: 15, acao: 'descer', id: null, motivo: 'pc' }]);
+    expect(auto.reduzidaPeloPc).toBe(true);
+    expect(new QualidadeAutomatica().medir(0, 'leve', [semPc()])).toEqual([]); // 720p não desce: lá, o WebRTC baixa a imagem
+  });
+
+  it('com a conexão de uma pessoa apertada, só ela recebe 720p; quem está bem continua em 1080p', () => {
+    const auto = new QualidadeAutomatica();
+    const trocas = medir(auto, 0, 30, [semBanda('wifi'), folgado('cabo')]);
+    expect(trocas).toEqual([{ t: 15, acao: 'descer', id: 'wifi', motivo: 'rede' }]);
+    expect(auto.reduzidos()).toEqual(['wifi']);
+    expect(auto.reduzidaPeloPc).toBe(false);
+    auto.esquecer('wifi'); // a conexão foi refeita: começa do zero
+    expect(auto.reduzidos()).toEqual([]);
   });
 
   it('volta para 1080p depois de folgar e da espera, que dobra a cada descida', () => {
     const auto = new QualidadeAutomatica();
-    medir(auto, 0, 16, semPc); // desce em t = 15
-    const pelaBanda = { ...folgado, banda: 2 }; // a 720p, sem banda para 1080p: não volta
-    expect(medir(auto, 16, 300, pelaBanda)).toEqual([]);
-    const volta = medir(auto, 316, 60, folgado);
-    expect(volta).toEqual([{ t: 316 + AUTOMATICA.calmaParaSubir - 1, acao: 'subir', qualidade: 'nitida' }]);
-    // Desce de novo: agora espera o dobro antes de tentar.
-    const t0 = volta[0].t + 1;
-    const segunda = medir(auto, t0, 30, semPc);
+    medir(auto, 0, 16, [semPc()]); // desce em t = 15
+    expect(medir(auto, 16, 300, [{ ...semPc() }])).toEqual([]); // ainda apertado: não volta
+    const volta = medir(auto, 316, 60, [folgado()]);
+    expect(volta).toEqual([{ t: 316 + AUTOMATICA.calmaParaSubir - 1, acao: 'subir', id: null, motivo: 'pc' }]);
+    // Desce de novo (depois da carência da volta): agora espera o dobro antes de tentar.
+    const segunda = medir(auto, volta[0].t + 1, 30, [semPc()]);
     expect(segunda[0].acao).toBe('descer');
-    const t1 = segunda[0].t;
-    const subida = medir(auto, t1 + 1, 2 * AUTOMATICA.esperaInicial + 60, folgado);
-    expect(subida[0].t - t1).toBeGreaterThanOrEqual(2 * AUTOMATICA.esperaInicial);
+    const subida = medir(auto, segunda[0].t + 1, 2 * AUTOMATICA.esperaInicial + 60, [folgado()]);
+    expect(subida[0].t - segunda[0].t).toBeGreaterThanOrEqual(2 * AUTOMATICA.esperaInicial);
   });
 });

@@ -10,7 +10,9 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ### Alterado
 - **720p · 30 fps é a qualidade padrão**, como no Discord sem Nitro. A outra opção é 1080p · 30 fps, mais pesada para quem transmite e para quem assiste. As opções a 60 fps saíram: em jogo pesado, a captura já ficava entre 21 e 29 fps, e os 60 dobravam o custo. Quem tinha escolhido uma delas passa para a de 30 fps do mesmo tamanho.
-- **A 1080p desce sozinha para 720p em vez de travar** quando o PC ou a internet de quem transmite não dá conta por alguns segundos, e volta quando folgar. Enquanto isso, aparece "Em 720p" ao lado da qualidade.
+- **A 1080p desce sozinha para 720p em vez de travar**, e volta quando folgar:
+  - se o PC de quem transmite não dá conta, a transmissão inteira desce ("Em 720p" ao lado da qualidade);
+  - se a conexão com um amigo não aguenta, só ele recebe 720p ("720p para Ana"), e quem está no cabo continua em 1080p.
 
 ## [1.2.12] - 2026-10-14
 
