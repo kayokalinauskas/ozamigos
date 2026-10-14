@@ -26,10 +26,13 @@ export function tamanhoDaCaptura(qualidade: Qualidade, comPiso = false): MediaTr
   };
 }
 
-/** Os parâmetros do codificador para a qualidade escolhida (o tamanho vem da captura, sem escala aqui). */
-export function codificacao(qualidade: Qualidade): RTCRtpEncodingParameters {
+/**
+ * Os parâmetros do codificador para a qualidade escolhida (o tamanho vem da captura, sem escala aqui).
+ * `fracao` do bitrate: as conexões novas começam com menos (BITRATE_INICIAL em cliente.ts).
+ */
+export function codificacao(qualidade: Qualidade, fracao = 1): RTCRtpEncodingParameters {
   const { bitrate, fps } = QUALIDADES[qualidade];
-  return { maxBitrate: bitrate, maxFramerate: fps, scaleResolutionDownBy: 1 };
+  return { maxBitrate: Math.round(bitrate * fracao), maxFramerate: fps, scaleResolutionDownBy: 1 };
 }
 
 /** Abre o seletor do navegador (ou o do app, no Windows). null se a pessoa cancelou. */
@@ -63,13 +66,13 @@ export function descreverFonte(tela: MediaStream): string {
   return `${nomes[displaySurface ?? ''] ?? 'Sua tela'}, ${audio}`;
 }
 
-/** Vídeo e som da tela numa conexão de envio, com a qualidade de agora. */
-export function montarEnvio(pc: RTCPeerConnection, tela: MediaStream, qualidade: Qualidade) {
+/** Vídeo e som da tela numa conexão de envio, com a qualidade de agora (e uma fração do bitrate, se pedida). */
+export function montarEnvio(tela: MediaStream, qualidade: Qualidade, pc: RTCPeerConnection, fracaoDoBitrate = 1) {
   const [video] = tela.getVideoTracks();
   const transceptor = pc.addTransceiver(video, {
     direction: 'sendonly',
     streams: [tela],
-    sendEncodings: [codificacao(qualidade)],
+    sendEncodings: [codificacao(qualidade, fracaoDoBitrate)],
   });
   preferirH264(transceptor);
   // Sempre cria o canal de áudio, mesmo sem áudio agora: assim a troca de fonte não precisa renegociar.

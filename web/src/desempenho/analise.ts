@@ -2,6 +2,7 @@
 // recomendação. As regras ficam todas aqui, com os limites explícitos, para que a IA que ler o relatório
 // saiba exatamente por que cada conclusão foi tirada (e possa discordar).
 
+import { FOLGA } from '../folga';
 import { QUALIDADES, type Qualidade } from '../qualidade';
 import { FAIXAS, type AmostraRecepcao, type Gravacao, type Trecho } from './tipos';
 
@@ -46,6 +47,8 @@ export type ResumoDoTrecho = {
     perdaPct: number | null;
     jitterMs: number | null;
     msBuffer: number | null;
+    msBufferSom: number | null; // null: transmissão sem som (ou versão antiga, que não mede)
+    folgaMs: number | null; // a folga pedida (jitterBufferTarget), média
     msDecodificacao: number | null;
     intervaloDesvioMs: number | null;
     msRecebidoAteTela: number | null;
@@ -63,6 +66,7 @@ export type ResumoDoTrecho = {
     placa3dTotalMax: number | null;
     placaVideoTotal: number | null;
     placaVideoTotalMax: number | null;
+    placaVideoApp: number | null; // só os processos do Ozamigos: a diferença para o total é de outros programas
     placa3dOutros: number | null;
     memoriaPlacaMB: number | null;
   };
@@ -263,6 +267,8 @@ export function resumirTrecho(g: Gravacao, trecho: Trecho): ResumoDoTrecho {
       perdaPct: media(recepcao.map((r) => r.perdaPct), 2),
       jitterMs: media(recepcao.map((r) => r.jitterMs)),
       msBuffer,
+      msBufferSom: media(recepcao.map((r) => r.msBufferSom ?? null)),
+      folgaMs: media(recepcao.map((r) => r.folgaMs ?? null), 0),
       msDecodificacao,
       intervaloDesvioMs: media(recepcao.map((r) => r.intervaloDesvioMs)),
       msRecebidoAteTela: media(comRitmo.map((r) => r.ritmo!.msRecebidoAteTela), 0),
@@ -280,6 +286,7 @@ export function resumirTrecho(g: Gravacao, trecho: Trecho): ResumoDoTrecho {
       placa3dTotalMax: maximo(pcs.map((p) => p.placa3dTotal)),
       placaVideoTotal: media(pcs.map((p) => p.placaVideoTotal)),
       placaVideoTotalMax: maximo(pcs.map((p) => p.placaVideoTotal)),
+      placaVideoApp: media(pcs.map((p) => p.placaVideoApp)),
       placa3dOutros: media(pcs.map((p) => p.placa3dOutros)),
       memoriaPlacaMB: media(pcs.map((p) => p.memoriaPlacaMB), 0),
     },
@@ -312,11 +319,11 @@ export function classificar(r: ResumoDoTrecho): Resultado {
 
 const CODIGO = {
   qualidades: 'web/src/qualidade.ts (QUALIDADES: bitrate, fps, altura e degradationPreference de cada opção)',
-  captura: 'web/src/cliente.ts (tamanhoDaCaptura, FPS_MINIMO_DA_CAPTURA, usarTela) e desktop/main.js (desktopCapturer, setDisplayMediaRequestHandler)',
-  codificador: 'web/src/cliente.ts (montarEnvio, codificacao, preferirH264, aplicarQualidade) e desktop/main.js (force-fieldtrials WebRTC-FrameDropper/Disabled)',
+  captura: 'web/src/conexao/captura.ts (tamanhoDaCaptura, FPS_MINIMO_DA_CAPTURA), web/src/cliente.ts (usarTela) e desktop/main.js (desktopCapturer, setDisplayMediaRequestHandler, appendSwitch)',
+  codificador: 'web/src/conexao/captura.ts (montarEnvio, codificacao), web/src/conexao/webrtc.ts (preferirH264), web/src/cliente.ts (aplicarQualidade) e desktop/main.js (force-fieldtrials WebRTC-FrameDropper/Disabled)',
   buffer: 'web/src/folga.ts (FolgaAdaptativa: o jitterBufferTarget de quem assiste) e web/src/cliente.ts (ajustarFolga)',
-  rede: 'web/src/cliente.ts (SERVIDORES_ICE: só STUN, sem TURN; refazerVideo)',
-  interface: 'web/src/cliente.ts (medir(): getStats de todas as conexões a cada 1 s e mudar() que re-renderiza o React) e web/src/componentes/',
+  rede: 'web/src/conexao/webrtc.ts (SERVIDORES_ICE: só STUN, sem TURN) e web/src/cliente.ts (refazerVideo)',
+  interface: 'web/src/conexao/medidor.ts e web/src/cliente.ts (medir(): getStats de todas as conexões a cada 1 s e mudar() que re-renderiza o React) e web/src/componentes/',
   malha: 'web/src/cliente.ts (enviarOferta: uma RTCPeerConnection e uma codificação por espectador)',
 };
 
@@ -345,10 +352,17 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
       codigo: 'captura-lenta',
       titulo: `A captura do jogo entrega só ${fmt(pior.captura.fps, ' fps', 0)} (a qualidade pede ${pior.alvoFps})`,
       detalhe:
-        'O Windows está copiando a imagem do jogo mais devagar do que a qualidade pede, antes de qualquer codificação ou rede. Tudo depois disso herda esse limite.',
-      evidencias: capturaBaixa.map((t) => `${t.trecho.nome} (${t.trecho.espectadores} esp.): captura ${fmt(t.captura.fps, ' fps')} de ${t.alvoFps}`),
-      paraVoce: 'Teste o jogo em janela sem bordas, limite o fps do jogo a 60 e confira se o jogo não está com a placa a 100%.',
-      paraOApp: 'Investigar o caminho de captura (Windows Graphics Capture vs. DXGI) e o piso de fps.',
+        'A captura sai mais devagar do que a qualidade pede, antes de qualquer codificação ou rede, e tudo depois herda esse limite. ' +
+        'Causa mais comum (medida com o Path of Exile): o jogo sem limite de fps enche a placa de vídeo, a cópia de cada quadro capturado ' +
+        'espera na fila dela, e o Chromium espaça as capturas para a cópia não passar de 50% do tempo (com ~24 ms por cópia, ~21 fps). ' +
+        'O uso total da placa não mostra isso: a captura fica baixa com a placa a 30% ou a 95%.',
+      evidencias: capturaBaixa.map(
+        (t) =>
+          `${t.trecho.nome} (${t.trecho.espectadores} esp.): captura ${fmt(t.captura.fps, ' fps')} de ${t.alvoFps}, placa 3D ${fmt(t.pc.placa3dTotal, '%')} (máx. ${fmt(t.pc.placa3dTotalMax, '%')})`,
+      ),
+      paraVoce: 'Limite o fps do jogo a 60 (ou ligue o VSync). Num teste com o Path of Exile, a captura foi de 21 para 29 fps só com isso.',
+      paraOApp:
+        'Tirar a cópia do caminho (captura em textura: WebRtcAllowWgcUsingTexture + ZeroCopyDesktopCapture) e dar prioridade na placa ao processo de vídeo do Ozamigos (D3DKMTSetProcessSchedulingPriorityClass).',
       ondeNoCodigo: [CODIGO.captura],
     });
   } else {
@@ -570,13 +584,23 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
   const recomendado = comAtraso.find((t) => t.trecho.qualidade === g.qualidadeDaPessoa) ?? comAtraso[0];
   // A folga adaptativa fica em 80–100 ms com a rede boa: só vale apontar quando ela ficou bem acima disso.
   if (recomendado && recomendado.atraso.buffer > 130 && recomendado.atraso.buffer > recomendado.atraso.total * 0.55) {
+    const { buffer } = recomendado.atraso;
+    // Acima do limite da folga, quem segura a imagem não é a folga: é o navegador (sincronismo com o som, ou a espera
+    // que ele mesmo aumenta depois de um congelamento e demora a baixar).
+    const alemDaFolga = buffer > FOLGA.maxima + 50;
+    const { msBufferSom, folgaMs } = recomendado.recepcao;
     lista.push({
-      gravidade: 'baixa',
+      gravidade: buffer > 500 ? 'alta' : alemDaFolga ? 'media' : 'baixa',
       codigo: 'atraso-no-buffer',
-      titulo: `O buffer de quem assiste é ${Math.round((recomendado.atraso.buffer / recomendado.atraso.total) * 100)}% do atraso`,
-      detalhe: 'Quem assiste segura quadros para absorver variações da rede (jitterBufferTarget). É uma escolha: menos buffer = menos atraso, mais risco de congelar em Wi-Fi instável.',
+      titulo: alemDaFolga
+        ? `A imagem espera ${fmt(buffer, ' ms', 0)} no PC de quem assiste, acima do limite da folga (${FOLGA.maxima} ms)`
+        : `O buffer de quem assiste é ${Math.round((buffer / recomendado.atraso.total) * 100)}% do atraso`,
+      detalhe: alemDaFolga
+        ? 'Acima do limite da folga, quem segura a imagem é o navegador: o sincronismo com o som da transmissão (a imagem espera o som) ou a espera que ele mesmo aumenta depois de um congelamento e demora a baixar.'
+        : 'Quem assiste segura quadros para absorver variações da rede (jitterBufferTarget). É uma escolha: menos buffer = menos atraso, mais risco de congelar em Wi-Fi instável.',
       evidencias: [
-        `${recomendado.trecho.nome}: codificação ${fmt(recomendado.atraso.codificacao, ' ms')}, fila ${fmt(recomendado.atraso.fila, ' ms')}, rede ${fmt(recomendado.atraso.rede, ' ms')}, buffer ${fmt(recomendado.atraso.buffer, ' ms')}, decodificação ${fmt(recomendado.atraso.decodificacao, ' ms')}`,
+        `${recomendado.trecho.nome}: codificação ${fmt(recomendado.atraso.codificacao, ' ms')}, fila ${fmt(recomendado.atraso.fila, ' ms')}, rede ${fmt(recomendado.atraso.rede, ' ms')}, buffer ${fmt(buffer, ' ms')}, decodificação ${fmt(recomendado.atraso.decodificacao, ' ms')}`,
+        `folga pedida em média: ${fmt(folgaMs, ' ms', 0)}; buffer do som: ${msBufferSom != null ? fmt(msBufferSom, ' ms') : 'sem som (ou versão que não mede)'}`,
         `jitterBufferTarget: ${g.ajustes.folgaDeRede ?? `${g.ajustes.folgaDeRedeMs ?? '?'} ms`}`,
       ],
       paraOApp: 'Rever os limites da folga adaptativa (FOLGA em folga.ts) e quanto ela sobe a cada congelamento.',
@@ -594,6 +618,25 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
       detalhe: 'Com a placa cheia, a captura e a codificação disputam espaço com o jogo e podem atrasar.',
       evidencias: placaCheia.map((t) => `${t.trecho.nome}: 3D até ${fmt(t.pc.placa3dTotalMax, '%')} (o jogo ${fmt(t.pc.placa3dOutros, '%')} em média)`),
       paraVoce: 'Limite o fps do jogo (60 costuma bastar) para sobrar placa para a transmissão.',
+    });
+  }
+
+  // Outro programa codificando vídeo na mesma placa (gravação em segundo plano): disputa o codificador com o Ozamigos.
+  const codificadorDisputado = validos.filter(
+    (t) => t.pc.placaVideoTotal != null && t.pc.placaVideoApp != null && t.pc.placaVideoTotal - t.pc.placaVideoApp >= 30,
+  );
+  if (codificadorDisputado.length) {
+    lista.push({
+      gravidade: 'media',
+      codigo: 'codificador-disputado',
+      titulo: 'Outro programa usou o codificador de vídeo da placa junto com o Ozamigos',
+      detalhe:
+        'O motor de vídeo da placa estava ocupado bem além do que o Ozamigos usava. Quase sempre é uma gravação em segundo plano. Com mais amigos assistindo, os dois disputam o mesmo codificador.',
+      evidencias: codificadorDisputado.map(
+        (t) => `${t.trecho.nome}: motor de vídeo ${fmt(t.pc.placaVideoTotal, '%')} no total, ${fmt(t.pc.placaVideoApp, '%')} do Ozamigos`,
+      ),
+      paraVoce:
+        'Desligue as gravações em segundo plano: Instant Replay/gravação da AMD (Adrenalin), Instant Replay da NVIDIA, gravação da Steam ou a da Barra de Jogo do Windows.',
     });
   }
 
@@ -747,6 +790,8 @@ export const NOMES_DOS_GARGALOS: Record<string, string> = {
   'interface-trava': 'Interface',
   'congela-ao-entrar': 'Entrada de espectadores',
   'placa-cheia': 'Placa de vídeo',
+  'codificador-disputado': 'Codificador da placa (outro programa)',
+  'atraso-no-buffer': 'Atraso no buffer',
   'sem-dados': 'Sem dados',
 };
 

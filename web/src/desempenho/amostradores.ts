@@ -33,6 +33,20 @@ function parEscolhido(relatorio: Relatorio) {
   };
 }
 
+/** A espera média no jitter buffer entre duas leituras (ms), ou null se nada saiu dele. */
+function esperaNoBuffer(r: any, a: any): number | null {
+  const emitidos = (r.jitterBufferEmittedCount ?? 0) - (a.jitterBufferEmittedCount ?? 0);
+  return emitidos > 0 ? arredondar((((r.jitterBufferDelay ?? 0) - (a.jitterBufferDelay ?? 0)) * 1000) / emitidos) : null;
+}
+
+function somRecebidoDe(relatorio: Relatorio) {
+  let achado: any = null;
+  relatorio.forEach((r) => {
+    if (r.type === 'inbound-rtp' && r.kind === 'audio') achado = r;
+  });
+  return achado;
+}
+
 function videoDe(relatorio: Relatorio, tipo: 'outbound-rtp' | 'inbound-rtp') {
   let achado: any = null;
   relatorio.forEach((r) => {
@@ -180,6 +194,7 @@ export function contarFaixas(intervalos: number[]): number[] {
 
 export class AmostradorRecepcao {
   private anterior: any = null;
+  private anteriorDoSom: any = null;
   readonly ritmo = new MedidorDeRitmo();
 
   constructor(
@@ -196,9 +211,15 @@ export class AmostradorRecepcao {
     if (!relatorio) return null;
     const r = videoDe(relatorio, 'inbound-rtp');
     if (!r) return null;
+    const som = somRecebidoDe(relatorio);
+    const aDoSom = this.anteriorDoSom;
+    this.anteriorDoSom = som;
     const a = this.anterior;
     this.anterior = r;
     if (!a) return null;
+    const receptorDeVideo = this.pc.getReceivers().find((x) => x.track.kind === 'video') as
+      | (RTCRtpReceiver & { jitterBufferTarget?: number | null })
+      | undefined;
     const segundos = (r.timestamp - a.timestamp) / 1000 || 1;
     const delta = (campo: string) => Math.max(0, (r[campo] ?? 0) - (a[campo] ?? 0));
     const decodificados = delta('framesDecoded');
@@ -221,6 +242,8 @@ export class AmostradorRecepcao {
       mbps: arredondar((delta('bytesReceived') * 8) / segundos / 1e6, 2),
       msDecodificacao: porQuadro(delta('totalDecodeTime') * 1000, decodificados),
       msBuffer: emitidos > 0 ? arredondar((delta('jitterBufferDelay') * 1000) / emitidos) : null,
+      msBufferSom: som && aDoSom ? esperaNoBuffer(som, aDoSom) : null,
+      folgaMs: receptorDeVideo?.jitterBufferTarget ?? null,
       intervaloMedioMs: mediaIntervalo !== null ? arredondar(mediaIntervalo * 1000) : null,
       intervaloDesvioMs:
         mediaIntervalo !== null ? arredondar(Math.sqrt(Math.max(0, somaQuadrados / decodificados - mediaIntervalo ** 2)) * 1000) : null,

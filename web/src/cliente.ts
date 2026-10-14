@@ -70,6 +70,11 @@ const SILENCIO_MAXIMO = 70_000;
 const JANELA_DE_VOLTA = 120_000;
 // Conexão de vídeo "desconectada" por mais que isso é refeita (antes ficava congelada até desistir).
 const ESPERA_DESCONECTADO = 2_000;
+// Cada pessoa nova começa recebendo com metade do bitrate da qualidade, e o resto vem depois desse tempo. O codificador
+// da placa passa do alvo no começo (9 Mbps pedindo 4, num teste com a AMD) enquanto o WebRTC ainda mede a rede: o excesso
+// enchia a fila de envio e a imagem congelava 3 ou 4 vezes nos primeiros segundos.
+const BITRATE_INICIAL = 0.5;
+const SUBIR_BITRATE_DEPOIS = 6_000;
 
 // Recusas do servidor que mandam a pessoa de volta para a tela de entrada, com o motivo.
 const RECUSAS: Partial<Record<MotivoDoErro, string>> = {
@@ -86,7 +91,8 @@ export const AJUSTES_DA_TRANSMISSAO = {
   topologia: 'malha P2P: uma RTCPeerConnection e uma codificação por pessoa assistindo',
   codecPreferido: 'H264 (setCodecPreferences), depois os outros',
   folgaDeRedeMs: FOLGA.inicial,
-  folgaDeRede: `adaptativa por conexão (web/src/folga.ts): começa em ${FOLGA.inicial} ms, fica entre ${FOLGA.minima} e ${FOLGA.maxima} ms; sobe com o jitter e a cada congelamento, desce devagar com a rede calma`,
+  folgaDeRede: `adaptativa por conexão, só no vídeo (web/src/folga.ts): começa em ${FOLGA.inicial} ms, fica entre ${FOLGA.minima} e ${FOLGA.maxima} ms; sobe com o jitter e a cada congelamento, desce devagar com a rede calma. O som da transmissão fica com o ajuste automático do WebRTC`,
+  bitrateInicial: `${BITRATE_INICIAL * 100}% do bitrate da qualidade nos primeiros ${SUBIR_BITRATE_DEPOIS / 1000} s de cada pessoa nova`,
   fpsMinimoDaCaptura: FPS_MINIMO_DA_CAPTURA,
   contentHint: 'motion',
   bundlePolicy: 'max-bundle',
@@ -757,7 +763,8 @@ class Cliente {
     if (!tela) return;
     this.fecharConexao('envio', idEspectador);
     const { pc } = this.novaConexao('envio', idEspectador);
-    this.montarEnvio(pc);
+    montarEnvio(tela, this.estado.qualidade, pc, BITRATE_INICIAL);
+    setTimeout(() => void this.bitrateCheio(pc), SUBIR_BITRATE_DEPOIS);
     const oferta = await pc.createOffer();
     const descricao: RTCSessionDescriptionInit = { type: 'offer', sdp: opusEstereo(oferta.sdp ?? '') };
     await pc.setLocalDescription(descricao);
@@ -768,7 +775,22 @@ class Cliente {
   montarEnvio(pc: RTCPeerConnection) {
     const tela = this.estado.minhaTela;
     if (!tela) throw new Error('Ninguém está transmitindo');
-    montarEnvio(pc, tela, this.estado.qualidade);
+    montarEnvio(tela, this.estado.qualidade, pc);
+  }
+
+  /** Passados os primeiros segundos de uma pessoa nova, o bitrate sobe para o da qualidade. */
+  private async bitrateCheio(pc: RTCPeerConnection) {
+    if (pc.connectionState === 'closed') return;
+    const remetente = pc.getSenders().find((s) => s.track?.kind === 'video');
+    if (!remetente) return;
+    const parametros = remetente.getParameters();
+    if (!parametros.encodings?.length) return;
+    Object.assign(parametros.encodings[0], codificacao(this.estado.qualidade));
+    try {
+      await remetente.setParameters(parametros);
+    } catch (erro) {
+      console.warn('Não foi possível subir o bitrate', erro);
+    }
   }
 
   /** O que sacrificar quando faltar banda ou placa de vídeo, conforme a qualidade (veja QUALIDADES). */
@@ -841,8 +863,10 @@ class Cliente {
     const folga = new FolgaAdaptativa();
     this.folgas.set(idTransmissor, folga);
     conexao.pc.ontrack = (evento) => {
-      // Folga contra soluços do Wi-Fi de quem assiste (folga.ts); vale para vídeo e som, que andam juntos.
-      definirFolga(evento.receiver, folga.alvo);
+      // Folga contra soluços do Wi-Fi de quem assiste (folga.ts), só no vídeo. No som, ela fazia a imagem esperar mais:
+      // o navegador sincroniza os dois, e a folga do som somada à saída de áudio (~200 ms a mais no Android, medido)
+      // segurava a imagem junto. O som fica com o ajuste automático do WebRTC, que já se adapta à rede.
+      if (evento.track.kind === 'video') definirFolga(evento.receiver, folga.alvo);
       this.mudar({ videos: { ...this.estado.videos, [idTransmissor]: evento.streams[0] } });
     };
     await conexao.pc.setRemoteDescription(sdp);
@@ -878,7 +902,7 @@ class Cliente {
     const antes = folga.alvo;
     const alvo = folga.medir(jitter != null ? jitter * 1000 : null, congelamentos);
     if (alvo === antes) return;
-    for (const receptor of pc.getReceivers()) definirFolga(receptor, alvo);
+    for (const receptor of pc.getReceivers()) if (receptor.track.kind === 'video') definirFolga(receptor, alvo);
     if (Math.abs(alvo - antes) >= 25) this.registrar(`folga de rede vendo ${this.nomeDe(id)}: ${alvo} ms`);
   }
 

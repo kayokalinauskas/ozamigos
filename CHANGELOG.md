@@ -34,6 +34,11 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 - **Por dentro:** as mensagens com o servidor ganharam um tipo para cada uma (`web/src/conexao/protocolo.ts`), e o núcleo da interface foi dividido em peças menores (sinalização, captura, medições, relatório). O servidor ganhou a verificação de saúde `/actuator/health`, para o Render reiniciá-lo se travar.
 
+- **Menos atraso com o som do jogo:** a folga contra soluços da rede passou a valer só para o vídeo. Com ela também no som, a imagem esperava o som para os dois saírem juntos, e chegava ~200 ms mais tarde (medido num celular pelo Wi-Fi).
+- **Menos congelamentos quando alguém começa a assistir:** cada pessoa nova recebe com metade do bitrate nos primeiros 6 segundos, enquanto o WebRTC mede a rede.
+- **Captura abaixo da qualidade:** o aviso e o relatório agora apontam a causa mais comum, o jogo sem limite de fps ocupando a placa de vídeo, e sugerem limitar o jogo a 60 (num teste, a captura foi de 21 para 29 fps).
+- **Relatório de estatísticas:** mede o buffer do som e a folga em uso, avisa quando outro programa (uma gravação em segundo plano) usa o codificador de vídeo da placa, e dá mais peso ao atraso quando a imagem espera além do limite da folga.
+
 ### Corrigido
 - Quando duas pessoas saíam da sala ao mesmo tempo, quem ficava podia não ser avisado de uma delas e continuava vendo um "fantasma" na lista.
 - A voz com um amigo cuja rede não deixa conectar ficava tentando ligar de novo para sempre, sem nunca avisar. Agora são 3 tentativas e um aviso.

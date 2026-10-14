@@ -210,12 +210,13 @@ class Teste {
     const recebe = new RTCPeerConnection({ bundlePolicy: 'max-bundle' });
     const chegou = new Promise<MediaStream>((resolver) => {
       recebe.ontrack = (evento) => {
+        if (evento.track.kind !== 'video') return; // a folga vale só para o vídeo, como nas conexões de verdade
         try {
           (evento.receiver as RTCRtpReceiver & { jitterBufferTarget: number | null }).jitterBufferTarget = AJUSTES_DA_TRANSMISSAO.folgaDeRedeMs;
         } catch {
           // o mesmo aviso já aparece nas conexões de verdade
         }
-        if (evento.track.kind === 'video') resolver(evento.streams[0]);
+        resolver(evento.streams[0]);
       };
     });
     cliente.montarEnvio(envio);

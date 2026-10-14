@@ -55,6 +55,21 @@ describe('análise', () => {
     expect(a.diagnosticos.some((d) => d.codigo === 'captura-lenta')).toBe(true);
     expect(a.trechos[0].conteudoFps).toBe(21); // um jogo a 21 fps não é cobrado por 60
   });
+
+  it('aponta a imagem esperando além da folga e outro programa usando o codificador da placa', () => {
+    const parte = trecho(0, 0, 1, 4, 16.7);
+    for (const r of parte.recepcao) Object.assign(r, { msBuffer: 600, msBufferSom: 590, folgaMs: 250 });
+    const g = gravacao(parte);
+    g.pcAmostras = Array.from({ length: 30 }, (_, i) => ({
+      t: i + 1, cpuApp: 8, cpuPorProcesso: {}, memoriaAppMB: 900, cpuPc: 50, placa3dTotal: 80, placaVideoTotal: 81,
+      placa3dApp: 6, placaVideoApp: 9, placa3dOutros: 74, motores: null, memoriaPlacaMB: 8000,
+    }));
+    const a = analisar(g);
+    const atraso = a.diagnosticos.find((d) => d.codigo === 'atraso-no-buffer');
+    expect(atraso?.gravidade).toBe('alta');
+    expect(atraso?.evidencias.join(' ')).toContain('buffer do som: 590');
+    expect(a.diagnosticos.some((d) => d.codigo === 'codificador-disputado')).toBe(true);
+  });
 });
 
 describe('relatório para IA', () => {

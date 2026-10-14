@@ -179,12 +179,14 @@ function trechos(p: Empurrar, g: Gravacao, a: Analise, titulo: string, c: Contex
     '**Recepção (quem assiste)**',
     '',
     tabela(
-      ['Trecho', 'Esp.', 'Decod. ms', 'Buffer ms', 'Desvio intervalo ms', 'Perda %', 'Jitter ms', 'Descartados', 'Recebido→tela ms', 'Captura→tela ms (medido)', 'Decodificador'],
+      ['Trecho', 'Esp.', 'Decod. ms', 'Buffer ms', 'Buffer som ms', 'Folga ms', 'Desvio intervalo ms', 'Perda %', 'Jitter ms', 'Descartados', 'Recebido→tela ms', 'Captura→tela ms (medido)', 'Decodificador'],
       validos.map((t) => [
         linhaDoTrecho(t),
         t.trecho.espectadores,
         fmt(t.recepcao.msDecodificacao),
         fmt(t.recepcao.msBuffer),
+        fmt(t.recepcao.msBufferSom),
+        fmt(t.recepcao.folgaMs, '', 0),
         fmt(t.recepcao.intervaloDesvioMs),
         fmt(t.recepcao.perdaPct, '', 2),
         fmt(t.recepcao.jitterMs),
@@ -299,11 +301,11 @@ function configuracao(p: Empurrar, g: Gravacao, titulo: string) {
   p(
     titulo,
     '',
-    '- Cada pessoa assistindo ganha uma `RTCPeerConnection` só dela, com uma codificação própria da mesma captura (`web/src/cliente.ts`, `enviarOferta` → `montarEnvio`). 7 pessoas = 7 codificações simultâneas na placa de quem transmite.',
+    '- Cada pessoa assistindo ganha uma `RTCPeerConnection` só dela, com uma codificação própria da mesma captura (`enviarOferta` em `web/src/cliente.ts` → `montarEnvio` em `web/src/conexao/captura.ts`). 7 pessoas = 7 codificações simultâneas na placa de quem transmite.',
     '- A captura (`getDisplayMedia` no navegador, `desktopCapturer` no app) já sai no tamanho e no fps da qualidade (`tamanhoDaCaptura`), e o codificador não reduz a imagem (`scaleResolutionDownBy: 1`).',
     '- As qualidades mudam ao vivo com `setParameters` (`aplicarQualidade`), sem renegociar.',
     '- O app (Electron) desliga o descarte de quadros do WebRTC: `force-fieldtrials=WebRTC-FrameDropper/Disabled/` (`desktop/main.js`), porque o codificador da placa passava do alvo em cenas cheias e o WebRTC descartava quadros.',
-    '- Quem assiste segura uns quadros antes de mostrar (`jitterBufferTarget`), contra soluços do Wi-Fi. A folga é adaptativa por conexão (`web/src/folga.ts`): começa em 100 ms, fica entre 80 e 250 ms, sobe com o jitter e a cada congelamento e desce devagar com a rede calma.',
+    '- Quem assiste segura uns quadros antes de mostrar (`jitterBufferTarget`), contra soluços do Wi-Fi. A folga é adaptativa por conexão (`web/src/folga.ts`): começa em 100 ms, fica entre 80 e 250 ms, sobe com o jitter e a cada congelamento e desce devagar com a rede calma. Ela vale só para o vídeo; o som da transmissão fica com o ajuste automático do WebRTC (antes, a folga também no som fazia a imagem esperar ~200 ms a mais pelo sincronismo).',
     '- A voz da sala anda numa conexão separada por par de pessoas (`web/src/voz/`), sem essa folga: ela não aparece nestas medidas.',
     '- A sinalização passa por um servidor Spring Boot (WebSocket); o vídeo não passa por ele. Só STUN, sem TURN.',
     '',
@@ -372,6 +374,8 @@ function glossario(p: Empurrar, titulo: string) {
         ['fps_receb / fps_decod / fps_tela', 'quadros recebidos / decodificados / mostrados na tela', 'framesReceived, framesDecoded, requestVideoFrameCallback', 'iguais ao fps do conteúdo'],
         ['ms_decod', 'decodificação por quadro', 'totalDecodeTime / framesDecoded', '< 5 ms com a placa'],
         ['ms_buffer', 'espera no jitter buffer', 'jitterBufferDelay / jitterBufferEmittedCount', '≈ jitterBufferTarget'],
+        ['ms_buffer_som', 'o mesmo para o som da transmissão (vazio sem som); a imagem espera o som para saírem juntos', 'inbound-rtp de áudio: jitterBufferDelay / jitterBufferEmittedCount', 'perto de ms_buffer ou abaixo'],
+        ['folga_ms', 'a folga pedida no receptor de vídeo', 'RTCRtpReceiver.jitterBufferTarget (folga.ts)', '80–250'],
         ['int_medio / int_desvio', 'intervalo entre quadros na saída do decodificador e o desvio padrão', 'totalInterFrameDelay, totalSquaredInterFrameDelay', 'desvio < 4 ms = regular'],
         ['ritmo_p99 / ritmo_max', 'intervalo entre quadros na tela: percentil 99 e o maior do segundo', 'requestVideoFrameCallback expectedDisplayTime', '≤ 1,5× o esperado'],
         ['receb_tela', 'último pacote do quadro chegou → quadro na tela', 'VideoFrameCallbackMetadata.receiveTime', '—'],
@@ -511,7 +515,7 @@ function series(p: Empurrar, g: Gravacao, titulo: string, c: Contexto) {
     '',
   );
   const recepcao = reduzir(
-    g.recepcao.map((r) => ({ ...r, ritmoP99: r.ritmo?.p99Ms ?? null, ritmoMax: r.ritmo?.maxMs ?? null, recebTela: r.ritmo?.msRecebidoAteTela ?? null, capturaTela: r.ritmo?.msCapturaAteTela ?? null })),
+    g.recepcao.map((r) => ({ ...r, msBufferSom: r.msBufferSom ?? null, folgaMs: r.folgaMs ?? null, ritmoP99: r.ritmo?.p99Ms ?? null, ritmoMax: r.ritmo?.maxMs ?? null, recebTela: r.ritmo?.msRecebidoAteTela ?? null, capturaTela: r.ritmo?.msCapturaAteTela ?? null })),
     (l) => l.espectador,
     ['congelamentos', 'msCongelado', 'descartados', 'pacotesPerdidos', 'tarefasLongas'],
     c.linhas,
@@ -521,7 +525,7 @@ function series(p: Empurrar, g: Gravacao, titulo: string, c: Contexto) {
     `**Recepção** (uma linha por espectador por ${recepcao.passo === 1 ? 'segundo' : `${recepcao.passo} s, médias`}):`,
     '',
     csv(
-      ['t', 'trecho', 'espectador', 'altura', 'fps_receb', 'fps_decod', 'fps_tela', 'mbps', 'ms_decod', 'ms_buffer', 'int_medio', 'int_desvio', 'ritmo_p99', 'ritmo_max', 'receb_tela', 'captura_tela', 'congel', 'ms_congel', 'descartados', 'perda_pct', 'jitter_ms', 'rtt_ms', 'tela_visivel', 'tarefas_longas'],
+      ['t', 'trecho', 'espectador', 'altura', 'fps_receb', 'fps_decod', 'fps_tela', 'mbps', 'ms_decod', 'ms_buffer', 'ms_buffer_som', 'folga_ms', 'int_medio', 'int_desvio', 'ritmo_p99', 'ritmo_max', 'receb_tela', 'captura_tela', 'congel', 'ms_congel', 'descartados', 'perda_pct', 'jitter_ms', 'rtt_ms', 'tela_visivel', 'tarefas_longas'],
       recepcao.linhas.map((l) => [
         l.t,
         trechoDe(l.t) + 1,
@@ -533,6 +537,8 @@ function series(p: Empurrar, g: Gravacao, titulo: string, c: Contexto) {
         l.mbps,
         l.msDecodificacao,
         l.msBuffer,
+        l.msBufferSom,
+        l.folgaMs,
         l.intervaloMedioMs,
         l.intervaloDesvioMs,
         l.ritmoP99,

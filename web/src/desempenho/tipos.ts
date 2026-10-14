@@ -78,6 +78,9 @@ export type AmostraRecepcao = {
   mbps: number;
   msDecodificacao: number | null;
   msBuffer: number | null; // jitter buffer: quanto o quadro esperou antes de ir para a tela
+  // Opcionais: versões antigas do Ozamigos não mandam.
+  msBufferSom?: number | null; // o mesmo para o som da transmissão (null sem som); a imagem espera o som para os dois saírem juntos
+  folgaMs?: number | null; // a folga pedida no receptor de vídeo (jitterBufferTarget, folga.ts)
   intervaloMedioMs: number | null; // entre quadros entregues pelo decodificador (vale mesmo com a janela escondida)
   intervaloDesvioMs: number | null;
   congelamentos: number;

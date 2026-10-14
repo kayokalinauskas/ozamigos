@@ -39,7 +39,7 @@ export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props
             type="button"
             className="aviso-captura"
             onClick={() => !estatisticasAbertas && aoAlternarEstatisticas()}
-            title={`Seu PC está copiando ${capturaBaixa} fps da imagem do jogo, menos do que a qualidade pede. Os amigos veem no máximo isso. Não é a internet. Clique para ver as estatísticas.`}
+            title={`Seu PC está copiando ${capturaBaixa} fps da imagem do jogo, menos do que a qualidade pede, e os amigos veem no máximo isso. Não é a internet: quase sempre é o jogo sem limite de fps ocupando a placa de vídeo. Limite o fps do jogo a 60 (ou ligue o VSync). Clique para ver as estatísticas.`}
           >
             <TriangleAlert size={16} aria-hidden="true" /> Captura a {capturaBaixa} fps
           </button>
