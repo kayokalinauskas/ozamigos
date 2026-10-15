@@ -6,8 +6,8 @@ import { useCliente } from '../useCliente';
 
 const LIMITES: Record<string, { texto: string; dica?: string }> = {
   none: { texto: 'nenhum' },
-  cpu: { texto: 'processador / placa de vídeo', dica: 'Limite o fps do jogo (60 é o ideal). Enquanto isso, a imagem diminui sozinha em vez de travar.' },
-  bandwidth: { texto: 'internet', dica: 'Normal nos primeiros 20 segundos. Se continuar, use cabo ou tenha menos gente assistindo; enquanto isso, a imagem diminui sozinha em vez de travar.' },
+  cpu: { texto: 'processador / placa de vídeo', dica: 'Limite o fps do jogo (60 é o ideal). Enquanto isso, a imagem perde um pouco de fps em vez de travar.' },
+  bandwidth: { texto: 'internet', dica: 'Normal nos primeiros 20 segundos. Se continuar, use cabo ou tenha menos gente assistindo; enquanto isso, a imagem perde um pouco de nitidez em vez de travar.' },
   other: { texto: 'outro' },
 };
 
@@ -93,7 +93,7 @@ export function PainelEstatisticas({ aoFechar }: { aoFechar: () => void }) {
         entender depois um travamento.
       </p>
       <p className="ajuda">
-        Nos primeiros 15 a 25 segundos, a resolução sobe aos poucos: é o WebRTC medindo a internet. Se a captura estiver abaixo do fps da
+        Nos primeiros 15 a 25 segundos, a imagem ganha nitidez aos poucos: é o WebRTC medindo a internet. Se a captura estiver abaixo do fps da
         qualidade, o limite está em copiar a imagem do jogo no PC de quem transmite, não na rede.
       </p>
     </aside>
