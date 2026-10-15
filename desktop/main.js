@@ -25,7 +25,8 @@ const ARQUIVO_DE_CONFIGURACAO = path.join(app.getPath('userData'), 'configuracao
 // O .ico traz cada tamanho desenhado à parte: com o PNG de 256, o ícone de 16 da barra de título saía torto.
 const ICONE = path.join(__dirname, 'build', 'icone.ico');
 const INICIO = path.join(__dirname, 'inicio.html');
-const PERMISSOES = new Set(['media', 'display-capture', 'notifications', 'fullscreen', 'clipboard-sanitized-write']);
+// screen-wake-lock: com mais alguém na sala, a página segura a tela acordada (web/src/telaAcordada.ts).
+const PERMISSOES = new Set(['media', 'display-capture', 'notifications', 'fullscreen', 'clipboard-sanitized-write', 'screen-wake-lock']);
 
 let janela = null;
 let pedidoDeFonte = null; // { responder, fontes } enquanto o seletor está aberto
