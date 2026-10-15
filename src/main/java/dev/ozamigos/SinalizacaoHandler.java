@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -95,7 +96,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     private void entrar(WebSocketSession sessao, String id, String codigo, String senha, String nome,
             String fichaAnterior) throws IOException {
         // A senha vem antes de tudo: sem ela, a pessoa não descobre nada sobre a sala.
-        String endereco = endereco(sessao);
+        String endereco = endereco(sessao.getHandshakeHeaders(), sessao.getRemoteAddress());
         if (tentativas.bloqueado(endereco)) {
             log.warn("{} bloqueado: senhas erradas demais de {}", id, endereco);
             erro(sessao, "muitas-tentativas");
@@ -310,9 +311,17 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         return limpo.isEmpty() ? "Amigo" : limpo;
     }
 
-    /** O endereço de quem conectou (o do X-Forwarded-For atrás de proxy), para o freio de senhas erradas. */
-    private static String endereco(WebSocketSession sessao) {
-        InetSocketAddress remoto = sessao.getRemoteAddress();
+    /**
+     * O endereço de quem conectou, para o freio de senhas erradas. No Render, a Cloudflare fica na frente e escreve no
+     * CF-Connecting-IP o endereço de verdade (o que o visitante mandar nesse cabeçalho, ela troca). O endereço remoto
+     * do Spring vem do X-Forwarded-For, que começa pelo que o visitante quiser: forjando-o a cada tentativa, dava para
+     * errar a senha sem limite. Sem a Cloudflare (no PC, nos testes), vale o endereço remoto.
+     */
+    static String endereco(HttpHeaders cabecalhos, InetSocketAddress remoto) {
+        String daCloudflare = cabecalhos.getFirst("CF-Connecting-IP");
+        if (daCloudflare != null && !daCloudflare.isBlank()) {
+            return daCloudflare.strip();
+        }
         if (remoto == null) {
             return "?";
         }

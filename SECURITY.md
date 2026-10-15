@@ -18,4 +18,4 @@ Só a [versão mais recente](../../releases/latest) do app e a `main` do servido
 
 ## O que já se sabe
 
-As limitações conscientes, como a senha única por servidor sem limite de tentativas e a ausência de servidor TURN, estão descritas nas seções **Segurança** e **Limitações conhecidas** do [README](README.md). Relatos sobre elas são bem-vindos, mas não são novidade.
+As limitações conscientes, como a senha única por servidor (só com um freio de tentativas por endereço) e a ausência de servidor TURN, estão descritas nas seções **Segurança** e **Limitações conhecidas** do [README](README.md). Relatos sobre elas são bem-vindos, mas não são novidade.

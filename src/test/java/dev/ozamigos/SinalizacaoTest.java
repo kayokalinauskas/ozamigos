@@ -60,6 +60,23 @@ class SinalizacaoTest {
     }
 
     @Test
+    void forjarOXForwardedForNaoEscapaDoFreioDeSenhas() throws Exception {
+        // Cada tentativa finge vir de outro lugar pelo X-Forwarded-For, mas a Cloudflare diz o endereço de verdade.
+        String enderecoReal = "cf-" + sala;
+        String chute = "{\"tipo\":\"entrar\",\"sala\":\"" + sala + "\",\"senha\":\"chute\",\"nome\":\"X\"}";
+        for (int i = 0; i < TentativasDeSenha.LIMITE; i++) {
+            Cliente tentativa = conectar(enderecoReal, "198.51.100." + i);
+            tentativa.enviar(chute);
+            assertThat(tentativa.esperar("erro").path("motivo").asString()).isEqualTo("senha-errada");
+        }
+
+        Cliente mais = conectar(enderecoReal, "198.51.100.200");
+        mais.enviar(chute);
+
+        assertThat(mais.esperar("erro").path("motivo").asString()).isEqualTo("muitas-tentativas");
+    }
+
+    @Test
     void semEntrarNumaSalaNadaEhRepassado() throws Exception {
         Cliente ana = conectar();
 
@@ -177,9 +194,21 @@ class SinalizacaoTest {
     }
 
     private Cliente conectar() throws Exception {
+        return conectar(new WebSocketHttpHeaders());
+    }
+
+    /** Como se viesse pela Cloudflare (CF-Connecting-IP), com um X-Forwarded-For qualquer, como um forjado. */
+    private Cliente conectar(String daCloudflare, String forjado) throws Exception {
+        WebSocketHttpHeaders cabecalhos = new WebSocketHttpHeaders();
+        cabecalhos.add("CF-Connecting-IP", daCloudflare);
+        cabecalhos.add("X-Forwarded-For", forjado);
+        return conectar(cabecalhos);
+    }
+
+    private Cliente conectar(WebSocketHttpHeaders cabecalhos) throws Exception {
         Cliente c = new Cliente();
         c.sessao = new StandardWebSocketClient()
-                .execute(c, new WebSocketHttpHeaders(), URI.create("ws://localhost:" + porta + "/sinal"))
+                .execute(c, cabecalhos, URI.create("ws://localhost:" + porta + "/sinal"))
                 .get(5, TimeUnit.SECONDS);
         abertos.add(c);
         return c;

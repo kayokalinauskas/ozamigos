@@ -14,8 +14,9 @@ import org.springframework.stereotype.Component;
  * Freio contra quem tenta adivinhar a senha do grupo: cada senha errada derruba a conexão, mas abrir outra é
  * de graça. Depois de {@value #LIMITE} erros do mesmo endereço em {@code JANELA}, esse endereço espera.
  *
- * <p>O endereço vem do X-Forwarded-For quando há proxy na frente (Render): quem forja o cabeçalho escapa do
- * freio, mas o ataque automático simples, que é o comum, para aqui.
+ * <p>O endereço é o que a Cloudflare (na frente do Render) põe no CF-Connecting-IP, que o visitante não consegue
+ * forjar; veja {@code SinalizacaoHandler.endereco}. Até 14/10/2026 vinha do X-Forwarded-For, e quem o forjava
+ * escapava do freio.
  */
 @Component
 public class TentativasDeSenha {
