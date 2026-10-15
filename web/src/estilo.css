@@ -353,8 +353,7 @@ code {
 }
 
 .campo input:not([type='range']),
-.campo select,
-.seletor-qualidade select {
+.campo select {
   width: 100%;
   height: 42px;
   padding: 0 12px;
@@ -364,8 +363,7 @@ code {
 }
 
 .campo input:focus-visible,
-.campo select:focus-visible,
-.seletor-qualidade select:focus-visible {
+.campo select:focus-visible {
   border-color: var(--destaque);
 }
 
@@ -1141,18 +1139,6 @@ input[type='range']::-moz-range-thumb {
   background: rgb(255 193 69 / 0.18);
 }
 
-.seletor-qualidade {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.seletor-qualidade select {
-  width: auto;
-  height: 40px;
-  cursor: pointer;
-}
-
 .menu-transmitir {
   position: relative;
 }
@@ -1717,23 +1703,12 @@ input[type='range']::-moz-range-thumb {
 
   .controles-grupo {
     flex-wrap: wrap;
-    min-width: 0; /* sem isso, o grupo fica da largura da opção de qualidade mais comprida */
+    min-width: 0; /* sem isso, um item largo (um select, por exemplo) deixa o grupo mais largo que a tela */
   }
 
   .controles-grupo > .botao {
     flex: 1;
     justify-content: center;
-  }
-
-  .seletor-qualidade {
-    flex: 1 1 100%;
-    min-width: 0;
-  }
-
-  .seletor-qualidade select {
-    flex: 1;
-    width: 100%;
-    min-width: 0;
   }
 
   .painel-estatisticas,

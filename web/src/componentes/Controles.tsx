@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppWindow, ArrowDown, ChartColumn, ChevronUp, MessageSquare, Monitor, MonitorUp, MonitorX, RefreshCw, TriangleAlert } from 'lucide-react';
+import { AppWindow, ChartColumn, ChevronUp, MessageSquare, Monitor, MonitorUp, MonitorX, RefreshCw, TriangleAlert } from 'lucide-react';
 import { cliente } from '../cliente';
 import { noApp } from '../ponte';
-import { QUALIDADES, capturaAbaixo, ehQualidade } from '../qualidade';
+import { capturaAbaixo } from '../qualidade';
 import { useCliente } from '../useCliente';
 
 type Props = { estatisticasAbertas: boolean; aoAlternarEstatisticas: () => void };
 
 export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props) {
-  const { minhaTela, qualidade, qualidadeEscolhida, qualidadeReduzida, enviosReduzidos, metricas, chatAberto, chatNaoLidas } = useCliente();
+  const { minhaTela, qualidade, metricas, chatAberto, chatNaoLidas } = useCliente();
   const podeCapturar = Boolean(navigator.mediaDevices?.getDisplayMedia);
-  // No celular, a opção vai sem o detalhe ("~4 Mbps por amigo"): com ele, o texto não cabia na largura da tela.
-  const estreito = typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches;
   const transmitindo = minhaTela !== null;
   const capturaBaixa = transmitindo
     ? capturaAbaixo(
@@ -46,37 +44,6 @@ export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props
             <TriangleAlert size={16} aria-hidden="true" /> Captura a {capturaBaixa} fps
           </button>
         )}
-        {transmitindo && (qualidadeReduzida || enviosReduzidos.length > 0) && (
-          <button
-            type="button"
-            className="aviso-captura"
-            onClick={() => !estatisticasAbertas && aoAlternarEstatisticas()}
-            title={
-              qualidadeReduzida
-                ? `Seu PC não estava dando conta de ${QUALIDADES[qualidadeEscolhida].rotulo}, e a transmissão desceu sozinha para não travar. Ela volta quando folgar. Clique para ver as estatísticas.`
-                : `A conexão com ${enviosReduzidos.map((id) => cliente.nomeDe(id)).join(', ')} não aguentava ${QUALIDADES[qualidadeEscolhida].rotulo}: só ${enviosReduzidos.length === 1 ? 'essa pessoa recebe' : 'essas pessoas recebem'} uma imagem menor, e os outros continuam na qualidade escolhida. Volta sozinho quando folgar. Clique para ver as estatísticas.`
-            }
-          >
-            <ArrowDown size={16} aria-hidden="true" />{' '}
-            {qualidadeReduzida
-              ? `Em ${QUALIDADES[qualidade].rotulo.split(' ')[0]}`
-              : `720p para ${enviosReduzidos.length === 1 ? cliente.nomeDe(enviosReduzidos[0]) : `${enviosReduzidos.length} amigos`}`}
-          </button>
-        )}
-        <label className="seletor-qualidade">
-          <span className="rotulo">Qualidade</span>
-          <select
-            value={qualidadeEscolhida}
-            onChange={(e) => ehQualidade(e.target.value) && void cliente.mudarQualidade(e.target.value)}
-            title="Muda na hora, sem derrubar ninguém. A 1080p pesa mais para o seu PC, a sua internet e o PC de quem assiste; se não der conta, a transmissão desce sozinha para 720p."
-          >
-            {Object.entries(QUALIDADES).map(([valor, { rotulo, detalhe }]) => (
-              <option key={valor} value={valor}>
-                {estreito ? rotulo : `${rotulo} (${detalhe})`}
-              </option>
-            ))}
-          </select>
-        </label>
         <button type="button" className="botao botao-secundario" aria-pressed={estatisticasAbertas} onClick={aoAlternarEstatisticas}>
           <ChartColumn size={18} /> Estatísticas
         </button>

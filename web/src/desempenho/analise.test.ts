@@ -7,7 +7,7 @@ import { FORMATO, FORMATO_DA_SALA, type AmostraEnvio, type AmostraRecepcao, type
 
 /** Um trecho de 30 s com n espectadores: ms de codificação e o intervalo entre quadros na tela. */
 function trecho(indice: number, inicio: number, espectadores: number, msCodificacao: number, intervalo: number, capturaFps = 30) {
-  const t: Trecho = { indice, nome: '1080p · 30 fps', inicio, fim: inicio + 30, qualidade: 'nitida', espectadores, simulados: espectadores, aquecimento: false, descartarAte: inicio + 8 };
+  const t: Trecho = { indice, nome: '720p · 30 fps', inicio, fim: inicio + 30, qualidade: 'leve', espectadores, simulados: espectadores, aquecimento: false, descartarAte: inicio + 8 };
   const envio: AmostraEnvio[] = [];
   const recepcao: AmostraRecepcao[] = [];
   for (let s = inicio + 1; s <= inicio + 30; s++) {
@@ -25,7 +25,7 @@ function trecho(indice: number, inicio: number, espectadores: number, msCodifica
 function gravacao(...partes: ReturnType<typeof trecho>[]): Gravacao {
   return {
     formato: FORMATO, modo: 'simulado', roteiro: 'completo', inicio: '2026-10-13T20:00:00.000Z', duracao: 30 * partes.length, interrompido: false,
-    app: 'app 1.2.10', navegador: 'teste', pc: null, tela: '1920x1080 @1', qualidadeDaPessoa: 'nitida', fonte: 'Um aplicativo, com som · "Path of Exile"',
+    app: 'app 1.2.10', navegador: 'teste', pc: null, tela: '1920x1080 @1', qualidadeDaPessoa: 'leve', fonte: 'Um aplicativo, com som · "Path of Exile"',
     ajustes: { folgaDeRedeMs: 200 }, qualidades: {}, trechos: partes.map((p) => p.t), espectadoresReais: [],
     envio: partes.flatMap((p) => p.envio), captura: partes.flatMap((p) => p.captura), recepcao: partes.flatMap((p) => p.recepcao),
     pcAmostras: [], pagina: [], acontecimentos: [],
@@ -100,8 +100,8 @@ describe('gravação da sala', () => {
         { nome: 'Duda', ambiente: null, fontes: ['jogo da Duda'] },
       ],
       papeis: [
-        { t: 1, pessoa: 'Kayo', transmite: true, qualidade: 'nitida', espectadores: ['Duda'], assiste: ['Duda'] },
-        { t: 1, pessoa: 'Duda', transmite: true, qualidade: 'nitida', espectadores: ['Kayo'], assiste: ['Kayo'] },
+        { t: 1, pessoa: 'Kayo', transmite: true, qualidade: 'leve', espectadores: ['Duda'], assiste: ['Duda'] },
+        { t: 1, pessoa: 'Duda', transmite: true, qualidade: 'leve', espectadores: ['Kayo'], assiste: ['Kayo'] },
       ],
       trechos: { Kayo: [{ ...kayo.t, assistindo: 1 }], Duda: [{ ...duda.t, assistindo: 1 }] },
       envio: [

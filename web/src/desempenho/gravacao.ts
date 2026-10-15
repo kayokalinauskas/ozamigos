@@ -35,10 +35,10 @@ export function etapasDoRoteiro(roteiro: Roteiro, sua: Qualidade): Etapa[] {
       { nome: rotulo(sua), segundos: 25, qualidade: sua, espectadores: 7 },
     ];
   }
-  const qualidades = Object.keys(QUALIDADES) as Qualidade[];
+  // Uma qualidade só (qualidade.ts): o roteiro completo passa por 1, 3 e 7 espectadores, mais tempo em cada.
   return [
     { nome: 'Aquecimento', segundos: 10, qualidade: sua, espectadores: 1, aquecimento: true },
-    ...qualidades.map((q) => ({ nome: rotulo(q), segundos: 35, qualidade: q, espectadores: 1 })),
+    { nome: rotulo(sua), segundos: 35, qualidade: sua, espectadores: 1 },
     { nome: rotulo(sua), segundos: 35, qualidade: sua, espectadores: 3 },
     { nome: rotulo(sua), segundos: 35, qualidade: sua, espectadores: 7 },
   ];
@@ -137,7 +137,7 @@ class Teste {
       this.mudar({ erro: `${e.gravacaoDaSala.id === e.meuId ? 'Você está' : `${e.gravacaoDaSala.nome} está`} gravando as estatísticas da sala. Espere terminar (Ctrl+Shift+G).` });
       return;
     }
-    const etapas = etapasDoRoteiro(roteiro, e.qualidadeEscolhida);
+    const etapas = etapasDoRoteiro(roteiro, e.qualidade);
     const [video] = e.minhaTela.getVideoTracks();
     this.gravacao = {
       formato: FORMATO,
@@ -150,7 +150,7 @@ class Teste {
       navegador: navigator.userAgent,
       pc: (await ponte?.desempenho?.pc().catch(() => null)) ?? null,
       tela: `${screen.width}x${screen.height} @${devicePixelRatio}`,
-      qualidadeDaPessoa: e.qualidadeEscolhida,
+      qualidadeDaPessoa: e.qualidade,
       fonte: `${cliente.descreverFonte()} · "${video?.label ?? '?'}" · captura ${JSON.stringify(video?.getSettings() ?? {})}`,
       ajustes: { ...AJUSTES_DA_TRANSMISSAO },
       qualidades: { ...QUALIDADES },
@@ -194,7 +194,6 @@ class Teste {
     this.fecharTrecho(this.agora());
     this.trechoAtual = null;
     this.mudar({ etapaAtual: indice });
-    if (cliente.ler().qualidade !== etapa.qualidade) await cliente.qualidadeTemporaria(etapa.qualidade);
     while (this.simulados.length < etapa.espectadores) await this.criarSimulado();
     while (this.simulados.length > etapa.espectadores) this.fecharSimulado(this.simulados.pop()!);
     this.mudar({ simulados: this.simulados.map((s) => s.stream) });
@@ -433,7 +432,6 @@ class Teste {
     this.simulados = [];
     medidorDaPagina.desligar();
     contadoresDoPc.desligar();
-    await cliente.voltarQualidade(); // mesmo se a transmissão parou no meio: a descida automática volta a valer
     cliente.registrar('teste de desempenho: terminou');
     this.gravacao = null;
     this.mudar({ fase: 'pronto', simulados: [], gravacao: g });

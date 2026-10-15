@@ -27,22 +27,12 @@ export function tamanhoDaCaptura(qualidade: Qualidade, comPiso = false): MediaTr
 }
 
 /**
- * Os parâmetros do codificador para a qualidade escolhida. O tamanho vem da captura, sem escala aqui, exceto para
- * quem recebe uma qualidade mais leve que a captura porque a conexão com ela não aguentava (escalaPara).
+ * Os parâmetros do codificador para a qualidade (o tamanho vem da captura, sem escala aqui).
  * `fracao` do bitrate: as conexões novas começam com menos (BITRATE_INICIAL em cliente.ts).
  */
-export function codificacao(qualidade: Qualidade, fracao = 1, escala = 1): RTCRtpEncodingParameters {
+export function codificacao(qualidade: Qualidade, fracao = 1): RTCRtpEncodingParameters {
   const { bitrate, fps } = QUALIDADES[qualidade];
-  return { maxBitrate: Math.round(bitrate * fracao), maxFramerate: fps, scaleResolutionDownBy: escala };
-}
-
-/**
- * Quanto o codificador reduz a captura para chegar à altura da qualidade (1 se ela já é menor ou igual).
- * Calculado pela altura de verdade da captura, não pela da qualidade: numa tela de 768p, 1080p → 720p é quase nada.
- */
-export function escalaPara(alturaDaCaptura: number | undefined, qualidade: Qualidade): number {
-  if (!alturaDaCaptura) return 1;
-  return Math.max(1, alturaDaCaptura / QUALIDADES[qualidade].altura);
+  return { maxBitrate: Math.round(bitrate * fracao), maxFramerate: fps, scaleResolutionDownBy: 1 };
 }
 
 /** Abre o seletor do navegador (ou o do app, no Windows). null se a pessoa cancelou. */

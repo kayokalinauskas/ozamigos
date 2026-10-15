@@ -53,7 +53,7 @@ export function TesteDesempenho({ aoFechar }: { aoFechar: () => void }) {
 // ===== Começo =====
 
 function Inicio({ estado, aoFechar }: { estado: EstadoDoTeste; aoFechar: () => void }) {
-  const { minhaTela, qualidadeEscolhida: qualidade } = useCliente();
+  const { minhaTela, qualidade } = useCliente();
   const [roteiro, setRoteiro] = useState<Roteiro>('completo');
 
   return (
@@ -65,7 +65,7 @@ function Inicio({ estado, aoFechar }: { estado: EstadoDoTeste; aoFechar: () => v
         </button>
       </header>
       <p className="teste-intro">
-        O Ozamigos cria espectadores no seu próprio PC e passa sozinho pelas {Object.keys(QUALIDADES).length} qualidades e por 1, 3 e 7 pessoas assistindo. Grava tudo o que
+        O Ozamigos cria espectadores no seu próprio PC e passa sozinho por 1, 3 e 7 pessoas assistindo, em {QUALIDADES[qualidade].rotulo}. Grava tudo o que
         acontece com a imagem do seu jogo, da captura até a tela de quem assiste, e no fim mostra onde está o gargalo. O relatório sai em duas
         versões: uma para você ler e outra para colar numa IA e pedir melhorias no app.
       </p>
@@ -80,11 +80,11 @@ function Inicio({ estado, aoFechar }: { estado: EstadoDoTeste; aoFechar: () => v
       <div className="teste-roteiros" role="radiogroup" aria-label="Duração">
           <label>
             <input type="radio" name="roteiro" checked={roteiro === 'completo'} onChange={() => setRoteiro('completo')} />
-            Completo · ~3 min <span>{Object.keys(QUALIDADES).length} qualidades com 1 espectador, depois 3 e 7 na sua ({QUALIDADES[qualidade].rotulo})</span>
+            Completo · ~2 min <span>1, 3 e 7 espectadores, 35 s cada</span>
           </label>
           <label>
             <input type="radio" name="roteiro" checked={roteiro === 'rapido'} onChange={() => setRoteiro('rapido')} />
-            Rápido · ~1 min <span>só a sua qualidade, com 1 e com 7 espectadores</span>
+            Rápido · ~1 min <span>1 e 7 espectadores</span>
           </label>
         </div>
 

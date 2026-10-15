@@ -93,7 +93,7 @@ function resumo(p: Empurrar, g: Gravacao, a: Analise, titulo: string) {
       [
         ['Modo', g.modo === 'simulado' ? `simulado (espectadores no próprio PC), roteiro ${g.roteiro}` : 'gravação da sala, com amigos de verdade assistindo'],
         ['Duração', `${g.duracao} s${g.interrompido ? ' (interrompido antes do fim)' : ''}`],
-        [g.modo === 'sala' ? 'Qualidade (a mais usada)' : 'Qualidade escolhida pela pessoa', `${g.qualidadeDaPessoa} (${QUALIDADES[g.qualidadeDaPessoa].rotulo})`],
+        [g.modo === 'sala' ? 'Qualidade (a mais usada)' : 'Qualidade', `${g.qualidadeDaPessoa} (${QUALIDADES[g.qualidadeDaPessoa].rotulo})`],
         [g.modo === 'sala' ? 'Fluidez (primeiro trecho nessa qualidade)' : 'Fluidez na qualidade da pessoa', fmt(a.principal.fluidez, '% dos quadros no tempo')],
         ['Pior 1% dos intervalos entre quadros', fmt(a.principal.p99Ms, ' ms')],
         [g.modo === 'simulado' ? 'Atraso estimado (sem internet no caminho)' : 'Atraso estimado', fmt(a.principal.atraso, ' ms', 0)],
@@ -303,7 +303,7 @@ function configuracao(p: Empurrar, g: Gravacao, titulo: string) {
     '',
     '- Cada pessoa assistindo ganha uma `RTCPeerConnection` só dela, com uma codificação própria da mesma captura (`enviarOferta` em `web/src/cliente.ts` → `montarEnvio` em `web/src/conexao/captura.ts`). 7 pessoas = 7 codificações simultâneas na placa de quem transmite.',
     '- A captura (`getDisplayMedia` no navegador, `desktopCapturer` no app) já sai no tamanho e no fps da qualidade (`tamanhoDaCaptura`), e o codificador não reduz a imagem (`scaleResolutionDownBy: 1`).',
-    '- As qualidades mudam ao vivo com `setParameters` (`aplicarQualidade`), sem renegociar.',
+    '- A qualidade é uma só (720p · 30 fps, sem escolha desde 14/10/2026). Quando falta processador ou banda, o próprio WebRTC baixa a resolução ou o fps de cada conexão (`degradationPreference: balanced`), por pessoa assistindo.',
     '- O app (Electron) desliga o descarte de quadros do WebRTC: `force-fieldtrials=WebRTC-FrameDropper/Disabled/` (`desktop/main.js`), porque o codificador da placa passava do alvo em cenas cheias e o WebRTC descartava quadros.',
     '- Quem assiste segura uns quadros antes de mostrar (`jitterBufferTarget`), contra soluços do Wi-Fi. A folga é adaptativa por conexão (`web/src/folga.ts`): começa em 100 ms, fica entre 80 e 250 ms, sobe com o jitter e a cada congelamento e desce devagar com a rede calma. Ela vale só para o vídeo; o som da transmissão fica com o ajuste automático do WebRTC (antes, a folga também no som fazia a imagem esperar ~200 ms a mais pelo sincronismo).',
     '- A voz da sala anda numa conexão separada por par de pessoas (`web/src/voz/`), sem essa folga: ela não aparece nestas medidas.',

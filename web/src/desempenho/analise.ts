@@ -462,7 +462,7 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
           ? 'Os espectadores simulados estão no mesmo PC: limite por banda aqui vem da estimativa do WebRTC (subida lenta ou pacing), não da internet.'
           : 'O WebRTC estimou menos banda de upload do que a qualidade pede e baixou bitrate ou resolução.',
       evidencias: banda.map((t) => `${t.trecho.nome} (${t.trecho.espectadores} esp.): limite banda ${fmt(t.envio.limites.bandwidth, '%')} do tempo, banda estimada ${fmt(t.envio.bandaMbps, ' Mbps')}, alvo ${fmt(t.envio.alvoMbps, ' Mbps')}`),
-      paraVoce: g.modo === 'simulado' ? undefined : 'Use cabo em vez de Wi-Fi ou baixe a qualidade; cada amigo usa o upload inteiro de novo.',
+      paraVoce: g.modo === 'simulado' ? undefined : 'Use cabo em vez de Wi-Fi, ou tenha menos gente assistindo; cada amigo usa o upload inteiro de novo.',
       paraOApp: 'Conferir a subida de banda das conexões novas (começa em ~300 kbps) e o bitrate de cada qualidade.',
       ondeNoCodigo: [CODIGO.qualidades],
     });
@@ -687,7 +687,7 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
 
 // ===== Recomendação =====
 
-const PREFERENCIA: Qualidade[] = ['nitida', 'leve'];
+const PREFERENCIA: Qualidade[] = ['leve'];
 const contar = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 const passou = (t: ResumoDoTrecho) => t.resultado === 'otimo' || t.resultado === 'bom';
 
@@ -745,7 +745,7 @@ export function recomendar(g: Gravacao, trechos: ResumoDoTrecho[], diagnosticos:
   if (base.size > 1) {
     titulo = melhor
       ? falhou && melhor === sua
-        ? `Use ${QUALIDADES[melhor].rotulo} com até ${pessoas(Math.max(1, maxOk))}; com mais gente, baixe a qualidade`
+        ? `Use ${QUALIDADES[melhor].rotulo} com até ${pessoas(Math.max(1, maxOk))}`
         : `Use ${QUALIDADES[melhor].rotulo}: seu PC deu conta`
       : capturaLimita
         ? `A captura do jogo limita a imagem a ~${Math.round(Math.max(...[...base.values()].map((t) => t.captura.fps ?? 0)))} fps em todas as qualidades`

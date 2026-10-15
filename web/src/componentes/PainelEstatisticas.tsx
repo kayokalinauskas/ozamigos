@@ -6,8 +6,8 @@ import { useCliente } from '../useCliente';
 
 const LIMITES: Record<string, { texto: string; dica?: string }> = {
   none: { texto: 'nenhum' },
-  cpu: { texto: 'processador / placa de vídeo', dica: 'Limite o fps do jogo (60 é o ideal) ou baixe a qualidade.' },
-  bandwidth: { texto: 'internet', dica: 'Normal nos primeiros 20 segundos. Se continuar, baixe a qualidade ou use cabo.' },
+  cpu: { texto: 'processador / placa de vídeo', dica: 'Limite o fps do jogo (60 é o ideal). Enquanto isso, a imagem diminui sozinha em vez de travar.' },
+  bandwidth: { texto: 'internet', dica: 'Normal nos primeiros 20 segundos. Se continuar, use cabo ou tenha menos gente assistindo; enquanto isso, a imagem diminui sozinha em vez de travar.' },
   other: { texto: 'outro' },
 };
 

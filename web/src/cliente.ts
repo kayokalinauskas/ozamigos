@@ -5,8 +5,7 @@
 //   medidor.ts      as estatísticas de cada segundo               relatorio.ts  o relatório da sessão
 
 import { lembrado, lembrar } from './armazenamento';
-import { QUALIDADES, qualidadeGuardada, type Qualidade } from './qualidade';
-import { AUTOMATICA, QualidadeAutomatica, qualidadeMaisLeve } from './qualidadeAutomatica';
+import { QUALIDADE, QUALIDADES, type Qualidade } from './qualidade';
 import { notificacaoLigada, type TipoDeNotificacao } from './notificacoes';
 import { tocar } from './sons';
 import { noApp, ponte, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';
@@ -19,7 +18,6 @@ import {
   capturarDoNavegador,
   codificacao,
   descreverFonte,
-  escalaPara,
   montarEnvio,
   tamanhoDaCaptura,
   type Fonte,
@@ -56,10 +54,7 @@ export type Estado = {
   assistindo: string[]; // quem eu escolhi assistir (continua valendo se a pessoa parar e voltar)
   videos: Record<string, MediaStream>; // o que chega de cada pessoa que eu assisto
   minhaTela: MediaStream | null;
-  qualidade: Qualidade; // a que está valendo agora
-  qualidadeEscolhida: Qualidade; // a que a pessoa escolheu; difere da de agora quando desceu sozinha (qualidadeAutomatica.ts)
-  qualidadeReduzida: boolean; // a captura desceu para todos porque o PC de quem transmite não dava conta
-  enviosReduzidos: string[]; // quem recebe a qualidade mais leve porque a conexão com a pessoa não aguentava
+  qualidade: Qualidade; // sempre a mesma (qualidade.ts): fica no estado para os relatórios
   metricas: Record<string, Metrica>; // `${canal}:${id}` -> medição
   avisos: Aviso[];
   conexaoPerdida: boolean; // caiu a conexão com o servidor; o cliente já está tentando voltar sozinho
@@ -118,7 +113,7 @@ export const AJUSTES_DA_TRANSMISSAO = {
   bundlePolicy: 'max-bundle',
   audio: 'Opus estéreo até 128 kbps, sem cancelamento de eco/ruído',
   escalaNoCodificador: 'scaleResolutionDownBy 1 (a captura já sai no tamanho da qualidade)',
-  qualidadeAutomatica: `quem escolheu 1080p desce sozinho para 720p (web/src/qualidadeAutomatica.ts) com aperto em ${AUTOMATICA.apertados} de ${AUTOMATICA.janela} s, e volta depois de ${AUTOMATICA.calmaParaSubir} s sem aperto e ${AUTOMATICA.esperaInicial / 60} min (a espera dobra a cada descida). PC (qualityLimitationReason cpu em algum envio): a captura desce, para todos. Internet (bandwidth, ou banda estimada da conexão abaixo de ${AUTOMATICA.bandaMinima * 100}% do bitrate): só o envio para aquela pessoa desce (scaleResolutionDownBy e o bitrate de 720p), e a captura continua em 1080p para os outros`,
+  quandoFaltaBanda: 'degradationPreference balanced: o WebRTC baixa a resolução ou o fps de cada conexão sozinho, por pessoa assistindo',
 };
 
 /** Uma conexão de vídeo com alguém da sala: quem me assiste (envio) ou quem eu assisto (recebimento). */
@@ -151,8 +146,6 @@ class Cliente {
   private medindo = false;
   // Conexões de envio que não são de ninguém da sala: os espectadores simulados do teste de desempenho.
   private readonly enviosExtras = new Set<RTCPeerConnection>();
-  private readonly qualidadeAutomatica = new QualidadeAutomatica();
-  private qualidadeEmTeste = false; // o teste de desempenho troca a qualidade: a descida automática fica parada
   /** Quem grava as estatísticas da sala recebe aqui as medidas de cada pessoa (desempenho/gravadorDaSala.ts). */
   aoReceberMedidas: ((de: string, pacote: unknown) => void) | null = null;
   /** O servidor recusou começar a gravação: outra pessoa já grava. */
@@ -161,9 +154,7 @@ class Cliente {
   constructor() {
     const daUrl = new URLSearchParams(location.search).get('sala');
     const sala = daUrl && codigoValido(daUrl) ? daUrl : novoCodigo();
-    const guardada = lembrado('ozamigos-qualidade');
-    const qualidade = qualidadeGuardada(guardada);
-    if (guardada && guardada !== qualidade) lembrar('ozamigos-qualidade', qualidade); // uma opção que saiu (60 fps)
+    lembrar('ozamigos-qualidade', ''); // a escolha de qualidade saiu (14/10/2026): o que estava guardado não serve mais
     this.estado = {
       fase: 'entrada',
       erro: '',
@@ -176,10 +167,7 @@ class Cliente {
       assistindo: [],
       videos: {},
       minhaTela: null,
-      qualidade,
-      qualidadeEscolhida: qualidade,
-      qualidadeReduzida: false,
-      enviosReduzidos: [],
+      qualidade: QUALIDADE,
       chat: [],
       chatAberto: false,
       chatNaoLidas: 0,
@@ -719,15 +707,10 @@ class Cliente {
     }
     const plateias = { ...this.estado.plateias };
     if (meuId) delete plateias[meuId];
-    // A próxima transmissão começa na qualidade escolhida.
-    this.qualidadeAutomatica.reiniciar();
     this.mudar({
       minhaTela: null,
       transmitindo: this.estado.transmitindo.filter((id) => id !== meuId),
       plateias,
-      qualidade: this.estado.qualidadeEscolhida,
-      qualidadeReduzida: false,
-      enviosReduzidos: [],
     });
     if (avisarServidor) this.enviar({ tipo: 'parei' });
   }
@@ -737,73 +720,6 @@ class Cliente {
   }
 
   // ===== Qualidade =====
-
-  /** Troca a qualidade sem guardar a escolha: o teste de desempenho passa por todas e depois chama voltarQualidade. */
-  async qualidadeTemporaria(qualidade: Qualidade) {
-    this.registrar(`qualidade (teste): ${qualidade}`);
-    this.qualidadeEmTeste = true;
-    this.mudar({ qualidade });
-    await this.aplicarQualidade();
-  }
-
-  /** Fim do teste de desempenho: volta para a qualidade escolhida, com a descida automática do zero. */
-  async voltarQualidade() {
-    this.qualidadeEmTeste = false;
-    await this.mudarQualidade(this.estado.qualidadeEscolhida);
-  }
-
-  async mudarQualidade(qualidade: Qualidade) {
-    this.registrar(`qualidade: ${qualidade}`);
-    lembrar('ozamigos-qualidade', qualidade);
-    this.qualidadeAutomatica.reiniciar();
-    const mudou = qualidade !== this.estado.qualidade;
-    const tinhaReduzidos = this.estado.enviosReduzidos.length > 0;
-    this.mudar({ qualidade, qualidadeEscolhida: qualidade, qualidadeReduzida: false, enviosReduzidos: [] });
-    if (mudou || tinhaReduzidos) await this.aplicarQualidade();
-  }
-
-  /**
-   * A cada medição: quem escolheu 1080p e não está dando conta desce para 720p, e volta quando folgar
-   * (qualidadeAutomatica.ts). O PC apertado desce a captura, para todos; a conexão apertada desce só o envio daquela pessoa.
-   */
-  private async ajustarQualidade(metricas: Record<string, Metrica>) {
-    if (!this.estado.minhaTela || this.qualidadeEmTeste) return;
-    const { qualidadeEscolhida } = this.estado;
-    const menor = qualidadeMaisLeve(qualidadeEscolhida);
-    if (!menor) return;
-    const envios = Object.values(metricas).filter((m) => m.canal === 'envio');
-    const decisoes = this.qualidadeAutomatica.medir(Date.now(), qualidadeEscolhida, envios);
-    if (!decisoes.length) return;
-    const rotulo = QUALIDADES[menor].rotulo;
-    let captura = false;
-    const pessoas: string[] = [];
-    for (const { acao, id } of decisoes) {
-      if (id === null) {
-        captura = true;
-        this.registrar(`qualidade automática: ${acao === 'descer' ? `desceu para ${menor}` : `voltou para ${qualidadeEscolhida}`} (pc)`);
-        if (acao === 'descer') this.avisar(`A transmissão foi para ${rotulo}: seu PC não estava dando conta. Ela volta sozinha quando folgar.`);
-      } else {
-        pessoas.push(id);
-        const nome = this.nomeDe(id);
-        this.registrar(`qualidade automática: ${nome} ${acao === 'descer' ? `recebe ${menor}` : `voltou para ${qualidadeEscolhida}`} (rede)`);
-        if (acao === 'descer') this.avisar(`${nome} está recebendo em ${rotulo}: a conexão não aguentava mais. Os outros continuam na qualidade escolhida.`);
-      }
-    }
-    const reduzida = this.qualidadeAutomatica.reduzidaPeloPc;
-    this.mudar({
-      qualidade: reduzida ? menor : qualidadeEscolhida,
-      qualidadeReduzida: reduzida,
-      enviosReduzidos: this.qualidadeAutomatica.reduzidos(),
-    });
-    if (captura) {
-      await this.aplicarQualidade();
-      return;
-    }
-    for (const id of pessoas) {
-      const conexao = this.conexoes.get(chave('envio', id));
-      if (conexao) await this.aplicarNoEnvio(conexao.pc, id);
-    }
-  }
 
   private async aplicarQualidade() {
     // A captura acompanha a qualidade: a 30 fps, o navegador copia a tela metade das vezes; em 720p, já sai menor.
@@ -815,27 +731,16 @@ class Cliente {
         console.warn('Não foi possível mudar o tamanho e o fps da captura', erro);
       }
     }
-    for (const { id, pc } of this.conexoesDeEnvio()) await this.aplicarNoEnvio(pc, id);
+    for (const { pc } of this.conexoesDeEnvio()) await this.aplicarNoEnvio(pc);
   }
 
-  /**
-   * O que o codificador do envio para essa pessoa recebe (id null: um espectador simulado do teste).
-   * Quem recebe a qualidade mais leve pela conexão tem a imagem reduzida só no seu codificador; a captura segue maior.
-   */
-  private codificacaoPara(id: string | null, fracao = 1): RTCRtpEncodingParameters {
-    const { qualidade, qualidadeEscolhida, enviosReduzidos } = this.estado;
-    const menor = qualidadeMaisLeve(qualidadeEscolhida);
-    if (id === null || !menor || !enviosReduzidos.includes(id)) return codificacao(qualidade, fracao);
-    const altura = this.estado.minhaTela?.getVideoTracks()[0]?.getSettings().height;
-    return codificacao(menor, fracao, escalaPara(altura, menor));
-  }
-
-  private async aplicarNoEnvio(pc: RTCPeerConnection, id: string | null) {
+  /** O que o codificador recebe (bitrate, fps e o que sacrificar quando faltar banda ou placa de vídeo). */
+  private async aplicarNoEnvio(pc: RTCPeerConnection) {
     const remetente = pc.getSenders().find((s) => s.track?.kind === 'video');
     if (!remetente) return;
     const parametros = remetente.getParameters() as RTCRtpSendParameters & { degradationPreference?: RTCDegradationPreference };
     if (!parametros.encodings?.length) return; // ainda negociando: a oferta já sai com a qualidade nova
-    Object.assign(parametros.encodings[0], this.codificacaoPara(id));
+    Object.assign(parametros.encodings[0], codificacao(this.estado.qualidade));
     parametros.degradationPreference = QUALIDADES[this.estado.qualidade].preferencia;
     try {
       await remetente.setParameters(parametros);
@@ -923,12 +828,6 @@ class Cliente {
     const metricas = { ...this.estado.metricas };
     delete metricas[chave(canal, idRemoto)];
     const parcial: Partial<Estado> = { metricas };
-    if (canal === 'envio') {
-      // Quem parou de assistir (ou saiu) sai na hora da lista de quem recebe 720p: sem isso, o "720p para" ficava
-      // na tela até a próxima decisão, com o nome de alguém que já tinha ido embora.
-      this.qualidadeAutomatica.esquecer(idRemoto);
-      parcial.enviosReduzidos = this.estado.enviosReduzidos.filter((id) => id !== idRemoto);
-    }
     if (canal === 'recebimento') {
       const videos = { ...this.estado.videos };
       delete videos[idRemoto];
@@ -944,7 +843,7 @@ class Cliente {
     this.fecharConexao('envio', idEspectador); // conexão refeita começa do zero, na qualidade de agora
     const { pc } = this.novaConexao('envio', idEspectador);
     montarEnvio(tela, this.estado.qualidade, pc, BITRATE_INICIAL);
-    setTimeout(() => void this.bitrateCheio(pc, idEspectador), SUBIR_BITRATE_DEPOIS);
+    setTimeout(() => void this.bitrateCheio(pc), SUBIR_BITRATE_DEPOIS);
     const oferta = await pc.createOffer();
     const descricao: RTCSessionDescriptionInit = { type: 'offer', sdp: opusEstereo(oferta.sdp ?? '') };
     await pc.setLocalDescription(descricao);
@@ -959,13 +858,13 @@ class Cliente {
   }
 
   /** Passados os primeiros segundos de uma pessoa nova, o bitrate sobe para o da qualidade. */
-  private async bitrateCheio(pc: RTCPeerConnection, id: string) {
+  private async bitrateCheio(pc: RTCPeerConnection) {
     if (pc.connectionState === 'closed') return;
     const remetente = pc.getSenders().find((s) => s.track?.kind === 'video');
     if (!remetente) return;
     const parametros = remetente.getParameters();
     if (!parametros.encodings?.length) return;
-    Object.assign(parametros.encodings[0], this.codificacaoPara(id));
+    Object.assign(parametros.encodings[0], codificacao(this.estado.qualidade));
     try {
       await remetente.setParameters(parametros);
     } catch (erro) {
@@ -1099,7 +998,6 @@ class Cliente {
       const metricas = await this.medidor.medir(this.conexoes);
       this.mudar({ metricas });
       this.relatorioDaSessao.registrarMedidas(metricas, (id) => this.nomeDe(id));
-      await this.ajustarQualidade(metricas);
     } finally {
       this.medindo = false;
     }
