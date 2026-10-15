@@ -14,6 +14,15 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
   - se o PC de quem transmite não dá conta, a transmissão inteira desce ("Em 720p" ao lado da qualidade);
   - se a conexão com um amigo não aguenta, só ele recebe 720p ("720p para Ana"), e quem está no cabo continua em 1080p.
 
+### Adicionado
+- A versão do app e da interface aparecem bem pequenas ao lado do logo e na tela de entrada.
+
+### Corrigido
+- O aviso "720p para" ficava na tela com o nome de quem já tinha parado de assistir ou saído da sala.
+
+### Segurança
+- O freio contra quem tenta adivinhar a senha passa a usar o endereço informado pela Cloudflare, que não dá para forjar. Antes, quem forjava o cabeçalho X-Forwarded-For a cada tentativa escapava do freio.
+
 ## [1.2.12] - 2026-10-14
 
 ### Adicionado

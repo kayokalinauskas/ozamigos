@@ -72,6 +72,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - Limite: `LIMITE_POR_SALA = 8` (eram 5 até 13/10/2026). O gargalo não é o servidor: quem transmite manda uma cópia (e uma codificação na placa) para cada pessoa que assiste, ~4 Mbps cada em 720p (a padrão) e ~6 Mbps em 1080p. Com 7 assistindo, são ~28 ou ~42 Mbps de upload; acima de 8, seria preciso limitar quantos assistem cada transmissão.
 - `SinalizacaoHandler`:
   - **a senha é conferida antes de tudo**; quem erra recebe `senha-errada` e a conexão é fechada;
+  - **freio de senhas** (`TentativasDeSenha`): 10 erros do mesmo endereço em 5 minutos bloqueiam o endereço (`muitas-tentativas`). O endereço é o `CF-Connecting-IP`, que a Cloudflare (na frente do Render) escreve e o visitante não consegue forjar (`SinalizacaoHandler.endereco`); sem ele, o endereço remoto. **Não volte para o `X-Forwarded-For`**: ele começa pelo que o visitante quiser, e forjá-lo a cada tentativa escapava do freio (o teste `forjarOXForwardedForNaoEscapaDoFreioDeSenhas` cobre isso). Se o servidor sair de trás da Cloudflare, o `CF-Connecting-IP` passa a poder ser forjado: troque a regra junto.
   - o servidor **carimba `de`** em tudo o que repassa (o cliente nunca diz quem é) e só repassa dentro da mesma sala;
   - os envios usam `ConcurrentWebSocketSessionDecorator` (a sessão "segura").
 - `WebSocketConfig`: **sem `setAllowedOrigins`**. Só páginas do próprio servidor conectam; o app Electron funciona porque carrega a interface do servidor. Mensagens de texto vão até 64 KB.
@@ -106,9 +107,9 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 - **Folga de rede adaptativa** (`FolgaAdaptativa` em `folga.ts`, aplicada por `ajustarFolga` em `cliente.ts`): quem assiste pede `jitterBufferTarget` **só no receptor de vídeo**. Começa em 100 ms e fica entre 80 e 250: sobe na hora com o jitter do RTP e +50 ms a cada congelamento, e desce 5 ms/s depois de 10 s de rede calma.
   - Não aplique no som da transmissão: o navegador sincroniza som e imagem, e a folga do som somada à saída de áudio fazia a imagem esperar ~200 ms a mais (medido num celular Android pelo Wi-Fi: buffer de ~450 ms com som contra ~220 ms sem).
   - Acima do limite da folga, quem segura a imagem é o navegador (o sincronismo ou a espera que ele mesmo aumenta depois de um congelamento). O relatório mede `msBufferSom` e `folgaMs` para separar os dois.
+  - Era fixa em 200 ms, por causa de um Wi-Fi com soluços (ida e volta de 8 para 222 ms) que virava congelamentos. Mas os relatórios mostraram que ela era ~96% do atraso. Com a adaptativa, o atraso estimado na bancada caiu de ~195 para ~100 ms.
 - **Bitrate inicial** (`BITRATE_INICIAL`/`SUBIR_BITRATE_DEPOIS` em `cliente.ts`): cada pessoa nova recebe com 50% do bitrate da qualidade nos primeiros 6 s. O codificador da AMD passava do alvo no começo (9 Mbps pedindo 4), enchia a fila de envio e congelava a imagem 3 ou 4 vezes logo na entrada.
 - **Captura a ~21 fps com o jogo sem limite de fps:** o Chromium espaça as capturas para a cópia de cada quadro não passar de 50% do tempo (`kDefaultMaximumCpuConsumptionPercentage` em `desktop_capture_device.cc`). Limitar o jogo a 60 levou a captura de 21 para 29 fps no Path of Exile. O diagnóstico `captura-lenta` e o aviso "Captura a X fps" dizem isso. Detalhes e o que já foi testado em "Captura de alguns jogos fica abaixo do fps pedido", abaixo.
-  - Era fixa em 200 ms, por causa de um Wi-Fi com soluços (ida e volta de 8 para 222 ms) que virava congelamentos. Mas os relatórios mostraram que ela era ~96% do atraso. Com a adaptativa, o atraso estimado na bancada caiu de ~195 para ~100 ms.
 - **Voz** (`voz/`): uma `RTCPeerConnection` só de voz por par de pessoas, separada do vídeo (sem a folga do vídeo, e cair o vídeo não derruba a conversa). O estado fica num *store* próprio (`useVoz`), para o anel de quem fala não redesenhar os vídeos.
   - **Quem chega liga:** no `bem-vindo` (e no `voltei`), a pessoa faz a oferta para todos os `outros`; quem já estava só responde. Assim nunca há duas ofertas ao mesmo tempo. Se a conexão cair, quem ligou liga de novo (até 3 vezes).
   - A sinalização usa as mesmas `oferta`/`resposta`/`candidato`, com `canal: 'voz'` (sem a inversão `envio` ↔ `recebimento`). O servidor não mudou.
@@ -151,6 +152,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 - **Volume:** é o `video.volume` (de 0 a 1, multiplicado pelo volume geral), lembrado por **nome** (`ozamigos-volume:<nome>`).
 - O `localStorage` está sempre dentro de `try/catch` (`armazenamento.ts`).
 - A raiz `/` do servidor é sempre a entrada (o app Electron carrega `/`). No navegador, a entrada tem um link para o site (`SITE` em `Entrada.tsx`).
+- **Versão na tela** (`Versao.tsx`, ao lado do logo e embaixo da entrada, em 10 px): a do app (`ponte.versao`, ou "web" no navegador) e o commit de onde a interface saiu (`__COMMIT__`, definido no `vite.config.ts`: `RENDER_GIT_COMMIT` no Render, que o `Dockerfile` recebe como `ARG`; `git rev-parse` no PC). O app e a interface mudam separados: o app a cada release, a interface a cada deploy. Para conferir um deploy, compare o commit da tela com o da `main`.
 
 ### Site (`site/`, GitHub Pages)
 
@@ -251,13 +253,14 @@ As janelas que ninguém fotografa rodam a 4 quadros por segundo, e os amigos fic
 - `src/main/resources/static/` é gerada pelo build e ignorada pelo git. Se `localhost` der 404, falta rodar `npm run build` em `web`.
 - **Não rode `npx @electron/asar extract-file` dentro de `desktop/`:** ele grava `package.json` na pasta atual, por cima do arquivo real. Para inspecionar o `app.asar`, use `grep -a` ou extraia numa pasta temporária.
 - Nos *heredocs* do Git Bash, `\\n` e `\\r` viram quebras de linha reais no Python ou no JS gerado. Para editar código, use as ferramentas de edição ou scripts em arquivo.
+- **"Live" no Render não garante a interface nova:** em 14/10/2026, o deploy do `0b9b188` apareceu como "Live" servindo a interface da 1.2.12 (o deploy seguinte saiu certo). Desde então, o `ARG RENDER_GIT_COMMIT` no `Dockerfile` faz a etapa da interface ser refeita a cada commit, sem depender do cache. Depois de um deploy, confira o commit ao lado do logo; se vier o antigo, use *Manual Deploy* → *Clear build cache & deploy*.
 - O Render Free dorme depois de 15 min sem tráfego. O `ping` do WebSocket a cada 30 s mantém o serviço acordado com alguém na sala (isso ainda não foi medido por mais de 15 min). Um deploy reinicia o servidor e derruba as salas, mas as transmissões P2P já abertas continuam.
 - O instalador não tem assinatura digital, então o SmartScreen avisa na primeira vez.
 
 ## Limitações conscientes (não são bugs)
 
 - Sem TURN: CGNAT, 4G/5G e redes corporativas podem não conectar.
-- Uma senha por servidor, sem limite de tentativas: o projeto não serve para uso público aberto sem antes mudar isso.
+- Uma senha por servidor, com freio de 10 senhas erradas por endereço em 5 minutos (`TentativasDeSenha`), mas sem senha por sala: o projeto não serve para uso público aberto sem antes mudar isso.
 - Na reconexão, a pessoa ganha outro id e é reconhecida pelo nome. Dois amigos com o mesmo nome podem confundir a volta automática.
 - Recarregar a página (Ctrl+R) não é reconexão: é uma entrada nova, e a volta automática a assistir não sobrevive a isso.
 - Salas em memória, num servidor só.

@@ -214,6 +214,8 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │       │                             reconexão), captura, medidor (estatísticas), relatório e ajustes do WebRTC
 │       ├── voz/                      Conversa por voz: conexões, processador (RNNoise e porta) e ajustes
 │       ├── folga.ts                  Folga de rede do vídeo, ajustada à conexão de cada um
+│       ├── qualidade.ts              As qualidades (720p e 1080p, a 30 fps)
+│       ├── qualidadeAutomatica.ts    A descida da 1080p para 720p: a captura (PC) ou o envio de um amigo (rede)
 │       ├── somDoApp.ts               Faixa de áudio do auxiliar de som (AudioWorklet)
 │       ├── ponte.ts                  Contrato com o app Electron
 │       ├── desempenho/               Teste de desempenho e gravação da sala: medição, análise e os relatórios (HTML e para IA)
@@ -572,7 +574,7 @@ O workflow [CI](.github/workflows/ci.yml) roda as cinco camadas em cada push na 
 - **Sem servidor TURN:** quem está atrás de CGNAT, em 4G/5G ou em rede corporativa pode não conseguir conectar (nem o vídeo nem a voz). O TURN repassa o vídeo e tem custo por GB.
 - **Sem "apertar para falar":** por enquanto, a voz usa só a detecção de voz. Apertar uma tecla para falar com o jogo em primeiro plano precisa de um gancho de teclado no auxiliar do Windows.
 - **Voz em malha:** cada pessoa manda a própria voz para cada amigo. Com o limite de 8 pessoas por sala, isso fica em ~450 kbps de upload no pior caso.
-- **Senha única por servidor:** pensada para grupos de amigos, cada grupo com o próprio deploy. Para uso público, seriam necessários senha por sala e limite de tentativas.
+- **Senha única por servidor:** pensada para grupos de amigos, cada grupo com o próprio deploy. Há um freio contra adivinhação (10 senhas erradas do mesmo endereço em 5 minutos), mas, para uso público, seria preciso senha por sala.
 - **Estado em memória:** as salas vivem num servidor só. Para mais de um servidor, seria preciso um armazenamento compartilhado (ex.: Redis).
 - **Exclusão de som por grupo de processos:** programas abertos *a partir* do Ozamigos ou de um app da lista `SEM_SOM_DE` também ficam de fora. Jogos abertos pela Steam, pela Epic ou pelo menu Iniciar não são afetados.
 - **Programa que começa a tocar no meio:** o som dele entra na transmissão em até 2 segundos.
