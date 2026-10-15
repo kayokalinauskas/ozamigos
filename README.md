@@ -501,7 +501,8 @@ A **fluidez** é a porcentagem de quadros que chegaram à tela a tempo: interval
 - **Senha do grupo:**
   - fica só na variável de ambiente e nunca no código;
   - é conferida antes de qualquer outra coisa, então quem erra não descobre nada sobre a sala;
-  - é comparada em tempo constante.
+  - é comparada em tempo constante (pelo resumo SHA-256, que não deixa o tempo contar nem o tamanho dela);
+  - fica guardada no navegador ou no app de quem já entrou (`localStorage`), para não ser pedida a cada vez. Num PC compartilhado, quem usa o mesmo navegador consegue lê-la.
 - **Origem do WebSocket:** só páginas servidas pelo próprio servidor conseguem abrir o WebSocket (checagem de origem do Spring).
 - **Remetente carimbado:** o servidor diz quem enviou cada mensagem (`de`) e só repassa dentro da mesma sala.
 - **App Electron:**
