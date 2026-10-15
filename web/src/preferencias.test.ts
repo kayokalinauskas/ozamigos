@@ -33,9 +33,9 @@ describe('preferências guardadas', () => {
 });
 
 describe('qualidade', () => {
-  it('é uma só, 720p a 30 fps, e deixa o WebRTC baixar a imagem de quem não aguenta em vez de travar', () => {
+  it('é uma só, 720p a 30 fps, e quando falta banda o WebRTC baixa o fps e a nitidez, nunca a resolução', () => {
     expect(Object.keys(QUALIDADES)).toEqual([QUALIDADE]);
-    expect(QUALIDADES[QUALIDADE]).toMatchObject({ altura: 720, fps: 30, preferencia: 'balanced' });
+    expect(QUALIDADES[QUALIDADE]).toMatchObject({ altura: 720, fps: 30, preferencia: 'maintain-resolution' });
   });
 });
 

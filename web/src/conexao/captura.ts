@@ -76,6 +76,10 @@ export function montarEnvio(tela: MediaStream, qualidade: Qualidade, pc: RTCPeer
   });
   preferirH264(transceptor);
   // Sempre cria o canal de áudio, mesmo sem áudio agora: assim a troca de fonte não precisa renegociar.
+  // O som vai sem MediaStream (outro que o do vídeo) de propósito: na mesma, quem assiste sincroniza os dois, e a imagem
+  // esperava o som. No celular, com a saída de áudio lenta do Android, isso deixava a imagem ~0,6 s atrasada (relatório
+  // real de 14/10/2026: buffer de vídeo de 550 a 850 ms com a folga pedindo no máximo 250). Separados, a imagem sai
+  // assim que chega; o som pode ficar uma fração de segundo atrás dela no celular.
   const [audio] = tela.getAudioTracks();
-  pc.addTransceiver(audio ?? 'audio', { direction: 'sendonly', streams: [tela] });
+  pc.addTransceiver(audio ?? 'audio', { direction: 'sendonly' });
 }

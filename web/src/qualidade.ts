@@ -3,11 +3,13 @@
 // Até 14/10/2026 havia escolha (1080p e 720p, a 30 e a 60 fps). Saiu por decisão do dono: em jogo pesado a captura do
 // Chromium não passa de ~21–29 fps, o 1080p nunca rendeu de verdade e dobrava o custo de codificar e de enviar, e
 // 720p · 30 é o que o grupo sempre usou no Discord sem Nitro.
-// "balanced": quando falta processador ou internet, o WebRTC baixa a resolução ou o fps em vez de travar. Como cada
-// pessoa assistindo tem a sua conexão e o seu codificador, isso acontece por pessoa: quem está num Wi-Fi ruim recebe
-// menor, e quem está no cabo continua em 720p. Não precisa de código nosso para isso.
+// "maintain-resolution" (o mesmo do LiveKit, base do Stoat, para tela): quando falta internet ou processador, o WebRTC
+// baixa o fps e a nitidez, mas a imagem continua em 720p. Como cada pessoa assistindo tem a sua conexão e o seu
+// codificador, isso acontece por pessoa, sem código nosso. Até 14/10/2026 era "balanced", que cortava a resolução: em
+// jogo pesado ela não voltava (o WebRTC só sobe quando a imagem fica fácil de codificar), e dois relatórios reais
+// ficaram minutos em 360p e 540p com 6 Mbps de banda sobrando.
 export const QUALIDADES = {
-  leve: { rotulo: '720p · 30 fps', detalhe: '~4 Mbps por amigo', altura: 720, fps: 30, bitrate: 3_000_000, preferencia: 'balanced' },
+  leve: { rotulo: '720p · 30 fps', detalhe: '~4 Mbps por amigo', altura: 720, fps: 30, bitrate: 3_000_000, preferencia: 'maintain-resolution' },
 } as const satisfies Record<string, {
   rotulo: string;
   detalhe: string;

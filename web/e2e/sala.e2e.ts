@@ -43,6 +43,15 @@ function prepararPagina() {
     },
   });
 
+  // Guarda as ofertas que chegam, para conferir como a transmissão foi montada.
+  const ofertas: string[] = [];
+  (window as unknown as { __ofertas: string[] }).__ofertas = ofertas;
+  const aplicar = RTCPeerConnection.prototype.setRemoteDescription;
+  RTCPeerConnection.prototype.setRemoteDescription = function (this: RTCPeerConnection, descricao?: RTCSessionDescriptionInit) {
+    if (descricao?.type === 'offer' && descricao.sdp) ofertas.push(descricao.sdp);
+    return aplicar.call(this, descricao as RTCSessionDescriptionInit);
+  } as typeof RTCPeerConnection.prototype.setRemoteDescription;
+
   navigator.mediaDevices.getDisplayMedia = async () => {
     const tela = document.createElement('canvas');
     tela.width = 640;
@@ -126,6 +135,19 @@ test('a transmissão de uma pessoa chega em movimento para quem assiste', async 
       { timeout: 30_000 },
     )
     .toBeGreaterThan(10);
+
+  // O som da transmissão vem num MediaStream separado do vídeo, para o navegador de quem assiste não segurar a imagem
+  // esperando o som; o <video> recebe os dois juntos mesmo assim.
+  const montagem = await beto.evaluate(() => {
+    const oferta = (window as unknown as { __ofertas: string[] }).__ofertas.find((sdp) => sdp.includes('m=video')) ?? '';
+    const msid = (tipo: string) => oferta.split('\r\nm=').find((secao) => secao.startsWith(tipo))?.match(/a=msid:(\S+)/)?.[1] ?? '-';
+    const video = [...document.querySelectorAll('video')].find((v) => v.videoWidth > 0);
+    const faixas = (video?.srcObject as MediaStream | null)?.getTracks().map((faixa) => faixa.kind).sort();
+    return { streamDoVideo: msid('video'), streamDoSom: msid('audio'), faixas };
+  });
+  expect(montagem.streamDoVideo).not.toBe('-');
+  expect(montagem.streamDoSom).not.toBe(montagem.streamDoVideo);
+  expect(montagem.faixas).toEqual(['audio', 'video']);
 });
 
 test('a voz chega, o microfone desligado silencia e quem sai some da sala', async ({ browser }) => {

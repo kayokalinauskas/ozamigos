@@ -453,9 +453,9 @@ A voz pesa pouco: Opus mono a 64 kbps para cada amigo da sala, e quase nada enqu
 
 A transmissão sai sempre em **720p a 30 fps**, ~4 Mbps de upload para cada pessoa assistindo, como no Discord sem Nitro. Não há escolha de qualidade (até 14/10/2026 havia 1080p e 60 fps): em jogo pesado, a captura do navegador não passa de ~21–29 fps, e o 1080p dobrava o custo de codificar e de enviar sem melhorar o que os amigos viam.
 
-Quando falta processador ou internet, o próprio WebRTC baixa a resolução ou o fps em vez de travar. Como cada amigo tem a sua conexão, isso vale por pessoa: quem está num Wi-Fi ruim recebe a imagem menor, e quem está no cabo continua em 720p. O selo da transmissão mostra o que chega (por exemplo, "540p · 30 fps").
+Quando falta processador ou internet, o próprio WebRTC baixa o fps e a nitidez em vez de travar, mas a imagem continua em 720p (como o Stoat faz com a tela). Como cada amigo tem a sua conexão, isso vale por pessoa: quem está num Wi-Fi ruim recebe uma imagem menos nítida, e quem está no cabo nem percebe. O selo da transmissão mostra o que chega (por exemplo, "720p · 24 fps").
 
-Exemplo: para 4 amigos, são cerca de 16 Mbps de upload; para 7 (a sala cheia), cerca de 28 Mbps. Nos primeiros 15 a 25 segundos, uma resolução menor é normal: o WebRTC está medindo a rede.
+Exemplo: para 4 amigos, são cerca de 16 Mbps de upload; para 7 (a sala cheia), cerca de 28 Mbps. Nos primeiros 15 a 25 segundos, uma imagem menos nítida é normal: o WebRTC está medindo a rede.
 
 **Fps baixo ou travando.** Abra **Estatísticas** no PC de quem transmite:
 

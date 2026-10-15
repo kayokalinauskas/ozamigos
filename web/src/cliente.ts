@@ -113,7 +113,8 @@ export const AJUSTES_DA_TRANSMISSAO = {
   bundlePolicy: 'max-bundle',
   audio: 'Opus estéreo até 128 kbps, sem cancelamento de eco/ruído',
   escalaNoCodificador: 'scaleResolutionDownBy 1 (a captura já sai no tamanho da qualidade)',
-  quandoFaltaBanda: 'degradationPreference balanced: o WebRTC baixa a resolução ou o fps de cada conexão sozinho, por pessoa assistindo',
+  quandoFaltaBanda: 'degradationPreference maintain-resolution: o WebRTC baixa o fps e a nitidez de cada conexão sozinho, por pessoa assistindo; a resolução fica em 720p',
+  somDaTransmissao: 'em outro MediaStream que o vídeo: quem assiste não sincroniza os dois, e a imagem não espera o som',
 };
 
 /** Uma conexão de vídeo com alguém da sala: quem me assiste (envio) ou quem eu assisto (recebimento). */
@@ -936,7 +937,7 @@ class Cliente {
     if (!conexao) return;
     await conexao.pc.setRemoteDescription(sdp);
     await this.aplicarCandidatosPendentes(conexao);
-    // Se a rede ou o PC apertarem, o que sacrificar depende da qualidade escolhida (veja QUALIDADES).
+    // Se a rede ou o PC apertarem, o WebRTC baixa o fps e a nitidez, não a resolução (QUALIDADES em qualidade.ts).
     await this.aplicarPreferencia(conexao.pc);
   }
 
@@ -947,12 +948,15 @@ class Cliente {
     const conexao = this.novaConexao('recebimento', idTransmissor);
     const folga = new FolgaAdaptativa();
     this.folgas.set(idTransmissor, folga);
+    let faixas: MediaStreamTrack[] = [];
     conexao.pc.ontrack = (evento) => {
       // Folga contra soluços do Wi-Fi de quem assiste (folga.ts), só no vídeo. No som, ela fazia a imagem esperar mais:
       // o navegador sincroniza os dois, e a folga do som somada à saída de áudio (~200 ms a mais no Android, medido)
       // segurava a imagem junto. O som fica com o ajuste automático do WebRTC, que já se adapta à rede.
       if (evento.track.kind === 'video') definirFolga(evento.receiver, folga.alvo);
-      this.mudar({ videos: { ...this.estado.videos, [idTransmissor]: evento.streams[0] } });
+      // A imagem e o som chegam separados (montarEnvio): aqui eles se juntam num MediaStream só para o <video>.
+      faixas = [...faixas.filter((faixa) => faixa.kind !== evento.track.kind), evento.track];
+      this.mudar({ videos: { ...this.estado.videos, [idTransmissor]: new MediaStream(faixas) } });
     };
     await conexao.pc.setRemoteDescription(sdp);
     await this.aplicarCandidatosPendentes(conexao);

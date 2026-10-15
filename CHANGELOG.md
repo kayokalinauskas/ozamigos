@@ -8,6 +8,10 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+### Alterado
+- **A imagem não cai mais de 720p.** Quando a internet aperta, a transmissão perde um pouco de nitidez ou de fps por alguns segundos e volta sozinha. Antes ela caía para 540p ou 360p e, em jogo pesado, ficava presa ali mesmo depois de a internet melhorar.
+- **Menos atraso no celular:** a imagem não espera mais o som da transmissão. Num celular Android, ela chegava ~0,6 s atrasada por causa disso.
+
 ## [1.2.13] - 2026-10-14
 
 ### Alterado
@@ -223,7 +227,8 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
-[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.12...HEAD
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.13...HEAD
+[1.2.13]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.12...v1.2.13
 [1.2.12]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.11...v1.2.12
 [1.2.11]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.10...v1.2.11
 [1.2.10]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.9...v1.2.10
