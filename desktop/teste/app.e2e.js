@@ -99,3 +99,34 @@ test('fechar a janela deixa o app na bandeja, e a página tem a bandeja, o aviso
     servidor.close();
   }
 });
+
+/** As regras de economia de energia do Windows para o processo (ProcessPowerThrottling), lidas pelo PowerShell. */
+function economiaDoProcesso(pid) {
+  const { execFileSync } = require('node:child_process');
+  const script = `
+Add-Type @'
+using System; using System.Runtime.InteropServices;
+public static class E {
+  [StructLayout(LayoutKind.Sequential)] public struct P { public uint Version; public uint ControlMask; public uint StateMask; }
+  [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint a, bool h, int pid);
+  [DllImport("kernel32.dll")] public static extern bool GetProcessInformation(IntPtr h, int c, ref P p, int t);
+  public static string Ler(int pid) { var p = new P { Version = 1 }; var h = OpenProcess(0x1000, false, pid); return GetProcessInformation(h, 4, ref p, 12) ? p.ControlMask + " " + p.StateMask : "erro"; }
+}
+'@
+[E]::Ler(${Number(pid)})`;
+  const [controle, estado] = execFileSync('powershell.exe', ['-NoProfile', '-Command', script], { encoding: 'utf8' }).trim().split(' ').map(Number);
+  return { controle, estado };
+}
+
+test('o Windows continua dando o relógio fino ao app com a janela escondida (a captura não cai para ~21 fps)', async () => {
+  test.skip(process.platform !== 'win32', 'regra do Windows 11');
+  const aberto = await abrirApp('http://localhost:1'); // a tela de início basta
+  try {
+    // PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION (4) no "controle" e fora do "estado": a marca do auxiliar
+    // (OzamigosSom.exe --relogio, Relogio.cs). Sem ela, minimizado ou tapado, o processo vai para o tique de 15,6 ms.
+    const pid = await aberto.app.evaluate(() => process.pid); // o do processo principal (o do Playwright é outro)
+    await expect.poll(() => economiaDoProcesso(pid), { timeout: 10_000 }).toEqual({ controle: 4, estado: 0 });
+  } finally {
+    await fechar(aberto);
+  }
+});
