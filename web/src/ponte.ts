@@ -31,6 +31,8 @@ export type PonteOzamigos = {
     ligar(ligado: boolean): Promise<boolean>;
     amostra(): Promise<AmostraDoPc | null>;
   };
+  /** Mensagens do chat ainda não vistas: o ponto na barra de tarefas e a dica da bandeja (app 1.2.13 em diante). */
+  naoLidas?(quantas: number): void;
   /** Fechar a janela deixa o app na bandeja, perto do relógio (app 1.2.13 em diante). */
   bandeja?: {
     ler(): Promise<boolean | null>;

@@ -191,6 +191,10 @@ class Cliente {
     addEventListener('online', () => {
       if (this.estado.conexaoPerdida) this.reconectar();
     });
+    // Voltou para a janela com o chat aberto: as mensagens que chegaram enquanto isso já estão à vista.
+    addEventListener('focus', () => {
+      if (this.estado.chatAberto && this.estado.chatNaoLidas > 0) this.mudar({ chatNaoLidas: 0 });
+    });
     // No celular, o navegador congela a página em segundo plano e a conexão cai sem avisar. Ao voltar para ela, confere
     // na hora: sem isso, a pessoa via "Sem conexão" por até 10 s (ou 70 s, até o silêncio denunciar a queda).
     document.addEventListener('visibilitychange', () => {
@@ -597,8 +601,9 @@ class Cliente {
     const minha = de === e.meuId;
     const nome = minha ? e.meuNome : this.nomeDe(de);
     const mensagem: MensagemDoChat = { numero: this.proximaMensagem++, de, nome, texto, momento: Date.now(), minha };
+    // Não lida: o chat estava fechado, ou a janela estava atrás de outra (o jogo). Conta no botão e na barra de tarefas.
     const lida = minha || (e.chatAberto && document.hasFocus());
-    this.mudar({ chat: [...e.chat, mensagem].slice(-MENSAGENS_NA_TELA), chatNaoLidas: e.chatNaoLidas + (lida || e.chatAberto ? 0 : 1) });
+    this.mudar({ chat: [...e.chat, mensagem].slice(-MENSAGENS_NA_TELA), chatNaoLidas: e.chatNaoLidas + (lida ? 0 : 1) });
     if (lida) return;
     tocar('mensagem');
     if (!e.chatAberto) {

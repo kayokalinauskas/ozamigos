@@ -46,6 +46,10 @@ contextBridge.exposeInMainWorld('ozamigos', {
     salvar: (pasta, arquivos) => ipcRenderer.invoke('estatisticas-salvar', String(pasta), arquivos),
     abrirPasta: (pasta) => ipcRenderer.invoke('estatisticas-abrir-pasta', String(pasta)),
   },
+  /** Mensagens do chat ainda não vistas: o ponto na barra de tarefas e a dica da bandeja (app 1.2.13 em diante). */
+  naoLidas(quantas) {
+    ipcRenderer.send('nao-lidas', Number(quantas) || 0);
+  },
   /** Fechar a janela deixa o app na bandeja, perto do relógio (app 1.2.13 em diante). */
   bandeja: {
     ler: () => ipcRenderer.invoke('bandeja-ler'),

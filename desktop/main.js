@@ -2,7 +2,7 @@
 // e acrescenta o que só um app consegue: o seletor de janelas e telas, o som do PC sem o Discord
 // e sem o próprio app, notificações do Windows, e não ser freado quando fica atrás do jogo.
 
-const { app, BrowserWindow, Menu, Notification, Tray, desktopCapturer, ipcMain, nativeTheme, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, Tray, desktopCapturer, ipcMain, nativeImage, nativeTheme, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -174,6 +174,8 @@ function criarJanela(atualizando) {
     janela.hide();
     avisarDaBandejaUmaVez();
   });
+  // Voltou para a janela: o ícone da barra de tarefas para de piscar (a mensagem nova já está à vista).
+  janela.on('focus', () => janela.flashFrame(false));
   // Desligar, reiniciar ou sair do Windows: a janela escondida não pode segurar o desligamento.
   janela.on('session-end', () => {
     saindo = true;
@@ -579,6 +581,45 @@ ipcMain.handle('bandeja-ler', (evento) => (vindoDaPagina(evento) ? fecharParaBan
 
 ipcMain.on('bandeja-definir', (evento, ligada) => {
   if (vindoDaPagina(evento)) salvarConfiguracao({ fecharParaBandeja: Boolean(ligada) });
+});
+
+// ===== Mensagens novas do chat: aviso na barra de tarefas e na bandeja =====
+
+let mensagensNaoLidas = 0;
+let pontoDeAviso = null;
+
+/**
+ * Um ponto verde-limão com borda escura, 16×16, para o canto do ícone na barra de tarefas (como o número
+ * vermelho do Discord). Desenhado em pixels (BGRA), sem arquivo de imagem.
+ */
+function pontoVerde() {
+  const lado = 16;
+  const pixels = Buffer.alloc(lado * lado * 4);
+  for (let y = 0; y < lado; y++) {
+    for (let x = 0; x < lado; x++) {
+      const distancia = Math.hypot(x + 0.5 - lado / 2, y + 0.5 - lado / 2);
+      const i = (y * lado + x) * 4;
+      const [b, g, r] = distancia <= 5.5 ? [0x4a, 0xf2, 0xb6] : [0x0a, 0x0e, 0x0b]; // --destaque e --fundo
+      const opaco = Math.max(0, Math.min(1, 7.5 - distancia)); // a borda de fora sai suave
+      pixels.set([b, g, r, Math.round(opaco * 255)], i);
+    }
+  }
+  return nativeImage.createFromBitmap(pixels, { width: lado, height: lado });
+}
+
+/**
+ * A página conta as mensagens do chat que a pessoa ainda não viu. Com alguma: o ponto no ícone da barra de tarefas
+ * e o número na dica da bandeja; chegou uma nova com a janela fora de foco, o ícone pisca até a pessoa voltar.
+ */
+ipcMain.on('nao-lidas', (evento, quantas) => {
+  if (!vindoDaPagina(evento) || !janela || janela.isDestroyed()) return;
+  const n = Math.max(0, Math.min(999, Math.floor(Number(quantas) || 0)));
+  const texto = n === 1 ? '1 mensagem nova no chat' : `${n} mensagens novas no chat`;
+  janela.setOverlayIcon(n > 0 ? (pontoDeAviso ??= pontoVerde()) : null, n > 0 ? texto : '');
+  bandeja?.setToolTip(n > 0 ? `Ozamigos · ${texto}` : 'Ozamigos');
+  if (n > mensagensNaoLidas && !janela.isFocused()) janela.flashFrame(true);
+  else if (n === 0) janela.flashFrame(false); // tudo lido (a pessoa abriu o chat): não há mais o que chamar atenção
+  mensagensNaoLidas = n;
 });
 
 // ===== Menu (sem barra de título, ele não aparece: fica pelos atalhos de teclado) =====

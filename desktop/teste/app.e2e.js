@@ -73,12 +73,13 @@ async function servidorDeTeste() {
   return { servidor, endereco: `http://localhost:${servidor.address().port}` };
 }
 
-test('fechar a janela deixa o app na bandeja, e a página tem a bandeja e a tela acordada', async () => {
+test('fechar a janela deixa o app na bandeja, e a página tem a bandeja, o aviso de mensagens e a tela acordada', async () => {
   const { servidor, endereco } = await servidorDeTeste();
   const aberto = await abrirApp(endereco);
   try {
     await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');
     const pagina = await aberto.janela.evaluate(async () => {
+      window.ozamigos.naoLidas(2); // o ponto na barra de tarefas: não pode dar erro
       let telaAcordada;
       try {
         await (await navigator.wakeLock.request('screen')).release();
