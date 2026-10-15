@@ -17,8 +17,13 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ### Adicionado
 - **Chat da sala**: mensagens de texto num painel à direita, com links clicáveis. Com o painel fechado, a mensagem aparece como aviso e o botão do chat mostra quantas são novas; com o app atrás do jogo, vira notificação do Windows. Nada fica guardado: quem entra depois não vê o que foi dito antes.
 - A versão do app e da interface aparecem bem pequenas ao lado do logo e na tela de entrada.
+- **Notificações do Windows à escolha:** na engrenagem, cada tipo liga e desliga (alguém entrou, começou a transmitir, mensagem no chat).
+- As configurações ficaram em abas: **Voz e áudio**, **Notificações** e **Geral** (versão e servidor).
 
 ### Corrigido
+- **No celular**, a página tinha rolagem de lado e os botões de Estatísticas e Chat só apareciam rolando. Agora tudo cabe na largura da tela, e o chat e as estatísticas abrem na tela inteira.
+- No celular, ao voltar para a página do Ozamigos, a conexão com o servidor é conferida e refeita na hora, em vez de mostrar "Sem conexão" por vários segundos.
+- No navegador e no celular, as configurações falam em "padrão do sistema", e não "do Windows".
 - O aviso "720p para" ficava na tela com o nome de quem já tinha parado de assistir ou saído da sala.
 
 ### Segurança
