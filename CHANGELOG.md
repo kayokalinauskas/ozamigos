@@ -8,6 +8,11 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.2.14] - 2026-10-15
+
+### Corrigido
+- **A transmissão não fica mais presa em ~21 fps quando outro app fica entre o jogo e o Ozamigos** (por exemplo, o navegador com o YouTube, aberto antes de voltar para o jogo). O Windows 11 deixava o Ozamigos com o relógio mais lento por achar que ele estava escondido, e a captura só conseguia ~21 quadros por segundo, mesmo com a placa de vídeo folgada.
+
 ### Alterado
 - **A imagem não cai mais de 720p.** Quando a internet aperta, a transmissão perde um pouco de nitidez ou de fps por alguns segundos e volta sozinha. Antes ela caía para 540p ou 360p e, em jogo pesado, ficava presa ali mesmo depois de a internet melhorar.
 - **Menos atraso no celular:** a imagem não espera mais o som da transmissão. Num celular Android, ela chegava ~0,6 s atrasada por causa disso.
@@ -227,7 +232,8 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
-[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.13...HEAD
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.14...HEAD
+[1.2.14]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.13...v1.2.14
 [1.2.13]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.12...v1.2.13
 [1.2.12]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.11...v1.2.12
 [1.2.11]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.10...v1.2.11
