@@ -89,7 +89,13 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: desktop/package-lock.json
+      - uses: actions/setup-dotnet@v6 # o auxiliar de som (desktop/som) é .NET 10
+        with:
+          dotnet-version: 10.0.x
       - run: npm ci
+      # O auxiliar também marca o app para o Windows não tirar o relógio fino (Relogio.cs); a fumaça confere isso.
+      - name: Compilar o auxiliar de som
+        run: npm run som
       - name: Conferir a sintaxe dos scripts
         run: Get-ChildItem *.js, build/*.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { exit 1 } }
         shell: pwsh
