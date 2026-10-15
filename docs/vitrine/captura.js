@@ -107,10 +107,6 @@ async function entrar(w, nome) {
 async function transmitir(w, estilo) {
   await js(w, `
     window.__prepararJogo(${JSON.stringify(estilo)});
-    // 720p a 30 fps: é o que as fotos mostram, e quatro codificações em 1080p num PC só engasgam a bancada.
-    const qualidade = document.querySelector('.controles select');
-    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(qualidade, 'leve');
-    qualidade.dispatchEvent(new Event('change', { bubbles: true }));
     document.querySelector('.menu-transmitir > button').click();
     await new Promise((r) => setTimeout(r, 200));
     document.querySelectorAll('.menu button')[1].click();
@@ -301,7 +297,7 @@ app.whenReady().then(async () => {
     duda.setContentSize(2880, 1800);
     duda.webContents.setZoomFactor(2);
     await espera(500);
-    await js(duda, `document.querySelector('[aria-label="Configurações de voz e áudio"]').click();`);
+    await js(duda, `document.querySelector('[aria-label="Configurações"]').click();`);
     await espera(2500); // o medidor anda com o microfone falso
     const caixa = await js(duda, `const b = document.querySelector('dialog.configuracoes').getBoundingClientRect(); return { x: b.left, y: b.top, width: b.width, height: b.height };`);
     const voz = await duda.webContents.capturePage({ x: Math.round(caixa.x * 2), y: Math.round(caixa.y * 2), width: Math.round(caixa.width * 2), height: Math.round(caixa.height * 2) });

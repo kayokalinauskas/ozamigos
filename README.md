@@ -97,7 +97,7 @@
 - **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura (ao lado ou numa fileira embaixo, conforme o espaço). Dois cliques no vídeo abrem a tela cheia, e o botão **Janela flutuante** solta a transmissão numa janelinha que fica por cima do jogo.
 - **Áudio por transmissão:** volume e silenciar de cada uma, lembrados por amigo, mais um volume geral.
 - **Pouco atraso para quem assiste:** a folga contra soluços da rede se ajusta à conexão de cada um, de 80 a 250 ms.
-- **Sem escolher qualidade:** a transmissão sai sempre em 720p a 30 fps. Se o PC ou a internet apertarem, a imagem de quem não aguenta diminui sozinha em vez de travar, e quem está bem continua em 720p. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
+- **Sem escolher qualidade:** a transmissão sai sempre em 720p a 30 fps. Se a internet ou o PC apertarem, a imagem de quem não aguenta perde um pouco de nitidez ou de fps por alguns segundos, sem travar e sem sair de 720p; quem está bem nem percebe. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
 - **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos e notificação do Windows quando o app está atrás do jogo; na engrenagem (aba **Notificações**), dá para desligar os sons e escolher quais notificações aparecem: alguém entrou, começou a transmitir ou mandou mensagem no chat.
 - **Configurações em abas:** Voz e áudio, Notificações e Geral (a versão e o servidor).
 - **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
@@ -109,7 +109,8 @@
 **Só no app para Windows**
 - **Seletor próprio** de janelas e telas, com miniaturas e ícones.
 - **Som do jogo sem eco:** a transmissão leva o som de todos os programas do PC, menos o do próprio **Ozamigos** (a voz dos amigos e as transmissões que você assiste) e o de apps de chamada de voz. Ninguém ouve a própria voz nem o próprio jogo de volta. O áudio vai em estéreo.
-- **Sem engasgos atrás do jogo:** a janela não é freada pelo Windows quando fica escondida.
+- **Sem engasgos atrás do jogo:** a janela não é freada pelo Windows quando fica escondida, e a captura não cai para ~21 fps quando outro programa fica entre o jogo e o Ozamigos (desde a 1.2.14).
+- **Se recupera sozinho:** se a página travar e cair, ela abre de novo; e a janela guardada num monitor que foi desligado volta para a tela.
 - **Atualização automática da interface:** o app carrega a interface do servidor, então cada deploy chega a todos sem reinstalar.
 - **O app se atualiza sozinho** (a partir da 1.2.0, na versão instalada): ao abrir, ele procura uma versão nova nas releases, baixa, instala e abre de novo. A versão portátil continua sendo atualizada à mão.
 
@@ -126,7 +127,7 @@
 
 **Sem instalar:** use o `Ozamigos-Portatil-x.y.z.exe`, que abre com dois cliques.
 
-**Pelo navegador:** abra o endereço do servidor no Chrome ou no Edge. A entrada tem um link para o [site](https://kayokalinauskas.github.io/ozamigos/), que apresenta e baixa o app para Windows. Pelo navegador dá para conversar, assistir e transmitir, mas a transmissão leva o som do PC inteiro, sem a separação que o app faz.
+**Pelo navegador:** abra o endereço do servidor no Chrome ou no Edge. A entrada tem um link para o [site](https://kayokalinauskas.github.io/ozamigos/), que apresenta e baixa o app para Windows. Pelo navegador dá para conversar, assistir e transmitir, mas a transmissão leva o som do PC inteiro, sem a separação que o app faz. **No celular**, pelo navegador, dá para assistir e conversar; transmitir, só do computador.
 
 **Requisitos:** Windows 10 (versão 2004 ou mais nova) ou Windows 11, 64 bits.
 
@@ -462,6 +463,7 @@ Exemplo: para 4 amigos, são cerca de 16 Mbps de upload; para 7 (a sala cheia), 
 | O que aparece | Significado | O que fazer |
 |---|---|---|
 | `Captura` abaixo de 30 fps | O jogo ocupa a placa de vídeo inteira | Limite o fps do jogo (60 é o ideal) e use "janela sem bordas" |
+| `Captura` presa em ~21 fps com a placa folgada | App anterior à 1.2.14 (o Windows tirava o relógio fino do app escondido) | Atualize o app: basta fechar pelo **Sair** da bandeja e abrir de novo |
 | `Limite: processador / placa de vídeo` | O codificador não dá conta | Fps do jogo limitado, driver atualizado |
 | `Limite: internet` / `Banda estimada` baixa | O upload não aguenta | Use cabo ou tenha menos gente assistindo |
 | Indicador vermelho só em quem assiste | A internet de quem assiste | Cabo ou Wi-Fi mais perto do roteador |
@@ -551,7 +553,7 @@ O workflow [CI](.github/workflows/ci.yml) roda as cinco camadas em cada push na 
 | Servidor não sobe: "Defina a senha do grupo…" | Falta `OZAMIGOS_SENHA` | Defina a variável (no Render, em **Environment**) |
 | `localhost:8080` dá 404 | Interface não montada | `cd web`, depois `npm install` e `npm run build` |
 | App diz "Não foi possível abrir…" | Endereço errado, sem internet ou Render acordando | Confira o endereço; espere 1 minuto e clique em **Conectar** |
-| App abre num endereço antigo | O endereço guardado tem prioridade sobre o do instalador | Ícone de servidor na sala, ou Alt → **Trocar o servidor** |
+| App abre num endereço antigo | O endereço guardado tem prioridade sobre o do instalador | Ícone de servidor na sala ou na tela de entrada |
 | Os amigos não me ouvem | Microfone sem permissão, desligado ou o errado | Veja o ícone no seu cartão; na engrenagem, escolha o microfone e use **Testar o microfone** |
 | O começo das palavras some | Sensibilidade manual alta demais | Ligue **Ajustar sozinho** ou arraste o limite para a esquerda |
 | Os amigos ouvem eco da própria voz | Caixa de som perto do microfone | Use fone, ou ligue o **Cancelamento de eco** na engrenagem |
@@ -573,6 +575,7 @@ O workflow [CI](.github/workflows/ci.yml) roda as cinco camadas em cada push na 
 - **Senha única por servidor:** pensada para grupos de amigos, cada grupo com o próprio deploy. Há um freio contra adivinhação (10 senhas erradas do mesmo endereço em 5 minutos), mas, para uso público, seria preciso senha por sala.
 - **Estado em memória:** as salas vivem num servidor só. Para mais de um servidor, seria preciso um armazenamento compartilhado (ex.: Redis).
 - **Exclusão de som por grupo de processos:** programas abertos *a partir* do Ozamigos ou de um app da lista `SEM_SOM_DE` também ficam de fora. Jogos abertos pela Steam, pela Epic ou pelo menu Iniciar não são afetados.
+- **Uma pausa curta quando alguém começa a assistir:** cada pessoa nova liga mais um codificador na placa de vídeo de quem transmite, e quem já assistia vê a imagem parar por ~¼ de segundo, uma vez (medido numa AMD RX 7800 XT). Evitar isso exigiria codificar uma vez só, num servidor de mídia.
 - **Programa que começa a tocar no meio:** o som dele entra na transmissão em até 2 segundos.
 - **Instalador sem assinatura digital:** o SmartScreen avisa na primeira execução.
 - **Atualização da versão portátil:** o app instalado se atualiza sozinho (desde a 1.2.0), mas a versão portátil exige baixar o arquivo novo.
