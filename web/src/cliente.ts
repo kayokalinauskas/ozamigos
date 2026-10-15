@@ -833,6 +833,12 @@ class Cliente {
     const metricas = { ...this.estado.metricas };
     delete metricas[chave(canal, idRemoto)];
     const parcial: Partial<Estado> = { metricas };
+    if (canal === 'envio') {
+      // Quem parou de assistir (ou saiu) sai na hora da lista de quem recebe 720p: sem isso, o "720p para" ficava
+      // na tela até a próxima decisão, com o nome de alguém que já tinha ido embora.
+      this.qualidadeAutomatica.esquecer(idRemoto);
+      parcial.enviosReduzidos = this.estado.enviosReduzidos.filter((id) => id !== idRemoto);
+    }
     if (canal === 'recebimento') {
       const videos = { ...this.estado.videos };
       delete videos[idRemoto];
@@ -845,12 +851,7 @@ class Cliente {
   private async enviarOferta(idEspectador: string) {
     const tela = this.estado.minhaTela;
     if (!tela) return;
-    this.fecharConexao('envio', idEspectador);
-    // Conexão refeita (a rede de quem assiste caiu): começa do zero, na qualidade de agora.
-    this.qualidadeAutomatica.esquecer(idEspectador);
-    if (this.estado.enviosReduzidos.includes(idEspectador)) {
-      this.mudar({ enviosReduzidos: this.estado.enviosReduzidos.filter((id) => id !== idEspectador) });
-    }
+    this.fecharConexao('envio', idEspectador); // conexão refeita começa do zero, na qualidade de agora
     const { pc } = this.novaConexao('envio', idEspectador);
     montarEnvio(tela, this.estado.qualidade, pc, BITRATE_INICIAL);
     setTimeout(() => void this.bitrateCheio(pc, idEspectador), SUBIR_BITRATE_DEPOIS);
