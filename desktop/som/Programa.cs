@@ -13,6 +13,7 @@ static class Programa
     static int Main(string[] argumentos)
     {
         if (argumentos.Contains("--contadores")) return Contadores.Rodar(); // teste de desempenho (veja Contadores.cs)
+        if (argumentos.Contains("--relogio")) return Relogio.Rodar(argumentos); // captura sem cair para ~21 fps (veja Relogio.cs)
 
         var pidsExcluidos = new HashSet<uint> { (uint)Environment.ProcessId };
         var nomesExcluidos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

@@ -302,6 +302,23 @@ function caminhoDoAuxiliar() {
 }
 
 /**
+ * Com o jogo na frente e outro app entre ele e o Ozamigos, o Windows 11 dá o app por invisível e, depois de uns
+ * segundos, passa a ignorar o pedido de relógio fino dele: a captura da tela, que pede um quadro a cada 33 ms, só acorda
+ * no tique padrão de 15,6 ms (a cada 46,9 ms) e fica presa em ~21 fps, com a placa folgada (relatórios reais de 15/10/2026;
+ * com o Ozamigos logo atrás do jogo, ficava normal). O auxiliar marca este processo para o Windows continuar honrando o
+ * relógio (Relogio.cs). Numa bancada: 21–22 fps sem a marca, 29–30 com. Sem o auxiliar ou no Windows 10, segue sem.
+ */
+function honrarRelogioFino() {
+  if (!fs.existsSync(caminhoDoAuxiliar())) return;
+  try {
+    const processo = spawn(caminhoDoAuxiliar(), ['--relogio', String(process.pid)], { windowsHide: true, stdio: 'ignore' });
+    processo.on('error', (erro) => console.warn('Não foi possível pedir o relógio fino', erro));
+  } catch (erro) {
+    console.warn('Não foi possível pedir o relógio fino', erro);
+  }
+}
+
+/**
  * Liga o auxiliar (se ainda não estiver ligado). Resolve true quando ele avisa "pronto".
  * Dois pedidos seguidos (trocar a fonte rápido) esperam o mesmo auxiliar: nunca dois ao mesmo tempo.
  */
@@ -750,6 +767,7 @@ if (!app.requestSingleInstanceLock()) {
     configurarSessao();
     criarJanela(atualizando);
     criarBandeja();
+    honrarRelogioFino();
     if (!(await atualizando)) fecharAvisoDeAtualizacao(); // se o download falhou no meio; só depois da janela, senão o app fecharia
   });
 
