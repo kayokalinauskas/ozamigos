@@ -8,6 +8,8 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.2.15] - 2026-10-15
+
 ### Corrigido
 - **O app abre na tela mesmo se a janela estava num monitor que foi desligado.** Antes, ele abria fora da tela e parecia não abrir.
 - **Se a página do Ozamigos travar e cair, ela abre de novo sozinha**, em vez de deixar a janela vazia até um Ctrl+R.
@@ -238,7 +240,8 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
-[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.14...HEAD
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.15...HEAD
+[1.2.15]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.14...v1.2.15
 [1.2.14]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.13...v1.2.14
 [1.2.13]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.12...v1.2.13
 [1.2.12]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.11...v1.2.12
