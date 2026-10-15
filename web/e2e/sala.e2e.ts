@@ -21,6 +21,28 @@ function prepararPagina() {
     return ligar.call(this, destino, ...resto);
   } as typeof AudioNode.prototype.connect;
 
+  // Uma trava de tela falsa, que só anota se está segura (a de verdade depende do navegador e da bateria).
+  const tela = { segura: false };
+  (window as unknown as { __tela: typeof tela }).__tela = tela;
+  Object.defineProperty(navigator, 'wakeLock', {
+    value: {
+      request: async () => {
+        tela.segura = true;
+        const ouvintes: (() => void)[] = [];
+        return {
+          get released() {
+            return !tela.segura;
+          },
+          release: async () => {
+            tela.segura = false;
+            ouvintes.forEach((ouvinte) => ouvinte());
+          },
+          addEventListener: (_tipo: string, ouvinte: () => void) => ouvintes.push(ouvinte),
+        };
+      },
+    },
+  });
+
   navigator.mediaDevices.getDisplayMedia = async () => {
     const tela = document.createElement('canvas');
     tela.width = 640;
@@ -154,4 +176,19 @@ test('no celular, nada passa da largura da tela (sem rolagem de lado), com o cha
   await pagina.getByRole('button', { name: 'Chat' }).click();
   await expect(pagina.getByLabel('Chat da sala')).toBeVisible();
   expect(await larguras()).toEqual({ pagina: 375, tela: 375 });
+});
+
+test('com mais alguém na sala a tela não apaga, e sozinho volta a poder apagar', async ({ browser }) => {
+  const sala = novaSala();
+  const telaSegura = (pagina: Page) => pagina.evaluate(() => (window as unknown as { __tela: { segura: boolean } }).__tela.segura);
+  const ana = await entrarNaSala(browser, sala, 'Ana');
+  await expect(ana.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+  expect(await telaSegura(ana)).toBe(false); // sozinha: nada a manter
+
+  const beto = await entrarNaSala(browser, sala, 'Beto');
+  await expect.poll(() => telaSegura(ana)).toBe(true);
+  await expect.poll(() => telaSegura(beto)).toBe(true);
+
+  await beto.getByRole('button', { name: 'Sair da sala' }).click();
+  await expect.poll(() => telaSegura(ana)).toBe(false);
 });

@@ -13,6 +13,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 - Quando falta processador ou internet, a imagem de quem não aguenta diminui sozinha em vez de travar, e quem está bem continua em 720p.
 
 ### Adicionado
+- **A tela não apaga no meio da sala:** com mais alguém na sala (conversando ou assistindo), o PC e o celular não apagam a tela nem dormem, como numa chamada do Discord.
 - **Chat da sala**: mensagens de texto num painel à direita, com links clicáveis. Com o painel fechado, a mensagem aparece como aviso e o botão do chat mostra quantas são novas; com o app atrás do jogo, vira notificação do Windows. Nada fica guardado: quem entra depois não vê o que foi dito antes.
 - A versão do app e da interface aparecem bem pequenas ao lado do logo e na tela de entrada.
 - **Notificações do Windows à escolha:** na engrenagem, cada tipo liga e desliga (alguém entrou, começou a transmitir, mensagem no chat).
