@@ -686,7 +686,8 @@ code {
   cursor: pointer;
 }
 
-.segmentado button[aria-pressed='true'] {
+.segmentado button[aria-pressed='true'],
+.segmentado button[aria-selected='true'] {
   background: var(--painel-3);
   color: var(--texto);
 }
@@ -1694,6 +1695,54 @@ input[type='range']::-moz-range-thumb {
   }
 }
 
+/* Celular: nada pode ser mais largo que a tela. A fileira de baixo (qualidade, Estatísticas e Chat lado a lado) e a de
+   cima do palco esticavam a página para ~725 px: o navegador do celular mostrava uma barra de rolagem de lado, e o
+   Chat só aparecia rolando. O teste "no celular, nada passa da largura da tela" (e2e) cobre isso. */
+@media (max-width: 640px) {
+  .palco-ferramentas {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .volume-geral {
+    flex: 1;
+    width: auto;
+  }
+
+  .controles {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .controles-grupo {
+    flex-wrap: wrap;
+    min-width: 0; /* sem isso, o grupo fica da largura da opção de qualidade mais comprida */
+  }
+
+  .controles-grupo > .botao {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .seletor-qualidade {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .seletor-qualidade select {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .painel-estatisticas,
+  .painel-chat {
+    width: 100vw;
+    border-left: 0;
+  }
+}
+
 /* ===== Teste de desempenho (tela cheia sobre a sala) ===== */
 .teste {
   --roxo: #b38cff;
@@ -2589,6 +2638,23 @@ input[type='range']::-moz-range-thumb {
 /* ===== Configurações de voz e áudio (engrenagem) ===== */
 .configuracoes {
   width: min(720px, calc(100vw - 32px));
+}
+
+/* Altura fixa: trocar de aba não faz a janela pular de tamanho (a aba de voz é bem mais alta que as outras). */
+.configuracoes[open] {
+  display: flex;
+  flex-direction: column;
+  height: min(680px, calc(100vh - 64px));
+}
+
+.configuracoes-abas {
+  align-self: flex-start;
+  margin: 14px 20px 0;
+}
+
+.configuracoes .configuracoes-corpo {
+  flex: 1;
+  min-height: 0;
 }
 
 .configuracoes-corpo {

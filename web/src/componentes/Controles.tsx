@@ -10,6 +10,8 @@ type Props = { estatisticasAbertas: boolean; aoAlternarEstatisticas: () => void 
 export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props) {
   const { minhaTela, qualidade, qualidadeEscolhida, qualidadeReduzida, enviosReduzidos, metricas, chatAberto, chatNaoLidas } = useCliente();
   const podeCapturar = Boolean(navigator.mediaDevices?.getDisplayMedia);
+  // No celular, a opção vai sem o detalhe ("~4 Mbps por amigo"): com ele, o texto não cabia na largura da tela.
+  const estreito = typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches;
   const transmitindo = minhaTela !== null;
   const capturaBaixa = transmitindo
     ? capturaAbaixo(
@@ -70,7 +72,7 @@ export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props
           >
             {Object.entries(QUALIDADES).map(([valor, { rotulo, detalhe }]) => (
               <option key={valor} value={valor}>
-                {rotulo} ({detalhe})
+                {estreito ? rotulo : `${rotulo} (${detalhe})`}
               </option>
             ))}
           </select>

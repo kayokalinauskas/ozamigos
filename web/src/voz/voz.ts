@@ -13,6 +13,7 @@ import type { SinalDeVozParaEnviar, SinalDoServidor } from '../conexao/protocolo
 import { adicionarCandidato, novaPeerConnection, opusDeVoz } from '../conexao/webrtc';
 import urlDoRnnoise from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url';
 import urlDoRnnoiseSimd from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url';
+import { noApp } from '../ponte';
 import { tocar } from '../sons';
 import {
   guardarAjustes,
@@ -77,6 +78,7 @@ const NIVEL_DE_FALA = 0.015;
 const ANEL_SEGURA = 250;
 const ESPERA_DESCONECTADO = 3_000;
 const TENTATIVAS_DE_VOZ = 3;
+const DO_SISTEMA = noApp ? 'do Windows' : 'do sistema'; // no navegador (e no celular), quem escolhe o padrão é o sistema
 
 class Voz {
   private estado: EstadoDaVoz = {
@@ -344,7 +346,7 @@ class Voz {
       const nome = (erro as DOMException).name;
       if (a.entrada && (nome === 'OverconstrainedError' || nome === 'NotFoundError')) {
         // O microfone escolhido sumiu (desconectado): volta para o padrão do Windows.
-        this.cliente?.avisar('O microfone escolhido não está conectado: usando o padrão do Windows.');
+        this.cliente?.avisar(`O microfone escolhido não está conectado: usando o padrão ${DO_SISTEMA}.`);
         this.mudarAjustes({ entrada: '' });
         return;
       }
@@ -412,7 +414,7 @@ class Voz {
       await ctx.setSinkId(this.estado.ajustes.saida);
     } catch {
       if (this.estado.ajustes.saida) {
-        this.cliente?.avisar('A saída de áudio escolhida não está conectada: usando a padrão do Windows.');
+        this.cliente?.avisar(`A saída de áudio escolhida não está conectada: usando a padrão ${DO_SISTEMA}.`);
         this.mudarAjustes({ saida: '' });
       }
     }

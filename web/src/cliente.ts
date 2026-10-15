@@ -7,6 +7,7 @@
 import { lembrado, lembrar } from './armazenamento';
 import { QUALIDADES, qualidadeGuardada, type Qualidade } from './qualidade';
 import { AUTOMATICA, QualidadeAutomatica, qualidadeMaisLeve } from './qualidadeAutomatica';
+import { notificacaoLigada, type TipoDeNotificacao } from './notificacoes';
 import { tocar } from './sons';
 import { noApp, ponte, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';
 import { pararSomDoApp, trilhaDoSomDoApp } from './somDoApp';
@@ -202,6 +203,13 @@ class Cliente {
     addEventListener('online', () => {
       if (this.estado.conexaoPerdida) this.reconectar();
     });
+    // No celular, o navegador congela a página em segundo plano e a conexão cai sem avisar. Ao voltar para ela, confere
+    // na hora: sem isso, a pessoa via "Sem conexão" por até 10 s (ou 70 s, até o silêncio denunciar a queda).
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible' || this.estado.fase !== 'sala') return;
+      if (this.estado.conexaoPerdida) this.reconectar();
+      else if (this.sinalizacao.silencio() > 35_000) this.perderConexao(); // o pong chega a cada 30 s: está muda
+    });
     setInterval(() => void this.medir(), 1000);
     voz.ligar({
       enviar: (msg) => this.enviar(msg),
@@ -275,9 +283,10 @@ class Cliente {
     };
   }
 
-  /** Notificação do Windows, só quando a janela não está em foco (senão o aviso na tela basta). */
-  private notificar(titulo: string, corpo: string) {
-    if (document.hasFocus() || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  /** Notificação do Windows, só quando a janela não está em foco (senão o aviso na tela basta) e se o tipo está ligado. */
+  private notificar(tipo: TipoDeNotificacao, titulo: string, corpo: string) {
+    if (document.hasFocus() || !notificacaoLigada(tipo)) return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     try {
       new Notification(titulo, { body: corpo, silent: true });
     } catch {
@@ -427,7 +436,7 @@ class Cliente {
           break;
         }
         this.avisar(`${msg.nome} entrou na sala`);
-        this.notificar('Ozamigos', `${msg.nome} entrou na sala`);
+        this.notificar('entrou', 'Ozamigos', `${msg.nome} entrou na sala`);
         tocar('entrou');
         break;
       }
@@ -475,7 +484,7 @@ class Cliente {
             executar: () => this.assistir(msg.id),
           });
         }
-        this.notificar('Ozamigos', `${nomeDeQuem} começou a transmitir`);
+        this.notificar('transmissao', 'Ozamigos', `${nomeDeQuem} começou a transmitir`);
         break;
       }
       case 'parou': {
@@ -610,7 +619,7 @@ class Cliente {
       const aviso = this.mostrarAviso(`${nome}: ${texto}`, 'info', { rotulo: 'Responder', executar: () => this.abrirChat(true) });
       this.avisoDoChat = { de, aviso };
     }
-    this.notificar(nome, texto); // com a janela atrás do jogo
+    this.notificar('chat', nome, texto); // com a janela atrás do jogo
   }
 
   // ===== Assistir =====

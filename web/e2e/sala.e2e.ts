@@ -1,6 +1,6 @@
 // O caminho principal do app, com navegadores de verdade: entrar, transmitir, assistir, falar e sair.
 // Cada pessoa é um contexto separado do navegador (como dois PCs), com microfone falso e um "jogo" desenhado.
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
 
 /** Roda na página antes do app: o jogo falso no lugar da captura de tela e um analisador na saída de som. */
 function prepararPagina() {
@@ -37,8 +37,8 @@ function prepararPagina() {
   };
 }
 
-async function entrarNaSala(browser: Browser, sala: string, nome: string, senha = 'teste'): Promise<Page> {
-  const contexto = await browser.newContext();
+async function entrarNaSala(browser: Browser, sala: string, nome: string, senha = 'teste', opcoes: BrowserContextOptions = {}): Promise<Page> {
+  const contexto = await browser.newContext(opcoes);
   const pagina = await contexto.newPage();
   await pagina.addInitScript(prepararPagina);
   await pagina.goto(`/?sala=${sala}`);
@@ -141,4 +141,17 @@ test('a mensagem do chat chega, conta como nova para quem está com o chat fecha
   const caio = await entrarNaSala(browser, sala, 'Caio');
   await caio.getByRole('button', { name: 'Chat' }).click();
   await expect(caio.getByLabel('Chat da sala')).toContainText('Nenhuma mensagem ainda');
+});
+
+test('no celular, nada passa da largura da tela (sem rolagem de lado), com o chat fechado ou aberto', async ({ browser }) => {
+  const celular = { viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true };
+  const pagina = await entrarNaSala(browser, novaSala(), 'Kayo', 'teste', celular);
+  await expect(pagina.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+
+  const larguras = () => pagina.evaluate(() => ({ pagina: document.documentElement.scrollWidth, tela: innerWidth }));
+  expect(await larguras()).toEqual({ pagina: 375, tela: 375 });
+
+  await pagina.getByRole('button', { name: 'Chat' }).click();
+  await expect(pagina.getByLabel('Chat da sala')).toBeVisible();
+  expect(await larguras()).toEqual({ pagina: 375, tela: 375 });
 });

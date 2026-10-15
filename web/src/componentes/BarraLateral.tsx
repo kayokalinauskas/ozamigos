@@ -5,7 +5,7 @@ import { LIMITE_POR_SALA, linkDaSala } from '../conexao/codigoDaSala';
 import { useCliente, useVoz } from '../useCliente';
 import { EU, voz } from '../voz/voz';
 import { Avatar } from './Avatar';
-import { ConfiguracoesDeVoz } from './ConfiguracoesDeVoz';
+import { Configuracoes } from './Configuracoes';
 import { Logo } from './Logo';
 import { Versao } from './Versao';
 
@@ -202,12 +202,12 @@ function Voce({ nome, plateia, nomesDe }: { nome: string; plateia: string[] | nu
           >
             {surdo ? <HeadphoneOff size={18} /> : <Headphones size={18} />}
           </button>
-          <button type="button" className="botao-icone" aria-label="Configurações de voz e áudio" title="Configurações de voz e áudio" onClick={() => setConfiguracoes(true)}>
+          <button type="button" className="botao-icone" aria-label="Configurações" title="Configurações" onClick={() => setConfiguracoes(true)}>
             <Settings size={18} />
           </button>
         </div>
       </div>
-      {configuracoes && <ConfiguracoesDeVoz aoFechar={() => setConfiguracoes(false)} />}
+      {configuracoes && <Configuracoes aoFechar={() => setConfiguracoes(false)} />}
     </section>
   );
 }
