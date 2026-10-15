@@ -178,7 +178,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - Sem barra, o menu não aparece: Ctrl+R/F5, F11 e Ctrl+Shift+I/F12 são tratados no `before-input-event`. "Trocar o servidor" fica no ícone de servidor da sala e da entrada.
 - **Segurança, não afrouxe:**
   - `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`;
-  - permissões só para a origem do servidor configurado;
+  - permissões só para a origem do servidor configurado (a lista é `PERMISSOES`; `screen-wake-lock` entrou na 1.2.13, para a tela acordada: sem ela, o Electron recusa com `NotAllowedError`);
   - navegação para fora abre no navegador;
   - cada `ipcMain` confere a origem de quem pediu (`origemDe(evento.senderFrame?.url)`).
   - Use sempre `origemDe()`: ela normaliza (`http://x/` vira `http://x`) e não lança exceção.
@@ -200,6 +200,10 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - **Fallback:** se o auxiliar não subir (Windows antigo), o `main.js` responde com `audio: 'loopback'`, que é o som do sistema inteiro.
   - Os COM do Windows são chamados **por índice da vtable** (`Com.Metodo(obj, i)`), sem a interop embutida do .NET, para o `.exe` poder ser *trimmed*. **Ao acrescentar uma chamada, confira o índice no cabeçalho do Windows** (0–2 são as funções básicas de COM).
   - A lista de exclusão é `SEM_SOM_DE`, em `desktop/main.js`.
+- **Bandeja** (1.2.13, `criarBandeja` no `main.js`): ícone perto do relógio com "Abrir o Ozamigos" e "Sair". O X da janela só a esconde (`fecharParaBandeja()`, ligado por padrão; desliga em Configurações → Geral pela `ponte.bandeja`), e a conversa e as transmissões continuam. Na primeira vez, uma notificação explica onde o app foi (`avisouDaBandeja` no `configuracao.json`).
+  - **`saindo` é o que deixa a janela fechar de verdade:** vira `true` no `before-quit` (Sair, `quitAndInstall` da atualização) e no `session-end` (desligar o Windows). Não tire: sem ele, a atualização e o desligamento ficam presos na janela escondida.
+  - `second-instance` mostra a janela, mesmo escondida.
+- **Mensagens não lidas na barra de tarefas** (1.2.13): a página manda `nao-lidas` (o `chatNaoLidas`, por `avisoNaBarra.ts`); o `main.js` põe um ponto verde no ícone da barra de tarefas (`setOverlayIcon`, desenhado em pixels por `pontoVerde`), o número na dica da bandeja, e pisca o ícone (`flashFrame`) quando chega uma nova com a janela fora de foco. Para de piscar ao focar a janela ou com tudo lido. O `chatNaoLidas` conta o que chega com o chat fechado ou a janela fora de foco, e zera ao voltar para a janela com o chat aberto.
 - **Atualização automática** (`atualizarSeHouver()`, com `electron-updater`):
   - Ao abrir, antes da janela principal, o app confere o `latest.yml` da última release do GitHub (`build.publish` no `desktop/package.json`), com prazo de 6 s.
   - Havendo versão nova, mostra a janelinha `atualizando.html`, baixa e chama `quitAndInstall(true, true)`: instala sem tela e reabre o app.

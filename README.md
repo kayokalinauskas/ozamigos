@@ -101,6 +101,8 @@
 - **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos e notificação do Windows quando o app está atrás do jogo; na engrenagem (aba **Notificações**), dá para desligar os sons e escolher quais notificações aparecem: alguém entrou, começou a transmitir ou mandou mensagem no chat.
 - **Configurações em abas:** Voz e áudio, Notificações e Geral (a versão e o servidor).
 - **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
+- **Na bandeja, como o Discord** (app para Windows): fechar a janela deixa o Ozamigos perto do relógio, e a conversa continua; para sair, botão direito no ícone. Mensagens novas do chat aparecem como um ponto verde no ícone da barra de tarefas, que pisca quando chega uma com o jogo na frente.
+- **A tela não apaga** com mais alguém na sala, como numa chamada.
 - **Chat da sala:** mensagens de texto com links clicáveis, num painel à direita. Com o painel fechado, a mensagem aparece como aviso e o botão mostra quantas são novas. Nada fica guardado: quem entra depois não vê o que foi dito antes.
 - **Reconexão automática:** se a internet oscilar ou o servidor reiniciar, o app volta sozinho para a sala. Quem transmitia continua transmitindo, e quem assistia continua assistindo. As transmissões já abertas não param enquanto isso.
 
