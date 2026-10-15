@@ -9,10 +9,8 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ## [Não lançado]
 
 ### Alterado
-- **720p · 30 fps é a qualidade padrão**, como no Discord sem Nitro. A outra opção é 1080p · 30 fps, mais pesada para quem transmite e para quem assiste. As opções a 60 fps saíram: em jogo pesado, a captura já ficava entre 21 e 29 fps, e os 60 dobravam o custo. Quem tinha escolhido uma delas passa para a de 30 fps do mesmo tamanho.
-- **A 1080p desce sozinha para 720p em vez de travar**, e volta quando folgar:
-  - se o PC de quem transmite não dá conta, a transmissão inteira desce ("Em 720p" ao lado da qualidade);
-  - se a conexão com um amigo não aguenta, só ele recebe 720p ("720p para Ana"), e quem está no cabo continua em 1080p.
+- **A transmissão sai sempre em 720p a 30 fps**, como no Discord sem Nitro, e não há mais escolha de qualidade. As opções de 1080p e de 60 fps saíram: em jogo pesado, a captura já ficava entre 21 e 29 fps, e elas dobravam o custo de codificar e de enviar sem melhorar o que os amigos viam.
+- Quando falta processador ou internet, a imagem de quem não aguenta diminui sozinha em vez de travar, e quem está bem continua em 720p.
 
 ### Adicionado
 - **Chat da sala**: mensagens de texto num painel à direita, com links clicáveis. Com o painel fechado, a mensagem aparece como aviso e o botão do chat mostra quantas são novas; com o app atrás do jogo, vira notificação do Windows. Nada fica guardado: quem entra depois não vê o que foi dito antes.
@@ -24,7 +22,6 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 - **No celular**, a página tinha rolagem de lado e os botões de Estatísticas e Chat só apareciam rolando. Agora tudo cabe na largura da tela, e o chat e as estatísticas abrem na tela inteira.
 - No celular, ao voltar para a página do Ozamigos, a conexão com o servidor é conferida e refeita na hora, em vez de mostrar "Sem conexão" por vários segundos.
 - No navegador e no celular, as configurações falam em "padrão do sistema", e não "do Windows".
-- O aviso "720p para" ficava na tela com o nome de quem já tinha parado de assistir ou saído da sala.
 
 ### Segurança
 - O freio contra quem tenta adivinhar a senha passa a usar o endereço informado pela Cloudflare, que não dá para forjar. Antes, quem forjava o cabeçalho X-Forwarded-For a cada tentativa escapava do freio.

@@ -11,7 +11,7 @@
 <h3 align="center">Transmita seu jogo e converse com os amigos, direto de um PC para o outro.</h3>
 
 <p align="center">
-  Vídeo em 720p ou 1080p e voz com redução de ruído, sem servidor de mídia no meio.<br>
+  Vídeo e voz com redução de ruído, sem servidor de mídia no meio.<br>
   App para Windows e versão web, com salas protegidas por senha e todo mundo transmitindo ao mesmo tempo.
 </p>
 
@@ -97,7 +97,7 @@
 - **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura (ao lado ou numa fileira embaixo, conforme o espaço). Dois cliques no vídeo abrem a tela cheia, e o botão **Janela flutuante** solta a transmissão numa janelinha que fica por cima do jogo.
 - **Áudio por transmissão:** volume e silenciar de cada uma, lembrados por amigo, mais um volume geral.
 - **Pouco atraso para quem assiste:** a folga contra soluços da rede se ajusta à conexão de cada um, de 80 a 250 ms.
-- **Qualidade ajustável ao vivo:** 720p (padrão) ou 1080p, a 30 fps, sem derrubar ninguém. Se o PC ou a internet de quem transmite não der conta de 1080p, a transmissão desce sozinha para 720p em vez de travar, e volta quando folgar. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
+- **Sem escolher qualidade:** a transmissão sai sempre em 720p a 30 fps. Se o PC ou a internet apertarem, a imagem de quem não aguenta diminui sozinha em vez de travar, e quem está bem continua em 720p. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
 - **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos e notificação do Windows quando o app está atrás do jogo; na engrenagem (aba **Notificações**), dá para desligar os sons e escolher quais notificações aparecem: alguém entrou, começou a transmitir ou mandou mensagem no chat.
 - **Configurações em abas:** Voz e áudio, Notificações e Geral (a versão e o servidor).
 - **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
@@ -216,8 +216,7 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │       │                             reconexão), captura, medidor (estatísticas), relatório e ajustes do WebRTC
 │       ├── voz/                      Conversa por voz: conexões, processador (RNNoise e porta) e ajustes
 │       ├── folga.ts                  Folga de rede do vídeo, ajustada à conexão de cada um
-│       ├── qualidade.ts              As qualidades (720p e 1080p, a 30 fps)
-│       ├── qualidadeAutomatica.ts    A descida da 1080p para 720p: a captura (PC) ou o envio de um amigo (rede)
+│       ├── qualidade.ts              A qualidade da transmissão (720p a 30 fps, sempre)
 │       ├── somDoApp.ts               Faixa de áudio do auxiliar de som (AudioWorklet)
 │       ├── ponte.ts                  Contrato com o app Electron
 │       ├── desempenho/               Teste de desempenho e gravação da sala: medição, análise e os relatórios (HTML e para IA)
@@ -450,29 +449,19 @@ Cada pessoa que assiste é mais um vídeo saindo do PC de quem transmite. O code
 
 A voz pesa pouco: Opus mono a 64 kbps para cada amigo da sala, e quase nada enquanto você não fala. Numa sala cheia (7 amigos), são no máximo ~450 kbps de upload.
 
-| Qualidade | Upload por pessoa assistindo | Quando usar |
-|---|---|---|
-| 720p · 30 fps (padrão) | ~4 Mbps | Quase sempre: leve para quem transmite e para quem assiste, como no Discord sem Nitro |
-| 1080p · 30 fps | ~6 Mbps | Imagem mais nítida, com PC e upload sobrando |
+A transmissão sai sempre em **720p a 30 fps**, ~4 Mbps de upload para cada pessoa assistindo, como no Discord sem Nitro. Não há escolha de qualidade (até 14/10/2026 havia 1080p e 60 fps): em jogo pesado, a captura do navegador não passa de ~21–29 fps, e o 1080p dobrava o custo de codificar e de enviar sem melhorar o que os amigos viam.
 
-Não há opção a 60 fps: em jogo pesado, a captura do navegador já fica entre 21 e 29 fps, e os 60 dobravam o custo de codificar e de enviar.
+Quando falta processador ou internet, o próprio WebRTC baixa a resolução ou o fps em vez de travar. Como cada amigo tem a sua conexão, isso vale por pessoa: quem está num Wi-Fi ruim recebe a imagem menor, e quem está no cabo continua em 720p. O selo da transmissão mostra o que chega (por exemplo, "540p · 30 fps").
 
-Em 1080p, o app acompanha a transmissão a cada segundo, e desce para 720p o que não estiver dando conta por 6 de 10 segundos:
-
-- **O PC de quem transmite** (o processador ou a placa de vídeo limitam o codificador): a transmissão inteira desce, e aparece **Em 720p** ao lado da qualidade.
-- **A conexão com um amigo** (a banda estimada até ele fica abaixo de ~3 Mbps): só esse amigo recebe 720p, e aparece **720p para** o nome dele. Os outros continuam em 1080p.
-
-Volta para 1080p depois de 30 segundos sem aperto e de 2 minutos da descida (a espera dobra a cada nova descida, até 16 minutos). Em 720p, se ainda faltar fôlego, o próprio WebRTC reduz a imagem em vez de travar.
-
-Exemplo: em 720p para 4 amigos, são cerca de 16 Mbps de upload; para 7 (a sala cheia), cerca de 28 Mbps. Em 1080p, cerca de 25 e 42 Mbps, o que pede cabo e um plano com upload folgado. Nos primeiros 15 a 25 segundos, uma resolução menor é normal: o WebRTC está medindo a rede.
+Exemplo: para 4 amigos, são cerca de 16 Mbps de upload; para 7 (a sala cheia), cerca de 28 Mbps. Nos primeiros 15 a 25 segundos, uma resolução menor é normal: o WebRTC está medindo a rede.
 
 **Fps baixo ou travando.** Abra **Estatísticas** no PC de quem transmite:
 
 | O que aparece | Significado | O que fazer |
 |---|---|---|
-| `Captura` abaixo da qualidade escolhida | O jogo ocupa a placa de vídeo inteira | Limite o fps do jogo (60 é o ideal) e use "janela sem bordas" |
-| `Limite: processador / placa de vídeo` | O codificador não dá conta | 720p, fps do jogo limitado, driver atualizado |
-| `Limite: internet` / `Banda estimada` baixa | O upload não aguenta | Baixe a qualidade, use cabo ou tenha menos gente assistindo |
+| `Captura` abaixo de 30 fps | O jogo ocupa a placa de vídeo inteira | Limite o fps do jogo (60 é o ideal) e use "janela sem bordas" |
+| `Limite: processador / placa de vídeo` | O codificador não dá conta | Fps do jogo limitado, driver atualizado |
+| `Limite: internet` / `Banda estimada` baixa | O upload não aguenta | Use cabo ou tenha menos gente assistindo |
 | Indicador vermelho só em quem assiste | A internet de quem assiste | Cabo ou Wi-Fi mais perto do roteador |
 
 ### Teste de desempenho
@@ -481,7 +470,7 @@ Ferramentas de diagnóstico, sem botão na tela. São duas:
 
 | Atalho | O que faz | O que mede |
 |---|---|---|
-| **Ctrl+Shift+D**: teste com espectadores simulados | Com o jogo já transmitindo, o app cria espectadores no próprio PC (conexões WebRTC locais, sem servidor nem internet) e segue um roteiro: as 4 qualidades com 1 espectador e a sua qualidade com 3 e 7. Completo: ~4 min; rápido: ~1 min. | O seu PC: captura, codificação, decodificação e o ritmo dos quadros na tela, mais processador e placa de vídeo |
+| **Ctrl+Shift+D**: teste com espectadores simulados | Com o jogo já transmitindo, o app cria espectadores no próprio PC (conexões WebRTC locais, sem servidor nem internet) e segue um roteiro: 1, 3 e 7 espectadores. Completo: ~2 min; rápido: ~1 min. | O seu PC: captura, codificação, decodificação e o ritmo dos quadros na tela, mais processador e placa de vídeo |
 | **Ctrl+Shift+G**: gravação das estatísticas da sala | Grava a sala de verdade, com os amigos: quem transmite, quem assiste quem, ou os dois ao mesmo tempo. Aperte de novo para parar. | Tudo acima, de cada transmissão e de cada PC da sala, mais a internet: perdas, ida e volta, congelamentos no PC de quem assiste |
 
 **Gravação da sala (Ctrl+Shift+G).** Os amigos não precisam fazer nada nem aceitar nada: todos veem o selo "Gravando estatísticas" no alto da sala, e cada PC manda, pelo servidor, só para quem grava, o que transmite e o que assiste a cada segundo (com o processador e a placa de vídeo, no app). Uma gravação por sala de cada vez, de até 2 horas (depois disso, ela para sozinha). Se o servidor reiniciar no meio, a gravação continua. No app (1.2.11 em diante), os arquivos ficam em `Documentos\Ozamigos\Estatísticas\<data> - sala <código>`:
@@ -492,7 +481,7 @@ Ferramentas de diagnóstico, sem botão na tela. São duas:
 No navegador, os arquivos são baixados no fim.
 
 **Teste simulado (Ctrl+Shift+D).** No fim, o relatório traz:
-- a recomendação (qualidade e quantas pessoas o PC aguenta) e o gargalo principal;
+- a recomendação (quantas pessoas o PC aguenta) e o gargalo principal;
 - os achados, com as evidências e o que fazer ("Para você" e "Para o app");
 - a tabela por trecho e os gráficos (fps ao longo do teste, intervalo entre quadros, codificação por espectador e onde está o atraso).
 
