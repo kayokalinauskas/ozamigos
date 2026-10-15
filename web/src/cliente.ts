@@ -454,7 +454,7 @@ class Cliente {
       case 'pode-compartilhar':
         if (!e.minhaTela || !e.meuId) break; // parei antes de o servidor responder
         this.mudar({
-          transmitindo: [...e.transmitindo, e.meuId],
+          transmitindo: [...e.transmitindo.filter((id) => id !== e.meuId), e.meuId],
           plateias: { ...e.plateias, [e.meuId]: [] },
         });
         break;

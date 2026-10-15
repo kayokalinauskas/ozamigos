@@ -86,7 +86,8 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
   }
 
   const IconeDeVolume = mudo || volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
-  const telaCheia = () => void bloco.current?.requestFullscreen();
+  // Recusada (outra coisa já em tela cheia, ou sem gesto da pessoa): nada a fazer, o vídeo continua onde estava.
+  const telaCheia = () => void bloco.current?.requestFullscreen().catch(() => undefined);
 
   return (
     <figure ref={bloco} className={principal ? 'transmissao transmissao-principal' : 'transmissao'} aria-label={`Transmissão de ${nome}`}>
