@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppWindow, ArrowDown, ChartColumn, ChevronUp, Monitor, MonitorUp, MonitorX, RefreshCw, TriangleAlert } from 'lucide-react';
+import { AppWindow, ArrowDown, ChartColumn, ChevronUp, MessageSquare, Monitor, MonitorUp, MonitorX, RefreshCw, TriangleAlert } from 'lucide-react';
 import { cliente } from '../cliente';
 import { noApp } from '../ponte';
 import { QUALIDADES, capturaAbaixo, ehQualidade } from '../qualidade';
@@ -8,7 +8,7 @@ import { useCliente } from '../useCliente';
 type Props = { estatisticasAbertas: boolean; aoAlternarEstatisticas: () => void };
 
 export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props) {
-  const { minhaTela, qualidade, qualidadeEscolhida, qualidadeReduzida, enviosReduzidos, metricas } = useCliente();
+  const { minhaTela, qualidade, qualidadeEscolhida, qualidadeReduzida, enviosReduzidos, metricas, chatAberto, chatNaoLidas } = useCliente();
   const podeCapturar = Boolean(navigator.mediaDevices?.getDisplayMedia);
   const transmitindo = minhaTela !== null;
   const capturaBaixa = transmitindo
@@ -77,6 +77,16 @@ export function Controles({ estatisticasAbertas, aoAlternarEstatisticas }: Props
         </label>
         <button type="button" className="botao botao-secundario" aria-pressed={estatisticasAbertas} onClick={aoAlternarEstatisticas}>
           <ChartColumn size={18} /> Estatísticas
+        </button>
+        <button
+          type="button"
+          className="botao botao-secundario botao-chat"
+          aria-pressed={chatAberto}
+          aria-label={chatNaoLidas ? `Chat, ${chatNaoLidas} ${chatNaoLidas === 1 ? 'mensagem nova' : 'mensagens novas'}` : 'Chat'}
+          onClick={() => cliente.abrirChat(!chatAberto)}
+        >
+          <MessageSquare size={18} /> Chat
+          {chatNaoLidas > 0 && <span className="contador-nao-lidas">{chatNaoLidas > 99 ? '99+' : chatNaoLidas}</span>}
         </button>
       </div>
     </footer>

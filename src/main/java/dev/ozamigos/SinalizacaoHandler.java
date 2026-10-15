@@ -2,6 +2,8 @@ package dev.ozamigos;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,6 +36,10 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
 
     private static final Logger log = LoggerFactory.getLogger(SinalizacaoHandler.class);
     private static final Pattern CODIGO_VALIDO = Pattern.compile("[A-Za-z0-9]{6,20}");
+    /** O chat da sala: até tantos caracteres por mensagem, e no máximo CHAT_RAJADA mensagens a cada CHAT_JANELA_MS. */
+    static final int CHAT_MAXIMO = 500;
+    static final int CHAT_RAJADA = 5;
+    static final long CHAT_JANELA_MS = 3_000;
 
     private final Salas salas;
     private final SenhaDoGrupo senhaDoGrupo;
@@ -87,6 +93,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             case "oferta", "resposta", "candidato" -> repassar(sessao, id, sala, (ObjectNode) msg);
             case "gravar-sala" -> gravarSala(sessao, id, sala, msg.path("ligada").asBoolean(false));
             case "medidas" -> repassarMedidas(id, sala, (ObjectNode) msg);
+            case "chat" -> chat(sessao, id, sala, msg.path("texto").asString(""));
             // Mantém a conexão viva; a resposta mostra ao cliente que o servidor ainda está ouvindo.
             case "ping" -> enviar(segura(sessao), json.createObjectNode().put("tipo", "pong"));
             default -> erro(sessao, "tipo-desconhecido");
@@ -254,6 +261,57 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
         msg.put("de", id);
         enviar(salas.sessao(sala, gravador), msg);
+    }
+
+    /**
+     * O chat da sala só repassa: a mensagem vai para todos da sala (quem mandou também, e é assim que ela sabe que
+     * chegou) e o servidor não guarda nada. Quem entra depois não vê o que foi dito antes. O texto nunca vai para o
+     * registro do servidor.
+     */
+    private void chat(WebSocketSession sessao, String id, String sala, String texto) throws IOException {
+        String limpo = textoDoChat(texto);
+        if (limpo.isEmpty()) {
+            return;
+        }
+        if (!cabeNoChat(sessao)) {
+            erro(sessao, "chat-rapido-demais");
+            return;
+        }
+        ObjectNode mensagem = json.createObjectNode().put("tipo", "chat").put("de", id).put("texto", limpo);
+        for (WebSocketSession pessoa : salas.todos(sala)) {
+            enviar(pessoa, mensagem);
+        }
+    }
+
+    /** Mais uma mensagem cabe na rajada desta pessoa? Guarda a hora das últimas na própria sessão. */
+    private static boolean cabeNoChat(WebSocketSession sessao) {
+        @SuppressWarnings("unchecked")
+        Deque<Long> ultimas = (Deque<Long>) sessao.getAttributes().computeIfAbsent("chat", chave -> new ArrayDeque<Long>());
+        long agora = System.nanoTime();
+        synchronized (ultimas) {
+            while (!ultimas.isEmpty() && agora - ultimas.peekFirst() > CHAT_JANELA_MS * 1_000_000) {
+                ultimas.removeFirst();
+            }
+            if (ultimas.size() >= CHAT_RAJADA) {
+                return false;
+            }
+            ultimas.addLast(agora);
+            return true;
+        }
+    }
+
+    /**
+     * O texto do chat como os outros vão ver: sem caracteres de controle (quebras de linha viram espaço) nem os que
+     * invertem a direção do texto, sem espaços nas pontas, e até CHAT_MAXIMO caracteres sem partir um emoji ao meio.
+     */
+    static String textoDoChat(String texto) {
+        String limpo = texto.replaceAll("[\\r\\n\\t]+", " ")
+                .replaceAll("[\\p{Cc}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]", "")
+                .strip();
+        if (limpo.codePointCount(0, limpo.length()) > CHAT_MAXIMO) {
+            limpo = limpo.substring(0, limpo.offsetByCodePoints(0, CHAT_MAXIMO)).strip();
+        }
+        return limpo;
     }
 
     @Override

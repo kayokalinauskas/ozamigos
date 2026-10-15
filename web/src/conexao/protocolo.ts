@@ -27,6 +27,8 @@ export type MensagemParaOServidor =
   | ({ tipo: 'candidato'; para: string } & Candidato)
   | { tipo: 'gravar-sala'; ligada: boolean }
   | { tipo: 'medidas'; pacote: Pacote }
+  // O chat da sala: o servidor só repassa para todos da sala (quem mandou também) e não guarda nada.
+  | { tipo: 'chat'; texto: string }
   | { tipo: 'ping' };
 
 /** Os sinais da conversa por voz (voz/voz.ts), que passam pelo mesmo servidor. */
@@ -44,6 +46,7 @@ export type MotivoDoErro =
   | 'destinatario-nao-esta-na-sala'
   | 'sala-ja-gravando'
   | 'mensagem-invalida'
+  | 'chat-rapido-demais'
   | 'tipo-desconhecido';
 
 export type MensagemDoServidor =
@@ -71,6 +74,8 @@ export type MensagemDoServidor =
   | { tipo: 'gravacao-da-sala'; ligada: boolean; id: string; nome?: string | null }
   // O pacote vem de outro PC: quem recebe confere antes de usar (desempenho/gravadorDaSala.ts).
   | { tipo: 'medidas'; de: string; pacote: unknown }
+  // O texto já vem limpo pelo servidor (sem caracteres de controle, até 500 caracteres).
+  | { tipo: 'chat'; de: string; texto: string }
   | { tipo: 'erro'; motivo: MotivoDoErro }
   | { tipo: 'pong' };
 

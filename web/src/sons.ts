@@ -5,6 +5,7 @@ const NOTAS = {
   entrou: [660, 880],
   saiu: [660, 440],
   aoVivo: [523, 659, 784],
+  mensagem: [880, 1175], // uma mensagem nova no chat, com o painel fechado ou a janela atrás do jogo
   // Microfone e fone, como no Discord: descendo ao desligar, subindo ao ligar.
   mudo: [587, 440],
   desmudo: [440, 587],

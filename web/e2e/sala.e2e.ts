@@ -121,3 +121,24 @@ test('a voz chega, o microfone desligado silencia e quem sai some da sala', asyn
   await ana.getByRole('button', { name: 'Sair da sala' }).click();
   await expect(beto.getByLabel('Sala e pessoas')).not.toContainText('Ana');
 });
+
+test('a mensagem do chat chega, conta como nova para quem está com o chat fechado, e quem chega depois não vê a antiga', async ({ browser }) => {
+  const sala = novaSala();
+  const ana = await entrarNaSala(browser, sala, 'Ana');
+  const beto = await entrarNaSala(browser, sala, 'Beto');
+  await expect(ana.getByLabel('Sala e pessoas')).toContainText('Beto');
+
+  await ana.getByRole('button', { name: 'Chat' }).click();
+  await ana.getByLabel('Mensagem para a sala').fill('bora jogar?');
+  await ana.getByLabel('Mensagem para a sala').press('Enter');
+
+  await expect(ana.getByLabel('Chat da sala')).toContainText('bora jogar?'); // voltou do servidor: chegou
+  await expect(beto.getByRole('button', { name: 'Chat, 1 mensagem nova' })).toBeVisible();
+  await beto.getByRole('button', { name: /^Chat/ }).click();
+  await expect(beto.getByLabel('Chat da sala')).toContainText('Ana');
+  await expect(beto.getByLabel('Chat da sala')).toContainText('bora jogar?');
+
+  const caio = await entrarNaSala(browser, sala, 'Caio');
+  await caio.getByRole('button', { name: 'Chat' }).click();
+  await expect(caio.getByLabel('Chat da sala')).toContainText('Nenhuma mensagem ainda');
+});

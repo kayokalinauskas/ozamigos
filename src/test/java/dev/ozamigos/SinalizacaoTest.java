@@ -77,6 +77,42 @@ class SinalizacaoTest {
     }
 
     @Test
+    void oChatChegaATodosDaSalaComQuemMandouCarimbadoESoNela() throws Exception {
+        Cliente ana = entrar(sala, "Ana");
+        Cliente beto = entrar(sala, "Beto");
+        Cliente caio = entrar(sala + "x", "Caio");
+
+        ana.enviar("{\"tipo\":\"chat\",\"texto\":\"  bora\\njogar?  \",\"de\":\"forjado\"}");
+
+        for (Cliente quem : List.of(ana, beto)) {
+            JsonNode msg = quem.esperar("chat");
+            assertThat(msg.path("de").asString()).isEqualTo(ana.id); // quem mandou é o servidor que diz
+            assertThat(msg.path("texto").asString()).isEqualTo("bora jogar?");
+        }
+        assertThat(caio.recebeu("chat")).isFalse();
+    }
+
+    @Test
+    void oChatTemFreioContraQuemMandaRapidoDemais() throws Exception {
+        Cliente ana = entrar(sala, "Ana");
+
+        for (int i = 0; i <= SinalizacaoHandler.CHAT_RAJADA; i++) {
+            ana.enviar("{\"tipo\":\"chat\",\"texto\":\"oi " + i + "\"}");
+        }
+
+        assertThat(ana.esperar("erro").path("motivo").asString()).isEqualTo("chat-rapido-demais");
+    }
+
+    @Test
+    void oTextoDoChatPerdeOQueBagunçaATelaENaoPassaDoLimite() {
+        assertThat(SinalizacaoHandler.textoDoChat("‮oi ")).isEqualTo("oi");
+        assertThat(SinalizacaoHandler.textoDoChat("   ")).isEmpty();
+        String longo = "😀".repeat(SinalizacaoHandler.CHAT_MAXIMO + 10);
+        String cortado = SinalizacaoHandler.textoDoChat(longo);
+        assertThat(cortado.codePointCount(0, cortado.length())).isEqualTo(SinalizacaoHandler.CHAT_MAXIMO);
+    }
+
+    @Test
     void semEntrarNumaSalaNadaEhRepassado() throws Exception {
         Cliente ana = conectar();
 

@@ -6,6 +6,7 @@ import { pintarBarraDaJanela } from '../ponte';
 import { useCliente } from '../useCliente';
 import { BarraLateral } from './BarraLateral';
 import { Controles } from './Controles';
+import { PainelChat } from './PainelChat';
 import { PainelEstatisticas } from './PainelEstatisticas';
 import { Palco, type Modo } from './Palco';
 
@@ -27,7 +28,7 @@ function SemOTeste({ aoFechar }: { aoFechar: () => void }) {
 }
 
 export function Sala() {
-  const { conexaoPerdida } = useCliente();
+  const { conexaoPerdida, chatAberto } = useCliente();
   const [modo, setModo] = useState<Modo>(() => (lembrado('ozamigos-modo') === 'destaque' ? 'destaque' : 'grade'));
   const [foco, setFoco] = useState<string | null>(null);
   const [estatisticasAbertas, setEstatisticasAbertas] = useState(false);
@@ -54,11 +55,22 @@ export function Sala() {
     return () => removeEventListener('keydown', tecla);
   }, []);
 
-  // No app, os botões da janela ficam no canto de cima à direita: sobre o painel de estatísticas, quando aberto.
+  // Um painel à direita por vez: abrir o chat fecha as estatísticas, e o contrário.
   useEffect(() => {
-    pintarBarraDaJanela(estatisticasAbertas && !testeAberto ? '--painel' : '--fundo');
+    if (chatAberto) setEstatisticasAbertas(false);
+  }, [chatAberto]);
+
+  function alternarEstatisticas() {
+    if (!estatisticasAbertas) cliente.abrirChat(false);
+    setEstatisticasAbertas(!estatisticasAbertas);
+  }
+
+  // No app, os botões da janela ficam no canto de cima à direita: sobre o painel da direita, quando aberto.
+  const painelAberto = estatisticasAbertas || chatAberto;
+  useEffect(() => {
+    pintarBarraDaJanela(painelAberto && !testeAberto ? '--painel' : '--fundo');
     return () => pintarBarraDaJanela('--fundo');
-  }, [estatisticasAbertas, testeAberto]);
+  }, [painelAberto, testeAberto]);
 
   function mudarModo(novo: Modo) {
     lembrar('ozamigos-modo', novo);
@@ -87,11 +99,9 @@ export function Sala() {
         <div className="palco-e-painel">
           <Palco modo={modo} aoMudarModo={mudarModo} foco={foco} aoDestacar={destacar} />
           {estatisticasAbertas && <PainelEstatisticas aoFechar={() => setEstatisticasAbertas(false)} />}
+          {chatAberto && <PainelChat />}
         </div>
-        <Controles
-          estatisticasAbertas={estatisticasAbertas}
-          aoAlternarEstatisticas={() => setEstatisticasAbertas(!estatisticasAbertas)}
-        />
+        <Controles estatisticasAbertas={estatisticasAbertas} aoAlternarEstatisticas={alternarEstatisticas} />
       </main>
       {testeAberto && (
         <Suspense fallback={null}>

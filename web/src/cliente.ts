@@ -63,9 +63,23 @@ export type Estado = {
   avisos: Aviso[];
   conexaoPerdida: boolean; // caiu a conexão com o servidor; o cliente já está tentando voltar sozinho
   gravacaoDaSala: { id: string; nome: string } | null; // quem está gravando as estatísticas da sala (Ctrl+Shift+G)
+  chat: MensagemDoChat[]; // o que chegou desde que entrei; quem entra depois não vê o que foi dito antes
+  chatAberto: boolean;
+  chatNaoLidas: number;
 };
 
 type Conexao = { pc: RTCPeerConnection; pendentes: RTCIceCandidateInit[]; canal: Canal; id: string };
+
+/** Uma mensagem do chat da sala. O nome é guardado na chegada: a pessoa pode sair da sala depois. */
+export type MensagemDoChat = { numero: number; de: string; nome: string; texto: string; momento: number; minha: boolean };
+
+/** O mesmo limite do servidor (SinalizacaoHandler.CHAT_MAXIMO): acima disso, ele corta. */
+export const LIMITE_DO_CHAT = 500;
+// O mesmo freio do servidor (CHAT_RAJADA e CHAT_JANELA_MS): conferido antes de mandar, a mensagem fica no campo.
+const CHAT_RAJADA = 5;
+const CHAT_JANELA = 3_000;
+// O chat não fica guardado em lugar nenhum: só as últimas mensagens desta sessão, na memória da página.
+const MENSAGENS_NA_TELA = 200;
 
 const chave = (canal: Canal, id: string) => `${canal}:${id}`;
 
@@ -125,6 +139,10 @@ class Cliente {
   // Nome de quem saiu -> quando, e se eu assistia. Quem volta ganha outro id: o nome é o que liga.
   private readonly saidas = new Map<string, { momento: number; assistia: boolean }>();
   private proximoAviso = 1;
+  private proximaMensagem = 1;
+  private avisoDoChat: { de: string; aviso: number } | null = null; // o aviso da última mensagem, enquanto na tela
+  private envioDoChat: number[] = []; // quando mandei as últimas mensagens (o freio)
+  private avisoDoFreio: number | null = null;
   private readonly tentativasDeVideo = new Map<string, number>(); // id -> conexões de vídeo refeitas seguidas
   private readonly folgas = new Map<string, FolgaAdaptativa>(); // quem eu assisto -> folga de rede (folga.ts)
   private readonly relatorioDaSessao = new Relatorio();
@@ -161,6 +179,9 @@ class Cliente {
       qualidadeEscolhida: qualidade,
       qualidadeReduzida: false,
       enviosReduzidos: [],
+      chat: [],
+      chatAberto: false,
+      chatNaoLidas: 0,
       metricas: {},
       avisos: [],
       conexaoPerdida: false,
@@ -218,9 +239,15 @@ class Cliente {
 
   avisar(texto: string, tipo: Aviso['tipo'] = 'info', acao?: Aviso['acao']) {
     this.registrar(tipo === 'erro' ? `erro: ${texto}` : texto); // todo aviso da tela também vai para o relatório
+    this.mostrarAviso(texto, tipo, acao);
+  }
+
+  /** O aviso na tela, sem ir para o relatório (as mensagens do chat não vão: o relatório é para diagnóstico). */
+  private mostrarAviso(texto: string, tipo: Aviso['tipo'] = 'info', acao?: Aviso['acao']): number {
     const aviso: Aviso = { id: this.proximoAviso++, texto, tipo, acao };
     this.mudar({ avisos: [...this.estado.avisos, aviso].slice(-4) });
     setTimeout(() => this.dispensar(aviso.id), acao ? 10_000 : 5_000);
+    return aviso.id;
   }
 
   dispensar(id: number) {
@@ -490,7 +517,14 @@ class Cliente {
       case 'medidas':
         this.aoReceberMedidas?.(msg.de, msg.pacote);
         break;
+      case 'chat':
+        this.receberMensagem(msg.de, msg.texto);
+        break;
       case 'erro':
+        if (msg.motivo === 'chat-rapido-demais') {
+          this.avisarFreioDoChat(); // raro: o freio daqui já segura antes, mas o relógio dos dois lados difere um pouco
+          break;
+        }
         if (msg.motivo === 'sala-ja-gravando') {
           this.aoRecusarGravacao?.();
           this.avisar(`${e.gravacaoDaSala?.nome ?? 'Outra pessoa'} já está gravando as estatísticas desta sala.`, 'erro');
@@ -530,6 +564,53 @@ class Cliente {
       this.mudar({ meuId: null, pessoas: [], transmitindo: [], plateias: {}, assistindo: [], videos: {}, conexaoPerdida: false, gravacaoDaSala: null });
     }
     this.mudar({ fase: 'entrada', erro: recusa });
+  }
+
+  // ===== Chat da sala =====
+
+  /** Manda uma mensagem. Ela aparece na tela quando o servidor a devolve (é assim que se sabe que chegou). */
+  mandarMensagem(texto: string): boolean {
+    const limpo = texto.trim();
+    if (!limpo || this.estado.fase !== 'sala' || !this.sinalizacao.aberta) return false;
+    const agora = Date.now();
+    this.envioDoChat = this.envioDoChat.filter((momento) => agora - momento < CHAT_JANELA);
+    if (this.envioDoChat.length >= CHAT_RAJADA) {
+      this.avisarFreioDoChat();
+      return false; // a mensagem continua no campo, para mandar daqui a pouco
+    }
+    this.envioDoChat.push(agora);
+    this.enviar({ tipo: 'chat', texto: limpo.slice(0, LIMITE_DO_CHAT * 2) }); // o servidor corta no limite certo
+    return true;
+  }
+
+  /** Um aviso só, mesmo com vários Enter seguidos. */
+  private avisarFreioDoChat() {
+    if (this.avisoDoFreio !== null) this.dispensar(this.avisoDoFreio);
+    this.avisoDoFreio = this.mostrarAviso('Muitas mensagens seguidas: espere uns segundos para mandar a próxima.', 'erro');
+  }
+
+  abrirChat(aberto: boolean) {
+    // Aberto o chat, o aviso da última mensagem já não serve: ela está ali no painel.
+    if (aberto && this.avisoDoChat) this.dispensar(this.avisoDoChat.aviso);
+    this.mudar({ chatAberto: aberto, chatNaoLidas: aberto ? 0 : this.estado.chatNaoLidas });
+  }
+
+  private receberMensagem(de: string, texto: string) {
+    const e = this.estado;
+    const minha = de === e.meuId;
+    const nome = minha ? e.meuNome : this.nomeDe(de);
+    const mensagem: MensagemDoChat = { numero: this.proximaMensagem++, de, nome, texto, momento: Date.now(), minha };
+    const lida = minha || (e.chatAberto && document.hasFocus());
+    this.mudar({ chat: [...e.chat, mensagem].slice(-MENSAGENS_NA_TELA), chatNaoLidas: e.chatNaoLidas + (lida || e.chatAberto ? 0 : 1) });
+    if (lida) return;
+    tocar('mensagem');
+    if (!e.chatAberto) {
+      // Várias mensagens seguidas da mesma pessoa: o aviso novo toma o lugar do anterior, sem empilhar.
+      if (this.avisoDoChat?.de === de) this.dispensar(this.avisoDoChat.aviso);
+      const aviso = this.mostrarAviso(`${nome}: ${texto}`, 'info', { rotulo: 'Responder', executar: () => this.abrirChat(true) });
+      this.avisoDoChat = { de, aviso };
+    }
+    this.notificar(nome, texto); // com a janela atrás do jogo
   }
 
   // ===== Assistir =====
