@@ -7,6 +7,7 @@ import { EU, voz } from '../voz/voz';
 import { Avatar } from './Avatar';
 import { ConfiguracoesDeVoz } from './ConfiguracoesDeVoz';
 import { Logo } from './Logo';
+import { Versao } from './Versao';
 
 export function BarraLateral() {
   const { sala, pessoas, meuId, meuNome, transmitindo, plateias, assistindo } = useCliente();
@@ -34,7 +35,10 @@ export function BarraLateral() {
   return (
     <aside className="barra-lateral" aria-label="Sala e pessoas">
       <div className="barra-lateral-topo">
-        <Logo />
+        <div className="logo-e-versao">
+          <Logo />
+          <Versao />
+        </div>
         <button type="button" className="botao-icone botao-sair" aria-label="Sair da sala" title="Sair da sala" onClick={() => cliente.sair()}>
           <LogOut size={18} />
         </button>

@@ -6,6 +6,7 @@ import { lembrado } from '../armazenamento';
 import { ponte } from '../ponte';
 import { useCliente } from '../useCliente';
 import { Logo } from './Logo';
+import { Versao } from './Versao';
 
 /** O site do Ozamigos (GitHub Pages, pasta site/): apresenta e baixa o app para Windows. */
 const SITE = 'https://kayokalinauskas.github.io/ozamigos/';
@@ -120,6 +121,7 @@ export function Entrada() {
             <Download size={14} /> Baixar o app para Windows (som do jogo sem eco)
           </a>
         )}
+        <Versao />
       </form>
     </main>
   );

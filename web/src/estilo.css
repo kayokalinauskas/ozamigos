@@ -2329,6 +2329,29 @@ input[type='range']::-moz-range-thumb {
   -webkit-app-region: no-drag;
 }
 
+/* A versão do app e o commit da interface (Versao.tsx): bem pequena, ao lado do logo, só para conferir. */
+.logo-e-versao {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.versao {
+  color: var(--texto-3);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: default;
+  -webkit-app-region: no-drag; /* o título (com a versão completa) aparece ao passar o mouse */
+}
+
+.cartao-entrada .versao {
+  align-self: center;
+  margin-top: -8px;
+}
+
 .botao-icone.desligado {
   color: var(--ruim);
 }

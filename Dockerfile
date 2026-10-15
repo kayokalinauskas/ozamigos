@@ -5,6 +5,9 @@ WORKDIR /app/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
+# O commit do deploy, que a interface mostra ao lado da versão (o Render passa as variáveis dele como argumentos do
+# build). Um commit novo também refaz esta etapa sempre, sem depender do cache de build do Render.
+ARG RENDER_GIT_COMMIT
 RUN npm run build
 
 # Etapa 2: compila o servidor Java com o JDK completo, já com a interface dentro.
