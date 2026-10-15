@@ -46,6 +46,11 @@ contextBridge.exposeInMainWorld('ozamigos', {
     salvar: (pasta, arquivos) => ipcRenderer.invoke('estatisticas-salvar', String(pasta), arquivos),
     abrirPasta: (pasta) => ipcRenderer.invoke('estatisticas-abrir-pasta', String(pasta)),
   },
+  /** Fechar a janela deixa o app na bandeja, perto do relógio (app 1.2.13 em diante). */
+  bandeja: {
+    ler: () => ipcRenderer.invoke('bandeja-ler'),
+    definir: (ligada) => ipcRenderer.send('bandeja-definir', Boolean(ligada)),
+  },
   // Usadas só pela tela de início (o main.js recusa se o pedido vier de outro lugar).
   servidorAtual: () => ipcRenderer.invoke('servidor-atual'),
   salvarServidor: (endereco) => ipcRenderer.invoke('salvar-servidor', String(endereco)),

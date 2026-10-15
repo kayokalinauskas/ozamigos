@@ -2,7 +2,7 @@
 // e acrescenta o que só um app consegue: o seletor de janelas e telas, o som do PC sem o Discord
 // e sem o próprio app, notificações do Windows, e não ser freado quando fica atrás do jogo.
 
-const { app, BrowserWindow, Menu, desktopCapturer, ipcMain, nativeTheme, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, Tray, desktopCapturer, ipcMain, nativeTheme, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -33,6 +33,8 @@ let pedidoDeFonte = null; // { responder, fontes } enquanto o seletor está aber
 let auxiliarDeSom = null; // o OzamigosSom.exe, enquanto alguém transmite com som
 let ligandoAuxiliar = null; // Promise enquanto o auxiliar está abrindo
 let avisoDeAtualizacao = null; // a janelinha "Baixando a versão nova", enquanto baixa
+let bandeja = null; // o ícone perto do relógio
+let saindo = false; // o app está fechando de verdade (Sair, atualização): a janela fecha em vez de ir para a bandeja
 
 // O som desses programas nunca vai na transmissão: o próprio app (este processo e os filhos dele,
 // que tocam o som das transmissões) e o Discord, para os amigos não ouvirem a própria voz de volta.
@@ -164,8 +166,17 @@ function criarJanela(atualizando) {
   });
 
   // Lembra o tamanho e a posição para a próxima vez.
-  janela.on('close', () => {
+  janela.on('close', (evento) => {
     salvarConfiguracao({ posicao: { ...janela.getNormalBounds(), maximizada: janela.isMaximized() } });
+    if (saindo || !bandeja || !fecharParaBandeja()) return;
+    // O X só esconde a janela, como no Discord: a conversa e as transmissões continuam. Sair fica na bandeja.
+    evento.preventDefault();
+    janela.hide();
+    avisarDaBandejaUmaVez();
+  });
+  // Desligar, reiniciar ou sair do Windows: a janela escondida não pode segurar o desligamento.
+  janela.on('session-end', () => {
+    saindo = true;
   });
 
   const conteudo = janela.webContents;
@@ -524,6 +535,52 @@ ipcMain.handle('desempenho-amostra', (evento) => {
   return { processos, cpuDoPc: ultimaLeitura?.cpu ?? null, placa };
 });
 
+// ===== Bandeja (o ícone perto do relógio): fechar a janela não encerra o app =====
+
+/** Fechar a janela deixa o app na bandeja? Ligado por padrão; desliga na engrenagem (aba Geral). */
+function fecharParaBandeja() {
+  return lerConfiguracao().fecharParaBandeja !== false;
+}
+
+function mostrarJanela() {
+  if (!janela || janela.isDestroyed()) return;
+  if (janela.isMinimized()) janela.restore();
+  janela.show();
+  janela.focus();
+}
+
+function criarBandeja() {
+  bandeja = new Tray(ICONE);
+  bandeja.setToolTip('Ozamigos');
+  bandeja.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Abrir o Ozamigos', click: mostrarJanela },
+      { type: 'separator' },
+      { label: 'Sair', click: () => app.quit() },
+    ]),
+  );
+  bandeja.on('click', mostrarJanela);
+}
+
+/** Na primeira vez que a janela vai para a bandeja, explica onde o app foi parar (senão parece que fechou). */
+function avisarDaBandejaUmaVez() {
+  if (lerConfiguracao().avisouDaBandeja || !Notification.isSupported()) return;
+  salvarConfiguracao({ avisouDaBandeja: true });
+  const aviso = new Notification({
+    title: 'O Ozamigos continua aberto',
+    body: 'Ele fica na bandeja, perto do relógio, e a conversa continua. Para sair, clique com o botão direito no ícone e escolha Sair.',
+    icon: ICONE,
+  });
+  aviso.on('click', mostrarJanela);
+  aviso.show();
+}
+
+ipcMain.handle('bandeja-ler', (evento) => (vindoDaPagina(evento) ? fecharParaBandeja() : null));
+
+ipcMain.on('bandeja-definir', (evento, ligada) => {
+  if (vindoDaPagina(evento)) salvarConfiguracao({ fecharParaBandeja: Boolean(ligada) });
+});
+
 // ===== Menu (sem barra de título, ele não aparece: fica pelos atalhos de teclado) =====
 
 function configurarMenu() {
@@ -638,11 +695,7 @@ function fecharAvisoDeAtualizacao() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (!janela) return;
-    if (janela.isMinimized()) janela.restore();
-    janela.focus();
-  });
+  app.on('second-instance', mostrarJanela); // inclusive se estava escondida na bandeja
 
   app.setAppUserModelId('dev.ozamigos.share'); // necessário para as notificações do Windows
   nativeTheme.themeSource = 'dark';
@@ -655,9 +708,14 @@ if (!app.requestSingleInstanceLock()) {
     configurarMenu();
     configurarSessao();
     criarJanela(atualizando);
+    criarBandeja();
     if (!(await atualizando)) fecharAvisoDeAtualizacao(); // se o download falhou no meio; só depois da janela, senão o app fecharia
   });
 
   app.on('window-all-closed', () => app.quit());
+  // Sair de verdade (menu da bandeja, atualização, desligar o Windows): a janela fecha em vez de ir para a bandeja.
+  app.on('before-quit', () => {
+    saindo = true;
+  });
   app.on('will-quit', desligarAuxiliarDeSom);
 }

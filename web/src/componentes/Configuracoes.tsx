@@ -244,8 +244,34 @@ function AbaDeNotificacoes() {
 }
 
 function AbaGeral() {
+  // null: o app é anterior à 1.2.13 (sem bandeja) ou ainda está respondendo.
+  const [bandeja, setBandeja] = useState<boolean | null>(null);
+  useEffect(() => {
+    void ponte?.bandeja?.ler().then(setBandeja, () => undefined);
+  }, []);
+
   return (
     <>
+      {bandeja !== null && (
+        <section className="configuracoes-secao" aria-labelledby="titulo-janela">
+          <h3 id="titulo-janela">Janela</h3>
+          <label className="interruptor">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={bandeja}
+              onChange={(e) => {
+                ponte!.bandeja!.definir(e.target.checked);
+                setBandeja(e.target.checked);
+              }}
+            />
+            <span>
+              Ao fechar a janela, deixar o Ozamigos aberto na bandeja{' '}
+              <small className="ajuda">perto do relógio: a conversa e as transmissões continuam. Para sair, use o botão direito no ícone.</small>
+            </span>
+          </label>
+        </section>
+      )}
       <section className="configuracoes-secao" aria-labelledby="titulo-versao">
         <h3 id="titulo-versao">Versão</h3>
         <p className="ajuda">

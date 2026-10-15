@@ -31,6 +31,11 @@ export type PonteOzamigos = {
     ligar(ligado: boolean): Promise<boolean>;
     amostra(): Promise<AmostraDoPc | null>;
   };
+  /** Fechar a janela deixa o app na bandeja, perto do relógio (app 1.2.13 em diante). */
+  bandeja?: {
+    ler(): Promise<boolean | null>;
+    definir(ligada: boolean): void;
+  };
   /** Gravação das estatísticas da sala (app 1.2.11 em diante): salva em Documentos\Ozamigos\Estatísticas\<pasta>. */
   estatisticas?: {
     /** Devolve o caminho da pasta, ou null se recusou. */
