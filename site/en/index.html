@@ -68,6 +68,9 @@
       <symbol id="i-volume-2" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></symbol>
       <symbol id="i-picture-in-picture-2" viewBox="0 0 24 24"><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"/><rect width="10" height="7" x="12" y="13" rx="2"/></symbol>
       <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+      <symbol id="i-message-square" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+      <symbol id="i-smartphone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
       <symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
       <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
       <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></symbol>
@@ -190,7 +193,7 @@
               srcset="../imagens/voz-640.webp 640w, ../imagens/voz-800.webp 800w, ../imagens/voz-1200.webp 1200w"
               sizes="(max-width: 960px) calc(100vw - 32px), 720px"
               width="1200"
-              height="1394"
+              height="1134"
               loading="lazy"
               decoding="async"
               alt="The voice settings: microphone, audio output, volumes, sensitivity with a level meter and noise suppression"
@@ -206,7 +209,7 @@
           <li>
             <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-gauge" /></svg></span>
             <h3>Smooth, no stutter</h3>
-            <p>Low delay for viewers. If the PC or the connection can't keep up, the picture gets smaller instead of freezing.</p>
+            <p>Low delay for viewers. If the connection or the PC struggles, the picture loses a little sharpness for a few seconds, but it doesn't freeze or shrink.</p>
           </li>
           <li>
             <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-users" /></svg></span>
@@ -224,9 +227,24 @@
             <p>Pop a stream out into a small window that stays on top of your game.</p>
           </li>
           <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-message-square" /></svg></span>
+            <h3>Room chat</h3>
+            <p>Text messages with links, in a side panel. Nothing is stored: whoever joins later doesn't see what was said before.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-smartphone" /></svg></span>
+            <h3>Watch from your phone</h3>
+            <p>In your phone's browser, you can watch the streams and join the conversation, without installing anything.</p>
+          </li>
+          <li>
             <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-lock" /></svg></span>
             <h3>Just for your group</h3>
             <p>Rooms protected by the group password. Video goes straight from one PC to the other.</p>
+          </li>
+          <li>
+            <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-bell" /></svg></span>
+            <h3>In the tray, out of the way</h3>
+            <p>Close the window and the conversation goes on, with the app by the clock. Windows notifications only show up while your game is in front, and each kind can be turned on or off.</p>
           </li>
           <li>
             <span class="recurso-icone"><svg class="icone" aria-hidden="true"><use href="#i-refresh-cw" /></svg></span>
@@ -422,7 +440,7 @@
           </details>
           <details>
             <summary>Does it work on Mac, Linux or phones?</summary>
-            <p>The app is Windows 10 and 11 only. On other systems, use it in Chrome or Edge on a computer.</p>
+            <p>The app is Windows 10 and 11 only. On Mac and Linux, use it in Chrome or Edge, with everything except game audio kept apart from voice. On phones, in the browser, you can watch and talk; streaming is computer-only.</p>
           </details>
           <details>
             <summary>Do my voice or my video go through a server?</summary>
