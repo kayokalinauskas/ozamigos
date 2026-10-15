@@ -100,6 +100,7 @@
 - **Qualidade ajustável ao vivo:** 720p (padrão) ou 1080p, a 30 fps, sem derrubar ninguém. Se o PC ou a internet de quem transmite não der conta de 1080p, a transmissão desce sozinha para 720p em vez de travar, e volta quando folgar. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
 - **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos, que dá para desligar, e notificação do Windows quando o app está atrás do jogo.
 - **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
+- **Chat da sala:** mensagens de texto com links clicáveis, num painel à direita. Com o painel fechado, a mensagem aparece como aviso e o botão mostra quantas são novas. Nada fica guardado: quem entra depois não vê o que foi dito antes.
 - **Reconexão automática:** se a internet oscilar ou o servidor reiniciar, o app volta sozinho para a sala. Quem transmitia continua transmitindo, e quem assistia continua assistindo. As transmissões já abertas não param enquanto isso.
 
 **Só no app para Windows**
@@ -419,6 +420,7 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `ping` | — | Mantém a conexão viva (a cada 30 s); o servidor responde `pong` |
 | `gravar-sala` | `ligada` | Começa ou para a gravação das estatísticas da sala (uma por vez; só quem grava para) |
 | `medidas` | `pacote` | As medidas deste segundo, entregues só a quem grava a sala (sem gravação, o servidor descarta) |
+| `chat` | `texto` | Uma mensagem para a sala (até 500 caracteres; no máximo 5 a cada 3 s por pessoa) |
 
 **Servidor → cliente**
 
@@ -434,7 +436,8 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `oferta` / `resposta` / `candidato` | `de`, ... | Repasse do WebRTC |
 | `gravacao-da-sala` | `ligada`, `id`, `nome` | Alguém começou ou parou de gravar as estatísticas da sala (ou saiu da sala gravando) |
 | `medidas` | `de`, `pacote` | (para quem grava a sala) as medidas de um segundo de outra pessoa |
-| `erro` | `motivo` | `senha-errada`, `muitas-tentativas`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `mensagem-invalida`, ... |
+| `chat` | `de`, `texto` | Uma mensagem do chat, para todos da sala (inclusive quem mandou, que assim sabe que chegou). O servidor não guarda nada: quem entra depois não vê as anteriores |
+| `erro` | `motivo` | `senha-errada`, `muitas-tentativas`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `chat-rapido-demais`, `mensagem-invalida`, ... |
 
 Com `senha-errada`, `muitas-tentativas` (10 senhas erradas do mesmo endereço em 5 minutos) e `sala-cheia`, o servidor fecha a conexão logo depois de avisar. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.
 

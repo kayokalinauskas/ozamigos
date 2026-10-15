@@ -15,6 +15,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
   - se a conexão com um amigo não aguenta, só ele recebe 720p ("720p para Ana"), e quem está no cabo continua em 1080p.
 
 ### Adicionado
+- **Chat da sala**: mensagens de texto num painel à direita, com links clicáveis. Com o painel fechado, a mensagem aparece como aviso e o botão do chat mostra quantas são novas; com o app atrás do jogo, vira notificação do Windows. Nada fica guardado: quem entra depois não vê o que foi dito antes.
 - A versão do app e da interface aparecem bem pequenas ao lado do logo e na tela de entrada.
 
 ### Corrigido
