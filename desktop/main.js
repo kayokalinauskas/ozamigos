@@ -2,7 +2,7 @@
 // e acrescenta o que só um app consegue: o seletor de janelas e telas, o som do PC sem o Discord
 // e sem o próprio app, notificações do Windows, e não ser freado quando fica atrás do jogo.
 
-const { app, BrowserWindow, Menu, Notification, Tray, desktopCapturer, ipcMain, nativeImage, nativeTheme, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, Tray, desktopCapturer, ipcMain, nativeImage, nativeTheme, screen, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -127,14 +127,28 @@ function abrirServidorOuInicio(erro) {
 // Os botões da janela (minimizar, maximizar, fechar) desenhados pelo Windows, por cima da página.
 const BARRA_DA_JANELA = { color: '#0b0e0a', symbolColor: '#c9d4bb', height: 32 };
 
+/**
+ * A posição guardada só vale se o topo da janela (onde ela é arrastada) cai em alguma tela de agora. Sem isso, a
+ * janela guardada num segundo monitor que foi desligado abria fora da tela: o app parecia não abrir.
+ */
+function posicaoVisivel({ x, y, width = 1600 } = {}) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return {};
+  const topo = { x, y, width, height: 32 };
+  const aparece = screen.getAllDisplays().some(({ workArea: a }) => {
+    const largura = Math.min(topo.x + topo.width, a.x + a.width) - Math.max(topo.x, a.x);
+    const altura = Math.min(topo.y + topo.height, a.y + a.height) - Math.max(topo.y, a.y);
+    return largura >= 100 && altura >= 16;
+  });
+  return aparece ? { x, y } : {}; // fora de todas as telas: o Windows centraliza na principal
+}
+
 /** atualizando: resolve true se o app vai fechar para instalar uma versão nova (a janela nem aparece). */
 function criarJanela(atualizando) {
   const { posicao = {} } = lerConfiguracao();
   janela = new BrowserWindow({
     width: posicao.width ?? 1600,
     height: posicao.height ?? 940,
-    x: posicao.x,
-    y: posicao.y,
+    ...posicaoVisivel(posicao),
     minWidth: 1024,
     minHeight: 640,
     show: false,
@@ -186,9 +200,26 @@ function criarJanela(atualizando) {
   janela.on('enter-full-screen', () => conteudo.send('tela-cheia', true));
   janela.on('leave-full-screen', () => conteudo.send('tela-cheia', false));
   conteudo.on('did-finish-load', () => conteudo.send('tela-cheia', janela.isFullScreen()));
-  // Recarregou no meio de um teste de desempenho: os contadores do Windows param junto.
+  // Recarregou (ou trocou de servidor) no meio de uma transmissão ou de um teste: o auxiliar de som e os contadores
+  // do Windows param junto. Sem isso, o auxiliar seguia capturando o som do PC para uma página que não o ouvia mais.
   conteudo.on('did-start-navigation', (detalhes) => {
-    if (detalhes.isMainFrame && !detalhes.isSameDocument) desligarContadores();
+    if (!detalhes.isMainFrame || detalhes.isSameDocument) return;
+    desligarContadores();
+    desligarAuxiliarDeSom();
+  });
+  // A página travou ou caiu (falta de memória, falha da placa de vídeo): sem isto, a janela ficava vazia até a pessoa
+  // apertar Ctrl+R. Abre de novo sozinha; se cair outra vez em menos de 30 s, mostra a tela de início com o erro, em vez
+  // de recarregar para sempre.
+  let ultimaQueda = 0;
+  conteudo.on('render-process-gone', (_evento, { reason }) => {
+    console.error('A página caiu:', reason);
+    desligarContadores();
+    desligarAuxiliarDeSom();
+    if (reason === 'clean-exit' || janela.isDestroyed()) return;
+    const seguida = Date.now() - ultimaQueda < 30_000;
+    ultimaQueda = Date.now();
+    if (seguida) janela.loadFile(INICIO, { query: { erro: `A página do Ozamigos caiu duas vezes seguidas (${reason}). Tente abrir de novo.` } });
+    else abrirServidorOuInicio();
   });
   // Sem barra de título, o menu não aparece: os atalhos dele são tratados aqui, sem depender do menu.
   conteudo.on('before-input-event', (evento, tecla) => {
@@ -418,8 +449,13 @@ const vindoDaPagina = (evento) => origemDe(evento.senderFrame?.url) === origemDo
 // ===== Estatísticas da sala (Ctrl+Shift+G na sala): salvas sozinhas em Documentos\Ozamigos\Estatísticas =====
 
 const pastaDasEstatisticas = () => path.join(app.getPath('documents'), 'Ozamigos', 'Estatísticas');
-// Só um nome, nunca um caminho: a página não escolhe onde gravar no disco.
-const nomeSeguro = (texto) => typeof texto === 'string' && /^[^\\/:*?"<>|\x00-\x1f]{1,120}$/.test(texto) && !/^[. ]|[. ]$/.test(texto);
+// Só um nome, nunca um caminho: a página não escolhe onde gravar no disco. Nem um nome que o Windows reserva
+// (CON, NUL, COM1…, com ou sem extensão), que não vira arquivo.
+const nomeSeguro = (texto) =>
+  typeof texto === 'string' &&
+  /^[^\\/:*?"<>|\x00-\x1f]{1,120}$/.test(texto) &&
+  !/^[. ]|[. ]$/.test(texto) &&
+  !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(texto);
 
 ipcMain.handle('estatisticas-salvar', async (evento, pasta, arquivos) => {
   if (!vindoDaPagina(evento) || !nomeSeguro(pasta) || !arquivos || typeof arquivos !== 'object') return null;

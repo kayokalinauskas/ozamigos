@@ -24,7 +24,7 @@ Deploy: Render (Docker). O `Dockerfile` tem 3 etapas: Node monta `web/`, o JDK c
 - **Testes:** poucos e essenciais, um por comportamento que importa (pedido do dono). Rode `.\testar.ps1` antes de commitar (servidor, interface, áudio, ponta a ponta e app; a seção "Testes" do README explica cada camada). Mudança de comportamento ganha teste na camada certa; o resto se verifica rodando o app (veja "Como testar").
 - **Telas prioritárias:** 1920×1080 e 2560×1440. A interface é tema escuro, com os tokens CSS em `web/src/estilo.css`.
 - **Celular (navegador):** quem usa é quem assiste. **Nada pode passar da largura da tela**: no celular, um elemento mais largo estica a página inteira e aparece rolagem de lado (aconteceu com a fileira de baixo, até 14/10/2026). As regras ficam no `@media (max-width: 640px)` do `estilo.css`, e o teste e2e "no celular, nada passa da largura da tela" confere. Em fileira com `flex`, lembre do `min-width: 0`: sem ele, um `select` deixa o grupo da largura da opção mais comprida. Textos para quem não está no app não falam em "Windows" (`Padrão do sistema`).
-- **Segredos:** a senha do grupo vem só da variável `OZAMIGOS_SENHA`. Nunca coloque segredos no código.
+- **Segredos:** a senha do grupo vem só da variável `OZAMIGOS_SENHA`. Nunca coloque segredos no código. Ela é comparada pelo resumo SHA-256 (`SenhaDoGrupo`): comparar as senhas direto com `MessageDigest.isEqual` deixava o tempo da resposta contar o tamanho dela.
 
 ## Marca
 
@@ -185,6 +185,11 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - navegação para fora abre no navegador;
   - cada `ipcMain` confere a origem de quem pediu (`origemDe(evento.senderFrame?.url)`).
   - Use sempre `origemDe()`: ela normaliza (`http://x/` vira `http://x`) e não lança exceção.
+- **A janela e a página se recuperam sozinhas** (`main.js`):
+  - a posição guardada só vale se o topo da janela cai numa tela de agora (`posicaoVisivel`); guardada num monitor que foi desligado, a janela abria fora da tela e o app parecia não abrir;
+  - a página que cai (`render-process-gone`: memória, falha da placa de vídeo) abre de novo sozinha; caindo de novo em menos de 30 s, vai para a tela de início com o erro, sem recarregar para sempre;
+  - recarregar, trocar de servidor ou a página cair desliga o auxiliar de som e os contadores do Windows (`did-start-navigation`): antes, o auxiliar seguia capturando o som do PC para uma página que não o ouvia.
+  - Os testes da fumaça "a janela guardada num monitor que não existe mais..." e "a página que cai..." cobrem as duas primeiras.
 - **Endereço do servidor, em ordem de prioridade:**
   1. a variável `OZAMIGOS_SERVIDOR`;
   2. o `configuracao.json` em `%APPDATA%\Ozamigos Share`, gravado pela tela de início (a pasta guarda o nome antigo de propósito: veja "Marca");

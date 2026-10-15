@@ -8,6 +8,12 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+### Corrigido
+- **O app abre na tela mesmo se a janela estava num monitor que foi desligado.** Antes, ele abria fora da tela e parecia não abrir.
+- **Se a página do Ozamigos travar e cair, ela abre de novo sozinha**, em vez de deixar a janela vazia até um Ctrl+R.
+- Recarregar a página no meio de uma transmissão com som não deixa mais o capturador de som do PC rodando à toa.
+- A senha do grupo é conferida sem deixar o tempo de resposta revelar o tamanho dela.
+
 ## [1.2.14] - 2026-10-15
 
 ### Corrigido

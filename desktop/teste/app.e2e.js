@@ -130,3 +130,41 @@ test('o Windows continua dando o relógio fino ao app com a janela escondida (a 
     await fechar(aberto);
   }
 });
+
+test('a janela guardada num monitor que não existe mais abre dentro da tela', async () => {
+  const aberto = await abrirApp('http://localhost:1', { posicao: { x: -30_000, y: -30_000, width: 1280, height: 800 } });
+  try {
+    const { janela, telas } = await aberto.app.evaluate(({ BrowserWindow, screen }) => ({
+      janela: BrowserWindow.getAllWindows()[0].getBounds(),
+      telas: screen.getAllDisplays().map((t) => t.workArea),
+    }));
+    const dentro = telas.some((t) => janela.x >= t.x - 16 && janela.y >= t.y - 16 && janela.x < t.x + t.width && janela.y < t.y + t.height);
+    expect(dentro).toBe(true);
+  } finally {
+    await fechar(aberto);
+  }
+});
+
+test('a página que cai abre de novo sozinha', async () => {
+  const { servidor, endereco } = await servidorDeTeste();
+  const aberto = await abrirApp(endereco);
+  try {
+    await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');
+    // O Playwright perde a página junto com o processo que caiu: quem confere é o processo principal do app.
+    await aberto.app.evaluate(({ BrowserWindow }) => {
+      const conteudo = BrowserWindow.getAllWindows()[0].webContents;
+      globalThis.carregouDepoisDaQueda = false;
+      conteudo.once('render-process-gone', () => conteudo.once('did-finish-load', () => (globalThis.carregouDepoisDaQueda = true)));
+      conteudo.forcefullyCrashRenderer();
+    });
+    const estado = () =>
+      aberto.app.evaluate(({ BrowserWindow }) => {
+        const conteudo = BrowserWindow.getAllWindows()[0].webContents;
+        return { recarregou: globalThis.carregouDepoisDaQueda, caida: conteudo.isCrashed(), endereco: conteudo.getURL() };
+      });
+    await expect.poll(estado, { timeout: 15_000 }).toEqual({ recarregou: true, caida: false, endereco: `${endereco}/` });
+  } finally {
+    await fechar(aberto);
+    servidor.close();
+  }
+});
