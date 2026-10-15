@@ -8,11 +8,15 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.2.13] - 2026-10-14
+
 ### Alterado
 - **A transmissão sai sempre em 720p a 30 fps**, como no Discord sem Nitro, e não há mais escolha de qualidade. As opções de 1080p e de 60 fps saíram: em jogo pesado, a captura já ficava entre 21 e 29 fps, e elas dobravam o custo de codificar e de enviar sem melhorar o que os amigos viam.
 - Quando falta processador ou internet, a imagem de quem não aguenta diminui sozinha em vez de travar, e quem está bem continua em 720p.
 
 ### Adicionado
+- **O Ozamigos fica na bandeja, como o Discord:** fechar a janela não encerra mais o app, e a conversa e as transmissões continuam. O ícone fica perto do relógio; para sair, clique nele com o botão direito e escolha **Sair**. Dá para desligar em Configurações → Geral.
+- **Mensagens novas do chat na barra de tarefas:** um ponto verde no ícone do Ozamigos enquanto houver mensagem não vista, e o ícone pisca quando chega uma com o jogo na frente.
 - **A tela não apaga no meio da sala:** com mais alguém na sala (conversando ou assistindo), o PC e o celular não apagam a tela nem dormem, como numa chamada do Discord.
 - **Chat da sala**: mensagens de texto num painel à direita, com links clicáveis. Com o painel fechado, a mensagem aparece como aviso e o botão do chat mostra quantas são novas; com o app atrás do jogo, vira notificação do Windows. Nada fica guardado: quem entra depois não vê o que foi dito antes.
 - A versão do app e da interface aparecem bem pequenas ao lado do logo e na tela de entrada.
