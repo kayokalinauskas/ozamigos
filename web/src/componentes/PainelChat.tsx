@@ -222,7 +222,7 @@ function Mensagem({ m, junto, aoAbrir }: PropsDaMensagem) {
 
 /** O cartão de um link de vídeo: a imagem, o título e o canal. O clique abre o vídeo no navegador. */
 function CartaoDoLink({ previa }: { previa: PreviaDeLink }) {
-  const titulo = previa.titulo ?? previa.url;
+  const titulo = previa.titulo ?? `Abrir no ${previa.site}`; // o site não deu o título (só a imagem)
   return (
     <a className="chat-link" href={previa.url} target="_blank" rel="noopener noreferrer" title={titulo}>
       {previa.miniatura && (

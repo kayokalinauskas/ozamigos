@@ -56,8 +56,11 @@ public class PreviasDeLinks {
 
     enum Fonte { OEMBED, PAGINA }
 
-    /** Um link de um site conhecido: onde buscar a prévia dele. */
-    record Link(String url, String site, URI busca, Fonte fonte) {}
+    /**
+     * Um link de um site conhecido: onde buscar a prévia dele. imagemReserva: a imagem que vale se a busca falhar (a
+     * miniatura pública de um vídeo do YouTube, que não depende do oEmbed), ou null.
+     */
+    record Link(String url, String site, URI busca, Fonte fonte, String imagemReserva) {}
 
     private record Dados(String titulo, String autor, String imagem) {}
 
@@ -67,6 +70,7 @@ public class PreviasDeLinks {
     private static final Pattern META = Pattern.compile("<meta\\s[^>]*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern ATRIBUTO = Pattern.compile("([a-zA-Z:-]+)\\s*=\\s*(\"([^\"]*)\"|'([^']*)')");
     private static final Pattern ID = Pattern.compile("[A-Za-z0-9_-]{1,100}");
+    private static final Pattern VIDEO_DO_YOUTUBE = Pattern.compile("[A-Za-z0-9_-]{6,20}");
 
     static final int MAXIMO_DO_OEMBED = 100_000;
     static final int MAXIMO_DA_PAGINA = 1_500_000;
@@ -142,12 +146,17 @@ public class PreviasDeLinks {
 
         switch (host) {
             case "youtube.com" -> {
-                boolean video = (caminho.equals("/watch") && consulta.matches("(.*&)?v=[A-Za-z0-9_-]+.*"))
-                        || (partes.length == 2 && (partes[0].equals("shorts") || partes[0].equals("live")) && ID.matcher(partes[1]).matches());
-                return video ? oembed(endereco, "YouTube", "https://www.youtube.com/oembed?format=json&url=") : null;
+                String video = null;
+                Matcher v = Pattern.compile("(?:^|&)v=([A-Za-z0-9_-]{6,20})(?:&|$)").matcher(consulta);
+                if (caminho.equals("/watch") && v.find()) {
+                    video = v.group(1);
+                } else if (partes.length == 2 && (partes[0].equals("shorts") || partes[0].equals("live")) && VIDEO_DO_YOUTUBE.matcher(partes[1]).matches()) {
+                    video = partes[1];
+                }
+                return video == null ? null : youtube(endereco, video);
             }
             case "youtu.be" -> {
-                return partes.length == 1 && ID.matcher(partes[0]).matches() ? oembed(endereco, "YouTube", "https://www.youtube.com/oembed?format=json&url=") : null;
+                return partes.length == 1 && VIDEO_DO_YOUTUBE.matcher(partes[0]).matches() ? youtube(endereco, partes[0]) : null;
             }
             case "streamable.com" -> {
                 return partes.length == 1 && ID.matcher(partes[0]).matches() ? oembed(endereco, "Streamable", "https://api.streamable.com/oembed.json?url=") : null;
@@ -181,12 +190,22 @@ public class PreviasDeLinks {
     }
 
     private static Link oembed(String endereco, String site, String api) {
-        return new Link(endereco, site, URI.create(api + URLEncoder.encode(endereco, StandardCharsets.UTF_8)), Fonte.OEMBED);
+        return new Link(endereco, site, URI.create(api + URLEncoder.encode(endereco, StandardCharsets.UTF_8)), Fonte.OEMBED, null);
+    }
+
+    /**
+     * O YouTube pode recusar o oEmbed a servidores (pedidos de datacenter): sem ele, o cartão sai com a miniatura pública
+     * do vídeo, que fica num endereço fixo.
+     */
+    private static Link youtube(String endereco, String video) {
+        String api = "https://www.youtube.com/oembed?format=json&url=";
+        return new Link(endereco, "YouTube", URI.create(api + URLEncoder.encode(endereco, StandardCharsets.UTF_8)), Fonte.OEMBED,
+                "https://i.ytimg.com/vi/" + video + "/hqdefault.jpg");
     }
 
     // A página é remontada com as partes conferidas, não com o endereço que veio no chat.
     private static Link pagina(String endereco, String site, String pagina) {
-        return new Link(endereco, site, URI.create(pagina), Fonte.PAGINA);
+        return new Link(endereco, site, URI.create(pagina), Fonte.PAGINA, null);
     }
 
     /**
@@ -219,30 +238,48 @@ public class PreviasDeLinks {
         }
     }
 
+    /*
+     * Os motivos de uma prévia não sair vão para o registro com o site e o motivo (o código HTTP ou o tipo do erro),
+     * nunca com o link, que é texto do chat: sem isso, uma falha só no servidor de produção (o YouTube recusando
+     * pedidos de datacenter, por exemplo) não deixava rastro nenhum.
+     */
     private Optional<Previa> montar(Link link) {
         aoMesmoTempo.acquireUninterruptibly();
         try {
-            Dados dados = link.fonte() == Fonte.OEMBED ? doOembed(link) : daPagina(link);
+            Dados dados;
+            try {
+                dados = link.fonte() == Fonte.OEMBED ? doOembed(link) : daPagina(link);
+            } catch (IOException | RuntimeException e) {
+                log.info("a prévia de um link do {} não saiu: {}", link.site(), e.getClass().getSimpleName());
+                dados = null;
+            }
+            if (dados == null && link.imagemReserva() != null) {
+                dados = new Dados(null, null, link.imagemReserva());
+            }
             if (dados == null) {
                 return Optional.empty();
             }
             String miniatura = null;
             try {
                 miniatura = dados.imagem() == null ? null : miniatura(dados.imagem());
-            } catch (IOException | LinkageError e) {
+            } catch (VirtualMachineError e) {
+                throw e;
+            } catch (Exception | Error e) {
                 // Sem a imagem (formato estranho, ou o Java do servidor sem a parte gráfica): vai só o título.
-                log.debug("a miniatura de um link não saiu: {}", e.getClass().getSimpleName());
+                log.info("a miniatura de um link do {} não saiu: {}", link.site(), e.getClass().getName());
             }
             String titulo = cortar(dados.titulo(), 200);
             if (titulo == null && miniatura == null) {
                 return Optional.empty();
             }
             return Optional.of(new Previa(link.url(), link.site(), titulo, cortar(dados.autor(), 100), miniatura));
-        } catch (Exception e) {
+        } catch (VirtualMachineError e) {
+            throw e;
+        } catch (Exception | Error e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            log.debug("a prévia de um link não saiu: {}", e.getClass().getSimpleName()); // sem o link: é texto do chat
+            log.info("a prévia de um link do {} não saiu: {}", link.site(), e.getClass().getName()); // sem o link: é texto do chat
             return Optional.empty();
         } finally {
             aoMesmoTempo.release();
@@ -252,6 +289,7 @@ public class PreviasDeLinks {
     private Dados doOembed(Link link) throws IOException, InterruptedException {
         Buscador.Resposta resposta = buscador.buscar(link.busca(), MAXIMO_DO_OEMBED);
         if (resposta.status() != 200) {
+            log.info("a prévia de um link do {} não saiu: HTTP {}", link.site(), resposta.status());
             return null;
         }
         JsonNode dados = json.readTree(resposta.corpo());
@@ -267,6 +305,7 @@ public class PreviasDeLinks {
     private Dados daPagina(Link link) throws IOException, InterruptedException {
         Buscador.Resposta resposta = buscarSeguindo(link.busca(), MAXIMO_DA_PAGINA, PAGINAS);
         if (resposta == null || resposta.status() != 200) {
+            log.info("a prévia de um link do {} não saiu: {}", link.site(), resposta == null ? "redirecionamento fora da lista" : "HTTP " + resposta.status());
             return null;
         }
         Map<String, String> metas = metatags(new String(resposta.corpo(), StandardCharsets.UTF_8));

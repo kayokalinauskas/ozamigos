@@ -109,6 +109,18 @@ class PreviasDeLinksTest {
     }
 
     @Test
+    void seOYoutubeRecusaOOembedOCartaoSaiComAMiniaturaPublicaDoVideo() throws Exception {
+        InternetFalsa internet = new InternetFalsa(Map.of(
+                "https://i.ytimg.com/vi/hkm-8j0osQI/hqdefault.jpg", new Buscador.Resposta(200, "image/png", png(480, 360), null)));
+        PreviasDeLinks previas = new PreviasDeLinks(internet, JsonMapper.builder().build());
+
+        PreviasDeLinks.Previa previa = previas.buscar("https://www.youtube.com/watch?v=hkm-8j0osQI").get(5, TimeUnit.SECONDS).orElseThrow();
+
+        assertThat(previa.titulo()).isNull(); // o oEmbed respondeu 404 (a internet falsa não o conhece)
+        assertThat(previa.miniatura()).startsWith("data:image/jpeg;base64,");
+    }
+
+    @Test
     void imagemDeUmEnderecoForaDaListaNaoEhBuscadaEAPaginaSoSegueRedirecionamentoPermitido() throws Exception {
         InternetFalsa internet = new InternetFalsa(Map.of(
                 "https://clips.twitch.tv/ClipeBom",
