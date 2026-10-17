@@ -22,6 +22,8 @@ export type PonteOzamigos = {
   pararSom(): void;
   /** Volta para a tela de escolher o servidor. */
   trocarServidor(): void;
+  /** Um convite (link ozamigos://sala/CODIGO) chegou com o app aberto (app 1.2.16 em diante). */
+  aoAbrirSala?(ouvinte: (sala: string) => void): void;
   /** Cor dos botões da janela, para combinar com o que está embaixo deles (app 1.2.9 em diante). */
   corDaBarra?(cor: string): void;
   /** Teste de desempenho (app 1.2.10 em diante): o que o navegador não mede. */

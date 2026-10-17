@@ -115,10 +115,11 @@ async function limparCacheSeAtualizou() {
 
 // ===== Janela =====
 
-function abrirServidorOuInicio(erro) {
+/** sala: o código de um convite (link ozamigos://), para abrir já com a sala certa na entrada. */
+function abrirServidorOuInicio(erro, sala = null) {
   if (!erro && origemDoServidor()) {
     // Sempre pergunta ao servidor pela página: um deploy novo aparece na hora, nunca a cópia guardada.
-    janela.loadURL(`${origemDoServidor()}/`, { extraHeaders: 'pragma: no-cache\ncache-control: no-cache\n' });
+    janela.loadURL(`${origemDoServidor()}/${sala ? `?sala=${sala}` : ''}`, { extraHeaders: 'pragma: no-cache\ncache-control: no-cache\n' });
   } else {
     janela.loadFile(INICIO, { query: erro ? { erro } : {} });
   }
@@ -246,7 +247,7 @@ function criarJanela(atualizando) {
     abrirServidorOuInicio(`Não foi possível abrir ${origemDoServidor()} (${descricao}). Confira o endereço e a internet.`);
   });
 
-  abrirServidorOuInicio();
+  abrirServidorOuInicio(null, salaDoLink(process.argv)); // aberto por um convite: já na sala dele
 }
 
 function abrirFora(url) {
@@ -590,6 +591,48 @@ ipcMain.handle('desempenho-amostra', (evento) => {
   return { processos, cpuDoPc: ultimaLeitura?.cpu ?? null, placa };
 });
 
+// ===== Convites: links ozamigos://sala/CODIGO abrem o app na sala =====
+
+const PROTOCOLO = 'ozamigos';
+
+/**
+ * O código da sala de um link ozamigos://sala/CODIGO entre os argumentos (o Windows passa o link ao abrir o app),
+ * ou null. O link só traz o código: o servidor continua o configurado no app. Um link que trocasse o servidor
+ * seria uma isca para levar a senha do grupo a um servidor de outra pessoa.
+ */
+function salaDoLink(argumentos) {
+  for (const argumento of argumentos) {
+    if (typeof argumento !== 'string' || !argumento.toLowerCase().startsWith(`${PROTOCOLO}://`)) continue;
+    try {
+      const link = new URL(argumento);
+      const codigo = link.hostname === 'sala' ? link.pathname.replace(/^\/+|\/+$/g, '') : '';
+      if (/^[A-Za-z0-9]{6,20}$/.test(codigo)) return codigo; // a mesma regra do servidor (CODIGO_VALIDO)
+    } catch {
+      // link estragado: o app só abre, sem sala
+    }
+  }
+  return null;
+}
+
+/**
+ * Um convite com o app já aberto: a página decide (na entrada, troca a sala; numa sala, pergunta antes de sair dela).
+ * Na tela de início (sem servidor), só mostra a janela.
+ */
+function abrirConvite(sala) {
+  if (!janela || janela.isDestroyed()) return;
+  if (origemDe(janela.webContents.getURL()) === origemDoServidor()) janela.webContents.send('abrir-sala', sala);
+}
+
+/**
+ * O Windows abre o app nos links ozamigos://. Só o app instalado se registra: a versão portátil roda de uma pasta
+ * temporária que some ao fechar, e o registro apontaria para o nada. O desinstalador apaga o registro
+ * (build/installer.nsh).
+ */
+function registrarConvites() {
+  if (!app.isPackaged || process.env.PORTABLE_EXECUTABLE_DIR) return;
+  if (!app.setAsDefaultProtocolClient(PROTOCOLO)) console.warn('Não foi possível registrar os links ozamigos://');
+}
+
 // ===== Bandeja (o ícone perto do relógio): fechar a janela não encerra o app =====
 
 /** Fechar a janela deixa o app na bandeja? Ligado por padrão; desliga na engrenagem (aba Geral). */
@@ -789,7 +832,12 @@ function fecharAvisoDeAtualizacao() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', mostrarJanela); // inclusive se estava escondida na bandeja
+  // Abrir de novo (atalho, ou um convite ozamigos://) traz a janela para a frente, inclusive da bandeja.
+  app.on('second-instance', (_evento, argumentos) => {
+    mostrarJanela();
+    const sala = salaDoLink(argumentos);
+    if (sala) abrirConvite(sala);
+  });
 
   app.setAppUserModelId('dev.ozamigos.share'); // necessário para as notificações do Windows
   nativeTheme.themeSource = 'dark';
@@ -804,6 +852,7 @@ if (!app.requestSingleInstanceLock()) {
     criarJanela(atualizando);
     criarBandeja();
     honrarRelogioFino();
+    registrarConvites();
     if (!(await atualizando)) fecharAvisoDeAtualizacao(); // se o download falhou no meio; só depois da janela, senão o app fecharia
   });
 

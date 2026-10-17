@@ -152,8 +152,12 @@ class Cliente {
   /** O servidor recusou começar a gravação: outra pessoa já grava. */
   aoRecusarGravacao: (() => void) | null = null;
 
+  /** A página abriu num link de sala (o que um amigo mandou), e não na entrada com uma sala nova sorteada. */
+  readonly veioDeUmLink: boolean;
+
   constructor() {
     const daUrl = new URLSearchParams(location.search).get('sala');
+    this.veioDeUmLink = Boolean(daUrl && codigoValido(daUrl));
     const sala = daUrl && codigoValido(daUrl) ? daUrl : novoCodigo();
     lembrar('ozamigos-qualidade', ''); // a escolha de qualidade saiu (14/10/2026): o que estava guardado não serve mais
     this.estado = {
@@ -379,13 +383,29 @@ class Cliente {
     return true;
   }
 
-  sair() {
+  /** Sai da sala e volta para a entrada: na mesma sala do link, ou em outra (um convite aceito). */
+  sair(paraASala?: string) {
     this.recusado = true;
     this.pararDeTransmitir(false);
     this.conexoes.forEach(({ pc }) => pc.close());
     voz.sair();
     this.sinalizacao.encerrar();
-    location.reload(); // volta para a entrada, com a mesma sala no link
+    if (paraASala) location.assign(`?sala=${paraASala}`);
+    else location.reload(); // volta para a entrada, com a mesma sala no link
+  }
+
+  /**
+   * Um convite para uma sala (link ozamigos:// aberto com o app aberto). Na entrada, a sala do convite entra no campo.
+   * Já numa sala, não tira ninguém da conversa sem perguntar: um aviso com "Entrar" leva para a sala nova.
+   */
+  abrirConvite(codigo: string) {
+    if (!codigoValido(codigo)) return;
+    const { fase, sala } = this.estado;
+    if (fase === 'entrada') {
+      this.trocarSala(codigo);
+    } else if (fase === 'sala' && codigo !== sala) {
+      this.avisar(`Convite para a sala ${codigo}.`, 'info', { rotulo: 'Entrar', executar: () => this.sair(codigo) });
+    }
   }
 
   private enviar(msg: MensagemParaOServidor) {

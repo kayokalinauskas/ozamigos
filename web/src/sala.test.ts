@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { codigoDe, codigoValido, linkDaSala, novoCodigo } from './conexao/codigoDaSala';
+import { codigoDe, codigoValido, linkDaSala, linkDoApp, novoCodigo } from './conexao/codigoDaSala';
 
 describe('código da sala', () => {
   it('aceita de 6 a 20 letras e números, e nada além disso', () => {
@@ -30,5 +30,12 @@ describe('código da sala', () => {
     const link = linkDaSala('Ab3dEf9');
     expect(link).toBe(`${location.origin}${location.pathname}?sala=Ab3dEf9`);
     expect(codigoDe(link)).toBe('Ab3dEf9');
+  });
+
+  it('o convite do app (ozamigos://sala/...) volta ao mesmo código, e um convite estranho não vira sala', () => {
+    expect(linkDoApp('Ab3dEf9')).toBe('ozamigos://sala/Ab3dEf9');
+    expect(codigoDe(linkDoApp('Ab3dEf9'))).toBe('Ab3dEf9');
+    expect(codigoDe('ozamigos://sala/Ab3dEf9/')).toBe('Ab3dEf9'); // o Windows às vezes acrescenta a barra
+    expect(codigoValido(codigoDe('ozamigos://servidor/Ab3dEf9'))).toBe(false);
   });
 });

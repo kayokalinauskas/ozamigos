@@ -14,16 +14,23 @@ export function novoCodigo(): string {
   return Array.from(aleatorios, (n) => letras[n % letras.length]).join('');
 }
 
-/** Aceita o código puro ou um link inteiro com ?sala=... (o que o amigo mandou no chat). */
+/** Aceita o código puro, um link com ?sala=... (o que o amigo mandou no chat) ou um convite ozamigos://sala/... */
 export function codigoDe(texto: string): string {
   const limpo = texto.trim();
   try {
-    const daUrl = new URL(limpo).searchParams.get('sala');
+    const link = new URL(limpo);
+    if (link.protocol === 'ozamigos:') return link.hostname === 'sala' ? link.pathname.replace(/^\/+|\/+$/g, '') : '';
+    const daUrl = link.searchParams.get('sala');
     if (daUrl) return daUrl;
   } catch {
     // não é um link: é o próprio código
   }
   return limpo;
+}
+
+/** O convite que abre o app para Windows direto na sala (registrado pelo app instalado, 1.2.16 em diante). */
+export function linkDoApp(codigo: string): string {
+  return `ozamigos://sala/${codigo}`;
 }
 
 export function linkDaSala(codigo: string): string {

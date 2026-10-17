@@ -1,15 +1,16 @@
-import { useState, type FormEvent } from 'react';
-import { Download, Eye, EyeOff, LoaderCircle, RefreshCw, Server } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { AppWindow, Download, Eye, EyeOff, LoaderCircle, RefreshCw, Server } from 'lucide-react';
 import { cliente } from '../cliente';
-import { codigoDe, codigoValido, novoCodigo } from '../conexao/codigoDaSala';
-import { lembrado } from '../armazenamento';
+import { codigoDe, codigoValido, linkDoApp, novoCodigo } from '../conexao/codigoDaSala';
+import { lembrado, lembrar } from '../armazenamento';
 import { ponte } from '../ponte';
 import { useCliente } from '../useCliente';
+import { Convite, FICA_NO_NAVEGADOR, SITE } from './Convite';
 import { Logo } from './Logo';
 import { Versao } from './Versao';
 
-/** O site do Ozamigos (GitHub Pages, pasta site/): apresenta e baixa o app para Windows. */
-const SITE = 'https://kayokalinauskas.github.io/ozamigos/';
+/** No navegador do Windows, quem já tem o app pode abrir a sala nele (link ozamigos://, app 1.2.16 em diante). */
+const NO_WINDOWS = /Windows/.test(navigator.userAgent);
 
 export function Entrada() {
   const { fase, erro, sala, meuNome } = useCliente();
@@ -20,6 +21,24 @@ export function Entrada() {
   const entrando = fase === 'entrando';
   const codigo = codigoDe(textoDaSala);
   const salaOk = codigoValido(codigo);
+
+  // No navegador do Windows, o link de uma sala pergunta antes se a pessoa quer abrir no app (Convite.tsx).
+  const [convite, setConvite] = useState(() => !ponte && NO_WINDOWS && cliente.veioDeUmLink && !lembrado(FICA_NO_NAVEGADOR));
+
+  // Um convite (link ozamigos://) chegou com a entrada aberta: a sala dele vai para o campo.
+  useEffect(() => setTextoDaSala(sala), [sala]);
+
+  if (convite) {
+    return (
+      <main className="entrada">
+        <div className="cartao-entrada">
+          <Logo grande />
+          <Convite sala={sala} aoContinuar={() => setConvite(false)} />
+          <Versao />
+        </div>
+      </main>
+    );
+  }
 
   function enviar(evento: FormEvent) {
     evento.preventDefault(); // o formulário não recarrega a página: quem entra é o JavaScript
@@ -117,9 +136,20 @@ export function Entrada() {
             <Server size={14} /> Servidor: {location.host}
           </button>
         ) : (
-          <a className="botao botao-fantasma botao-pequeno trocar-servidor" href={SITE}>
-            <Download size={14} /> Baixar o app para Windows (som do jogo sem eco)
-          </a>
+          <>
+            {NO_WINDOWS && salaOk && (
+              <a
+                className="botao botao-fantasma botao-pequeno trocar-servidor"
+                href={linkDoApp(codigo)}
+                onClick={() => lembrar(FICA_NO_NAVEGADOR, '')} // voltou a querer o app: o próximo link pergunta de novo
+              >
+                <AppWindow size={14} /> Já tem o app? Abrir esta sala nele
+              </a>
+            )}
+            <a className="botao botao-fantasma botao-pequeno trocar-servidor" href={SITE}>
+              <Download size={14} /> Baixar o app para Windows (som do jogo sem eco)
+            </a>
+          </>
         )}
         <Versao />
       </form>

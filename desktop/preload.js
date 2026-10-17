@@ -28,6 +28,11 @@ contextBridge.exposeInMainWorld('ozamigos', {
   pararSom() {
     ipcRenderer.send('som-parar');
   },
+  /** Um convite (link ozamigos://sala/CODIGO) chegou com o app aberto (app 1.2.16 em diante). */
+  aoAbrirSala(ouvinte) {
+    ipcRenderer.removeAllListeners('abrir-sala');
+    ipcRenderer.on('abrir-sala', (_evento, sala) => ouvinte(String(sala)));
+  },
   trocarServidor() {
     ipcRenderer.send('trocar-servidor');
   },

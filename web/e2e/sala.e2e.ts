@@ -6,6 +6,8 @@ import { expect, test, type Browser, type BrowserContextOptions, type Page } fro
 function prepararPagina() {
   // Microfone sem porta: o bipe do microfone falso não é voz, e a sensibilidade automática o seguraria.
   localStorage.setItem('ozamigos-voz', JSON.stringify({ sensibilidadeAutomatica: false, limiarDb: -100 }));
+  // No Windows, o link da sala perguntaria antes se é para abrir no app (o teste do convite cuida disso).
+  localStorage.setItem('ozamigos-fica-no-navegador', '1');
 
   // Escuta a voz que vai para a caixa de som: o que sai do limitador também passa por um analisador.
   const analisadores: AnalyserNode[] = [];
@@ -97,6 +99,31 @@ const volumeNaSaida = (pagina: Page, ms = 1500) =>
     }
     return maior;
   }, ms);
+
+test('no navegador do Windows, o link da sala oferece o app, o download ou continuar no navegador', async ({ browser }) => {
+  const sala = novaSala();
+  const contexto = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/150.0.0.0' });
+  const pagina = await contexto.newPage();
+  await pagina.goto(`/?sala=${sala}`);
+  await expect(pagina.getByText(`Convite para a sala ${sala}`)).toBeVisible();
+  await expect(pagina.getByRole('link', { name: /baixar para Windows/ })).toBeVisible();
+
+  // Sem o app (aqui nada abre o ozamigos://), a janela não perde o foco: depois do prazo, o download vira o principal.
+  await pagina.getByRole('button', { name: 'Abrir no app' }).click();
+  await expect(pagina.getByText('O app não abriu')).toBeVisible({ timeout: 5000 });
+  // Com o app, o Windows passa o foco para ele: a página entende que abriu e lembra para os próximos links.
+  await pagina.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect(pagina.getByText(`Sala ${sala} aberta no app`)).toBeVisible();
+  expect(await pagina.evaluate(() => localStorage.getItem('ozamigos-tem-o-app'))).toBe('1');
+
+  // Continuar no navegador leva para a entrada da sala do link, e os próximos links vão direto para ela.
+  await pagina.getByRole('button', { name: /continuar no navegador/ }).click();
+  await expect(pagina.getByRole('textbox', { name: /^Sala/ })).toHaveValue(sala);
+  await pagina.reload();
+  await expect(pagina.getByLabel('Seu nome')).toBeVisible();
+  await expect(pagina.getByText('Convite para a sala')).toHaveCount(0);
+  await contexto.close();
+});
 
 test('senha errada não entra e explica o motivo', async ({ browser }) => {
   const pagina = await entrarNaSala(browser, novaSala(), 'Intruso', 'chute');

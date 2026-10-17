@@ -168,3 +168,37 @@ test('a página que cai abre de novo sozinha', async () => {
     servidor.close();
   }
 });
+
+test('um convite ozamigos:// abre o app na sala, e com o app aberto chega à página', async () => {
+  // Uma página que mostra no título o convite que chegou pela ponte (a interface de verdade chama cliente.abrirConvite).
+  const servidor = http.createServer((_req, res) => {
+    res.setHeader('content-type', 'text/html; charset=utf-8');
+    res.end('<!doctype html><title>sem convite</title><h1>servidor de teste</h1><script>window.ozamigos.aoAbrirSala((s) => (document.title = "convite " + s));</script>');
+  });
+  await new Promise((r) => servidor.listen(0, '127.0.0.1', r));
+  const endereco = `http://localhost:${servidor.address().port}`;
+  const dados = fs.mkdtempSync(path.join(os.tmpdir(), 'ozamigos-teste-'));
+  fs.writeFileSync(path.join(dados, 'configuracao.json'), JSON.stringify({ avisouDaBandeja: true }));
+  const env = { ...process.env, OZAMIGOS_SERVIDOR: endereco, OZAMIGOS_TESTE_DADOS: dados };
+  const embrulho = path.join(__dirname, 'embrulho.js');
+  const app = await electron.launch({ args: [embrulho, 'ozamigos://sala/Convite01/'], env });
+  try {
+    const janela = await app.firstWindow();
+    await expect(janela.locator('h1')).toHaveText('servidor de teste');
+    expect(janela.url()).toBe(`${endereco}/?sala=Convite01`);
+
+    // Com o app aberto, o Windows abre outro processo com o link: ele passa o convite ao primeiro e fecha.
+    const { spawnSync } = require('node:child_process');
+    spawnSync(require('electron'), [embrulho, 'ozamigos://sala/Outra02'], { env, timeout: 20_000 });
+    await expect(janela).toHaveTitle('convite Outra02');
+
+    // Um convite que tentasse trocar de servidor não vira sala.
+    spawnSync(require('electron'), [embrulho, 'ozamigos://servidor/Outra03'], { env, timeout: 20_000 });
+    await janela.waitForTimeout(500);
+    await expect(janela).toHaveTitle('convite Outra02');
+  } finally {
+    await app.close();
+    fs.rmSync(dados, { recursive: true, force: true });
+    servidor.close();
+  }
+});

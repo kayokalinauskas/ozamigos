@@ -7,6 +7,8 @@ import { App } from './componentes/App';
 import { acompanharGravacaoDaSala } from './desempenho/coletor';
 import { manterTelaAcordada } from './telaAcordada';
 import { avisarNaBarraDeTarefas } from './avisoNaBarra';
+import { cliente } from './cliente';
+import { ponte } from './ponte';
 
 // Quando alguém grava as estatísticas da sala (Ctrl+Shift+G), este PC manda as próprias medidas para essa pessoa.
 acompanharGravacaoDaSala();
@@ -14,6 +16,8 @@ acompanharGravacaoDaSala();
 manterTelaAcordada();
 // No app: mensagens do chat não vistas viram um ponto (e uma piscada) no ícone da barra de tarefas.
 avisarNaBarraDeTarefas();
+// No app: um convite (link ozamigos://) aberto com o app já aberto.
+ponte?.aoAbrirSala?.((sala) => cliente.abrirConvite(sala));
 
 createRoot(document.getElementById('raiz')!).render(
   <StrictMode>

@@ -403,6 +403,33 @@ code {
   text-decoration: none;
 }
 
+/* O link de uma sala no navegador do Windows: abrir no app, baixar ou continuar aqui (Convite.tsx) */
+.convite {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.convite-titulo {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.convite-titulo svg {
+  margin-right: 8px;
+  vertical-align: -3px;
+  color: var(--destaque);
+}
+
+/* Link com cara de botão (baixar o app): sem o sublinhado e o roxo de link visitado */
+a.botao {
+  text-decoration: none;
+}
+
+a.botao-secundario {
+  color: var(--texto);
+}
+
 /* ===== Sala: barra lateral + área principal ===== */
 .sala {
   display: grid;
