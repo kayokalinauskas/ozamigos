@@ -214,6 +214,28 @@ test('a mensagem do chat chega, conta como nova para quem está com o chat fecha
   await expect(caio.getByLabel('Chat da sala')).toContainText('Nenhuma mensagem ainda');
 });
 
+test('quem digita no chat continua no campo quando um amigo com o volume aberto fala (ou liga e desliga o microfone)', async ({ browser }) => {
+  const sala = novaSala();
+  const ana = await entrarNaSala(browser, sala, 'Ana');
+  const beto = await entrarNaSala(browser, sala, 'Beto');
+  await beto.getByRole('button', { name: 'Ana: volume da voz e silenciar' }).click();
+  await expect(beto.getByLabel('Voz de Ana')).toBeVisible();
+
+  await beto.getByRole('button', { name: 'Chat' }).click();
+  const campo = beto.getByLabel('Mensagem para a sala');
+  await campo.click();
+  await campo.pressSequentially('bora');
+  // Qualquer mudança na voz da Ana redesenha a barra lateral do Beto (falar, calar, desligar o microfone).
+  await ana.getByRole('button', { name: 'Desligar o microfone' }).click();
+  await expect(beto.getByLabel('Sala e pessoas').getByLabel('microfone desligado')).toBeVisible();
+  await ana.getByRole('button', { name: 'Ligar o microfone' }).click();
+  await expect(beto.getByLabel('Sala e pessoas').getByLabel('microfone desligado')).toHaveCount(0);
+  await beto.keyboard.type(' jogar?');
+
+  await expect(campo).toBeFocused();
+  await expect(campo).toHaveValue('bora jogar?');
+});
+
 test('no celular, nada passa da largura da tela (sem rolagem de lado), com o chat fechado ou aberto', async ({ browser }) => {
   const celular = { viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true };
   const pagina = await entrarNaSala(browser, novaSala(), 'Kayo', 'teste', celular);

@@ -219,8 +219,12 @@ function MenuDaVoz({ id, nome, aoFechar }: { id: string; nome: string; aoFechar:
   const silenciado = voz.silenciadoParaMim(id);
   const caixa = useRef<HTMLLIElement>(null);
 
+  // O foco vai para o volume só ao abrir. Junto com o efeito de baixo, ele voltava a cada desenho da barra lateral
+  // (o aoFechar é outra função a cada vez, e a barra redesenha quando alguém começa ou para de falar): quem digitava
+  // no chat perdia o campo sempre que aquele amigo falava.
+  useEffect(() => caixa.current?.querySelector('input')?.focus(), []);
+
   useEffect(() => {
-    caixa.current?.querySelector('input')?.focus();
     const tecla = (e: KeyboardEvent) => e.key === 'Escape' && aoFechar();
     addEventListener('keydown', tecla);
     return () => removeEventListener('keydown', tecla);

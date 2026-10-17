@@ -11,6 +11,9 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ### Adicionado
 - **Convites que abrem o app:** um link `ozamigos://sala/...` abre o Ozamigos direto na sala. Com o app aberto em outra sala, ele pergunta antes de trocar. No navegador do Windows, o link de uma sala pergunta antes: abrir no app, baixar o app ou continuar no navegador. Se o app não abre, o download vira o botão principal, e o navegador lembra a escolha para os próximos links.
 
+### Corrigido
+- **O chat perdia o campo quando um amigo falava:** com o volume de um amigo aberto na barra lateral, cada vez que ele começava ou parava de falar, o foco pulava do chat para o volume dele.
+
 ## [1.2.15] - 2026-10-15
 
 ### Corrigido
