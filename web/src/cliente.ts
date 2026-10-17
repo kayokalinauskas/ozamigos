@@ -473,6 +473,7 @@ class Cliente {
         break;
       }
       case 'entrou': {
+        if (e.pessoas.some((p) => p.id === msg.id)) break; // já veio na lista do "bem-vindo" (entramos ao mesmo tempo)
         this.mudar({ pessoas: [...e.pessoas, { id: msg.id, nome: msg.nome }] });
         const saida = this.saidaRecente(msg.nome);
         if (saida) {
@@ -738,14 +739,34 @@ class Cliente {
     this.limitarImagens();
   }
 
+  /**
+   * Quem não recebeu a imagem e ainda está na sala, com o id de agora: quem reconectou ganhou outro id e é
+   * reconhecido pelo nome (como na volta automática a assistir).
+   */
+  pessoaDeAgora(id: string, nome: string): Pessoa | undefined {
+    const { pessoas } = this.estado;
+    return pessoas.find((p) => p.id === id) ?? pessoas.find((p) => p.nome === nome);
+  }
+
   /** Manda de novo para quem não recebeu e ainda está na sala. */
   reenviarImagem(id: string) {
     const envio = this.estado.chat.find((m) => m.minha && m.imagem?.id === id)?.imagem?.envio;
     if (!envio || !this.imagensMinhas.has(id)) return;
-    const naSala = envio.falhas.filter((pessoa) => this.estado.pessoas.some((p) => p.id === pessoa));
-    const falhas = envio.falhas.filter((pessoa) => !naSala.includes(pessoa));
-    this.mudarImagem(this.estado.meuId ?? '', id, (img) => ({ ...img, envio: { ...envio, falhas } }));
-    this.enviarImagem(id, naSala);
+    const para = { ...envio.para };
+    const falhas: string[] = [];
+    const deNovo: string[] = [];
+    for (const antigo of envio.falhas) {
+      const pessoa = this.pessoaDeAgora(antigo, envio.para[antigo]);
+      if (!pessoa) {
+        falhas.push(antigo);
+        continue;
+      }
+      delete para[antigo];
+      para[pessoa.id] = pessoa.nome;
+      deNovo.push(pessoa.id);
+    }
+    this.mudarImagem(this.estado.meuId ?? '', id, (img) => ({ ...img, envio: { ...envio, para, falhas } }));
+    this.enviarImagem(id, deNovo);
   }
 
   private enviarImagem(id: string, pessoas: string[]) {

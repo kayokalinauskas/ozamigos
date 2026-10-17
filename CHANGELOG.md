@@ -11,6 +11,9 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ### Adicionado
 - **Imagens no chat:** cole um print com Ctrl+V, arraste para a sala ou use o botão de imagem (até 4 por vez, numa bandeja, e só vão com o Enter). Elas vão direto de um PC para o outro, sem passar pelo servidor, e nada fica guardado. Cada imagem é comprimida em WebP no tamanho da tela (até 2560×1440): um print de jogo de 8 MB chega com ~1 MB, com o texto legível. Clique para ver grande, copiar ou salvar. Se não chegar para alguém, aparece para quem e um "Tentar de novo".
 
+### Corrigido
+- **Amigo repetido na lista depois de um deploy:** quando todos voltavam juntos ao servidor (depois de um deploy, ou de uma queda), às vezes uma pessoa aparecia duas vezes na barra lateral, ocupando uma vaga a mais na contagem.
+
 ## [1.2.16] - 2026-10-17
 
 ### Adicionado

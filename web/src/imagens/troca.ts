@@ -24,6 +24,11 @@ const FILA_BAIXA = 256 * 1024;
  * continua de pé, os dados só se perdem).
  */
 const ESPERA_DO_OLA = 5_000;
+/**
+ * A conexão de voz ainda não existe ou está abrindo (a pessoa acabou de entrar, ou todos voltando depois de um deploy):
+ * a imagem espera até esse prazo, em vez de dar "não chegou" na hora.
+ */
+const ESPERA_DO_CANAL = 15_000;
 /** O maior pedaço: 64 KB passa em qualquer navegador de hoje; se a conexão disser menos, vale o dela. */
 const PEDACO_MAXIMO = 64 * 1024;
 
@@ -41,6 +46,7 @@ const esperar = (ms: number) => new Promise((resolver) => setTimeout(resolver, m
 
 class TrocaDeImagens {
   private readonly pessoas = new Map<string, Pessoa>();
+  private readonly esperas = new Map<string, Set<() => void>>(); // imagens esperando a conexão de voz com a pessoa existir
   private ligacao: LigacaoDasImagens | null = null;
   // O freio de quando estou transmitindo: um balde de fichas dividido entre todas as pessoas.
   private fichas = 0;
@@ -69,6 +75,7 @@ class TrocaDeImagens {
     const ola = new Promise<boolean>((r) => (ouviuOla = r));
     const p: Pessoa = { canal, maximoDaConexao, recepcao: new Recepcao(), ola, ouviuOla, fila: Promise.resolve(), confirmacoes: new Map() };
     this.pessoas.set(id, p);
+    this.esperas.get(id)?.forEach((responder) => responder());
     const anunciar = () => {
       try {
         this.mandar(canal, { t: 'ola', id: '' });
@@ -97,15 +104,32 @@ class TrocaDeImagens {
   }
 
   /** Manda a imagem para a pessoa, na fila dela. Resolve com null quando ela confirma, ou com o motivo de não ter chegado. */
-  enviar(id: string, imagem: ImagemParaEnviar): Promise<string | null> {
-    const p = this.pessoas.get(id);
-    if (!p || p.canal.readyState !== 'open') return Promise.resolve('sem conexão de voz');
+  async enviar(id: string, imagem: ImagemParaEnviar): Promise<string | null> {
+    const p = this.pessoas.get(id) ?? (await this.esperarConexao(id));
+    if (!p || p.canal.readyState === 'closing' || p.canal.readyState === 'closed') return 'sem conexão de voz';
     const resultado = p.fila.then(() => this.enviarAgora(p, imagem));
     p.fila = resultado.catch(() => undefined);
     return resultado;
   }
 
+  /** A pessoa acabou de entrar e a conexão de voz com ela ainda não existe (quem chega liga): espera ela aparecer. */
+  private esperarConexao(id: string): Promise<Pessoa | undefined> {
+    return new Promise((resolver) => {
+      const esperas = this.esperas.get(id) ?? new Set();
+      const responder = () => {
+        clearTimeout(prazo);
+        esperas.delete(responder);
+        if (esperas.size === 0 && this.esperas.get(id) === esperas) this.esperas.delete(id);
+        resolver(this.pessoas.get(id));
+      };
+      const prazo = setTimeout(responder, ESPERA_DO_CANAL);
+      esperas.add(responder);
+      this.esperas.set(id, esperas);
+    });
+  }
+
   private async enviarAgora(p: Pessoa, imagem: ImagemParaEnviar): Promise<string | null> {
+    if (!(await this.aberto(p.canal))) return 'sem conexão de voz';
     if (!(await p.ola)) return 'a página precisa ser recarregada (é de antes das imagens)';
     const { canal } = p;
     let responder!: (motivo: string | null) => void;
@@ -130,6 +154,22 @@ class TrocaDeImagens {
     clearTimeout(prazo);
     p.confirmacoes.delete(imagem.id);
     return motivo;
+  }
+
+  /** Resolve com true quando o canal está aberto; false se ele fechar ou não abrir no prazo. */
+  private aberto(canal: RTCDataChannel): Promise<boolean> {
+    if (canal.readyState !== 'connecting') return Promise.resolve(canal.readyState === 'open');
+    return new Promise((resolver) => {
+      const responder = () => {
+        clearTimeout(prazo);
+        canal.removeEventListener('open', responder);
+        canal.removeEventListener('close', responder);
+        resolver(canal.readyState === 'open');
+      };
+      const prazo = setTimeout(responder, ESPERA_DO_CANAL);
+      canal.addEventListener('open', responder);
+      canal.addEventListener('close', responder);
+    });
   }
 
   private mandar(canal: RTCDataChannel, msg: Controle) {

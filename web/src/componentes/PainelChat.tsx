@@ -229,7 +229,7 @@ function ImagemNoChat({ m, aoAbrir }: { m: MensagemDoChat; aoAbrir: (m: Mensagem
 }
 
 function SituacaoDaImagem({ m }: { m: MensagemDoChat }) {
-  const { pessoas } = useCliente();
+  useCliente(); // redesenha quando alguém entra ou sai (o "Tentar de novo" depende de quem está na sala)
   const img = m.imagem!;
   if (img.estado === 'falhou') return <figcaption className="erro">A imagem não chegou inteira.</figcaption>;
   if (img.estado === 'apagada') return <figcaption>Imagem antiga: saiu da memória desta página.</figcaption>;
@@ -249,7 +249,7 @@ function SituacaoDaImagem({ m }: { m: MensagemDoChat }) {
   return (
     <figcaption className="erro">
       Não chegou para {falhas.map((id) => para[id]).join(', ')}.{' '}
-      {falhas.some((id) => pessoas.some((p) => p.id === id)) && (
+      {falhas.some((id) => cliente.pessoaDeAgora(id, para[id])) && (
         <button type="button" className="chat-imagem-tentar" onClick={() => cliente.reenviarImagem(img.id)}>
           Tentar de novo
         </button>

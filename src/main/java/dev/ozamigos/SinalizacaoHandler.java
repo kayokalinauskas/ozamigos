@@ -158,8 +158,10 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
         enviar(segura(sessao), boasVindas);
 
+        // Só quem já estava quando entrei: quem entrou depois (ao mesmo tempo, como todos voltando depois de um
+        // deploy) já me recebeu na lista do "bem-vindo", e com o "entrou" também me via duas vezes.
         ObjectNode entrou = json.createObjectNode().put("tipo", "entrou").put("id", id).put("nome", nome);
-        for (WebSocketSession outro : salas.outros(codigo, id)) {
+        for (WebSocketSession outro : entrada.avisar()) {
             enviar(outro, entrou);
         }
     }

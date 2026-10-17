@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.adapter.standard.StandardWebSocketSession;
 
 class SalasTest {
 
@@ -32,6 +34,21 @@ class SalasTest {
         assertThat(entrada.outros()).containsEntry("a", "Ana").containsEntry("b", "Beto");
         assertThat(entrada.compartilhando()).containsExactly("a", "b");
         assertThat(entrada.plateias()).containsEntry("a", List.of("b")).containsEntry("b", List.of());
+    }
+
+    @Test
+    void oEntrouVaiSoParaQuemJaEstavaQuandoAPessoaEntrou() {
+        WebSocketSession ana = new StandardWebSocketSession(null, null, null, null);
+        WebSocketSession beto = new StandardWebSocketSession(null, null, null, null);
+
+        // Os dois voltando juntos (depois de um deploy): a Ana entra, e o Beto entra antes de ela ser anunciada.
+        Salas.Entrada daAna = salas.entrar("sala123", "a", "Ana", "", ana);
+        Salas.Entrada doBeto = salas.entrar("sala123", "b", "Beto", "", beto);
+
+        // O Beto recebe a Ana na lista do "bem-vindo"; avisá-lo também com o "entrou" da Ana a punha duas vezes na tela dele.
+        assertThat(doBeto.outros()).containsOnlyKeys("a");
+        assertThat(daAna.avisar()).isEmpty();
+        assertThat(doBeto.avisar()).containsExactly(ana);
     }
 
     @Test

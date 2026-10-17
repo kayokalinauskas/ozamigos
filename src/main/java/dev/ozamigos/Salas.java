@@ -28,9 +28,11 @@ public class Salas {
     /**
      * O que quem acabou de entrar precisa saber: quem já está (id -> nome),
      * quem está transmitindo, quem assiste cada transmissão e quem está gravando as estatísticas (ou null).
+     * {@code avisar} são as conexões de quem já estava, as que recebem o "entrou": tiradas junto com {@code outros},
+     * para quem entra ao mesmo tempo não receber a mesma pessoa duas vezes (na lista do "bem-vindo" e num "entrou").
      */
     public record Entrada(Map<String, String> outros, List<String> compartilhando, Map<String, List<String>> plateias,
-            String gravador) {}
+            String gravador, List<WebSocketSession> avisar) {}
 
     /**
      * O que sobrou depois que alguém saiu, as plateias que mudaram por causa disso e se a gravação
@@ -60,12 +62,13 @@ public class Salas {
         }
         Map<String, String> outros = new LinkedHashMap<>();
         sala.participantes.keySet().forEach(outroId -> outros.put(outroId, sala.nomes.get(outroId)));
+        List<WebSocketSession> avisar = new ArrayList<>(sala.participantes.values());
         sala.participantes.put(id, sessao);
         sala.nomes.put(id, nome);
         sala.fichas.put(id, ficha);
         Map<String, List<String>> plateias = new LinkedHashMap<>();
         sala.plateias.forEach((quem, plateia) -> plateias.put(quem, List.copyOf(plateia)));
-        return new Entrada(outros, List.copyOf(sala.plateias.keySet()), plateias, sala.gravador);
+        return new Entrada(outros, List.copyOf(sala.plateias.keySet()), plateias, sala.gravador, avisar);
     }
 
     /** Devolve null se a pessoa já não estava na sala (por exemplo, já tirada numa reconexão). */
