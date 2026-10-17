@@ -11,8 +11,8 @@ function mostrarErro(texto) {
 const parametros = new URLSearchParams(location.search);
 mostrarErro(parametros.get('erro'));
 
-// Acordando o servidor: o main.js abre esta tela quando o servidor demora a responder, e troca pela sala quando
-// ele acorda. "Trocar o servidor" para a espera e mostra o formulário.
+// Conectando: o main.js abre esta tela quando o servidor demora a responder (o Render gratuito acordando), e troca
+// pela sala quando ele responde. A tela não explica o porquê: isso fica no GitHub. "Trocar o servidor" para a espera.
 const acordando = parametros.get('acordando');
 if (acordando) {
   const formulario = document.getElementById('formulario');
@@ -20,7 +20,6 @@ if (acordando) {
   const segundos = document.getElementById('segundos');
   formulario.hidden = true;
   tela.hidden = false;
-  document.getElementById('servidor').textContent = acordando;
   const comeco = Number(parametros.get('desde')) || Date.now(); // a espera começou um pouco antes desta tela
   const contar = () => (segundos.textContent = String(Math.floor((Date.now() - comeco) / 1000)));
   contar();

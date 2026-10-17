@@ -13,7 +13,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 - **Atalhos com o jogo na frente:** Ctrl+Shift+M liga e desliga o microfone e Ctrl+Shift+D o som, como no Discord, sem tirar a tecla do jogo. Na engrenagem, a aba nova **Atalhos** troca as teclas (até os botões laterais do mouse) e liga o **apertar para falar**. No navegador, os atalhos valem com a aba em foco.
 - **Print da transmissão para o chat:** o botão de câmera no vídeo de quem você assiste põe o quadro na bandeja do chat; ele vai com o Enter.
-- **"Acordando o servidor…":** o servidor gratuito dorme depois de 15 minutos sem ninguém e leva até um minuto para acordar. Em vez de a janela demorar a aparecer, o app mostra o que está acontecendo, conta o tempo e abre a sala sozinho quando o servidor responde.
+- **Tela "Conectando…":** quando o servidor demora a responder, a janela aparece na hora com uma tela de espera, e a sala abre sozinha assim que ele responde. Antes, a janela podia levar até um minuto para aparecer.
 - **A conexão com cada amigo:** um ícone de sinal ao lado do nome quando ela está instável ou ruim, e o tempo de ida e volta e a perda no menu de voz da pessoa.
 
 ### Mudado

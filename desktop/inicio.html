@@ -12,20 +12,17 @@
       <section id="acordando" class="cartao" aria-live="polite" hidden>
         <div class="acordando-topo">
           <span class="girando" aria-hidden="true"></span>
-          <h1>Acordando o servidor…</h1>
+          <h1>Conectando…</h1>
         </div>
-        <p class="subtitulo">
-          O servidor gratuito do grupo dorme depois de 15 minutos sem ninguém usar, e leva até um minuto para acordar. A sala abre
-          sozinha assim que ele responder.
-        </p>
-        <p class="acordando-tempo"><span id="segundos">0</span> s · <span id="servidor"></span></p>
+        <p class="subtitulo">Isso pode levar alguns instantes. A sala abre sozinha assim que tudo estiver pronto.</p>
+        <p class="acordando-tempo"><span id="segundos">0</span> s</p>
         <button type="button" id="outro-servidor" class="secundario">Trocar o servidor</button>
       </section>
       <form id="formulario">
         <h1 class="logo" aria-label="Ozamigos">
           <svg class="tecla-oz" viewBox="1 1 94 94" aria-hidden="true"><rect x="1" y="1" width="94" height="94" rx="21" fill="#b6f24a"/><rect x="5" y="4" width="86" height="78" rx="17" fill="#2a3326"/><path d="M34.39 59.56Q30.31 59.56 27.17 58.25Q24.04 56.94 21.87 54.7Q19.71 52.46 18.6 49.61Q17.48 46.76 17.48 43.66V42.46Q17.48 39.29 18.64 36.4Q19.79 33.51 21.99 31.27Q24.18 29.03 27.32 27.74Q30.45 26.44 34.39 26.44Q38.35 26.44 41.47 27.74Q44.59 29.03 46.78 31.27Q48.98 33.51 50.13 36.4Q51.29 39.29 51.29 42.46V43.66Q51.29 46.76 50.17 49.61Q49.06 52.46 46.9 54.7Q44.73 56.94 41.6 58.25Q38.46 59.56 34.39 59.56ZM34.39 52.78Q37.29 52.78 39.29 51.51Q41.28 50.24 42.32 48.03Q43.36 45.82 43.36 43.06Q43.36 40.21 42.29 38Q41.23 35.79 39.22 34.51Q37.21 33.22 34.39 33.22Q31.59 33.22 29.57 34.51Q27.55 35.79 26.48 38Q25.41 40.21 25.41 43.06Q25.41 45.82 26.45 48.03Q27.49 50.24 29.5 51.51Q31.51 52.78 34.39 52.78Z" fill="#eef9dc"/><path d="M55.14 58.48V52.21L70.42 33.85V34.76L69.22 33.17L70.16 33.62H55.09V27.52H78.69V33.79L63.41 52.15V51.29L64.66 52.92L63.69 52.38H79.31V58.48Z" fill="#b6f24a"/></svg><span aria-hidden="true">amigos</span>
         </h1>
-        <p class="subtitulo">Qual é o endereço do servidor do seu grupo? Quem fez o deploy no Render sabe (algo como https://ozamigos.onrender.com).</p>
+        <p class="subtitulo">Qual é o endereço do servidor do seu grupo? Peça a quem te convidou.</p>
         <label>
           <span>Endereço do servidor</span>
           <input id="endereco" type="url" placeholder="https://..." required autofocus spellcheck="false" />

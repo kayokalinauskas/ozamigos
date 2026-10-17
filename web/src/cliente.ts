@@ -347,7 +347,7 @@ class Cliente {
     if (this.estado.fase === 'sala') {
       this.perderConexao();
     } else {
-      this.mudar({ fase: 'entrada', erro: 'Não foi possível falar com o servidor. Se ele estava dormindo, espere 1 minuto e tente de novo.' });
+      this.mudar({ fase: 'entrada', erro: 'Não foi possível conectar. Confira a internet e tente de novo em instantes.' });
     }
   }
 
@@ -1039,7 +1039,7 @@ class Cliente {
     this.fecharConexao('recebimento', id);
     if (tentativas > (conectou ? 3 : 1)) {
       this.tentativasDeVideo.delete(id);
-      this.avisar(`Não foi possível conectar direto com ${this.nomeDe(id)}. Algumas redes exigem um servidor TURN.`, 'erro', {
+      this.avisar(`Não foi possível conectar com ${this.nomeDe(id)}. A rede de um de vocês pode estar bloqueando a conexão.`, 'erro', {
         rotulo: 'Tentar de novo',
         executar: () => this.pedirVideoDeNovo(id),
       });

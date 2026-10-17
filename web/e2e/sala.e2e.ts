@@ -45,6 +45,17 @@ function prepararPagina() {
     },
   });
 
+  // Guarda as conexões criadas, para medir o que cada uma manda e recebe.
+  const conexoes: RTCPeerConnection[] = [];
+  (window as unknown as { __conexoes: RTCPeerConnection[] }).__conexoes = conexoes;
+  const Original = RTCPeerConnection;
+  window.RTCPeerConnection = class extends Original {
+    constructor(...argumentos: ConstructorParameters<typeof RTCPeerConnection>) {
+      super(...argumentos);
+      conexoes.push(this);
+    }
+  };
+
   // Guarda as ofertas que chegam, para conferir como a transmissão foi montada.
   const ofertas: string[] = [];
   (window as unknown as { __ofertas: string[] }).__ofertas = ofertas;
@@ -82,6 +93,23 @@ async function entrarNaSala(browser: Browser, sala: string, nome: string, senha 
 }
 
 const novaSala = () => `e2e${Math.random().toString(36).slice(2, 10)}`;
+
+/** Os bytes de vídeo que saem (ou chegam) por cada conexão aberta da página: quantas conexões levam vídeo, e quanto. */
+const video = (pagina: Page, sentido: 'outbound-rtp' | 'inbound-rtp') =>
+  pagina.evaluate(async (sentido) => {
+    let conexoes = 0;
+    let bytes = 0;
+    for (const pc of (window as unknown as { __conexoes: RTCPeerConnection[] }).__conexoes) {
+      if (pc.connectionState === 'closed') continue;
+      let destaConexao = 0;
+      (await pc.getStats()).forEach((r) => {
+        if (r.type === sentido && r.kind === 'video') destaConexao += sentido === 'outbound-rtp' ? r.bytesSent : r.bytesReceived;
+      });
+      if (destaConexao > 0) conexoes++;
+      bytes += destaConexao;
+    }
+    return { conexoes, bytes };
+  }, sentido);
 
 /** O volume mais alto (RMS) que chega à caixa de som da página em `ms` milissegundos. */
 const volumeNaSaida = (pagina: Page, ms = 1500) =>
@@ -196,6 +224,28 @@ test('a voz chega, o microfone desligado silencia e quem sai some da sala', asyn
   await expect(beto.getByLabel('Sala e pessoas')).toContainText('Ana');
   await ana.getByRole('button', { name: 'Sair da sala' }).click();
   await expect(beto.getByLabel('Sala e pessoas')).not.toContainText('Ana');
+});
+
+test('o vídeo de quem transmite só sai para quem clicou em Assistir, e para de sair quando a pessoa deixa de assistir', async ({ browser }) => {
+  const sala = novaSala();
+  const ana = await entrarNaSala(browser, sala, 'Ana');
+  const beto = await entrarNaSala(browser, sala, 'Beto');
+  const caio = await entrarNaSala(browser, sala, 'Caio');
+  await expect(ana.getByLabel('Sala e pessoas')).toContainText('Caio');
+
+  await ana.getByRole('button', { name: 'Transmitir' }).click();
+  await ana.getByRole('menuitem', { name: /A tela inteira/ }).click();
+  await expect(beto.getByRole('button', { name: 'Assistir Ana' })).toBeVisible();
+  await ana.waitForTimeout(3000); // ao vivo, e ninguém clicou: nada de vídeo sai do PC da Ana
+  expect(await video(ana, 'outbound-rtp')).toEqual({ conexoes: 0, bytes: 0 });
+
+  await beto.getByRole('button', { name: 'Assistir Ana' }).click();
+  await expect.poll(async () => (await video(beto, 'inbound-rtp')).bytes, { timeout: 30_000 }).toBeGreaterThan(50_000);
+  expect((await video(ana, 'outbound-rtp')).conexoes).toBe(1); // uma conexão de vídeo, a do Beto
+  expect(await video(caio, 'inbound-rtp')).toEqual({ conexoes: 0, bytes: 0 }); // o Caio não clicou
+
+  await beto.getByRole('button', { name: 'Parar de assistir Ana' }).first().click();
+  await expect.poll(async () => (await video(ana, 'outbound-rtp')).conexoes, { timeout: 10_000 }).toBe(0);
 });
 
 test('apertar para falar: a voz só vai com a tecla apertada, e o atalho de mudo desliga o microfone', async ({ browser }) => {

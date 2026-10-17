@@ -166,7 +166,7 @@ export function PainelChat() {
           onKeyDown={tecla}
           onPaste={colar}
           maxLength={LIMITE_DO_CHAT}
-          placeholder={conexaoPerdida ? 'Sem conexão com o servidor…' : 'Mensagem para a sala'}
+          placeholder={conexaoPerdida ? 'Reconectando…' : 'Mensagem para a sala'}
           disabled={conexaoPerdida}
           aria-label="Mensagem para a sala"
         />

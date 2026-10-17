@@ -9,8 +9,8 @@ import { voz } from '../voz/voz';
 import { AbaDeAtalhos } from './Atalhos';
 
 const SUPRESSOES: { valor: Supressao; titulo: string; texto: string }[] = [
-  { valor: 'rnnoise', titulo: 'RNNoise (recomendado)', texto: 'Uma rede neural tira teclado, ventilador e barulho de fundo, e deixa a voz.' },
-  { valor: 'navegador', titulo: 'Do navegador', texto: 'A supressão do próprio Chrome: mais leve, tira menos ruído.' },
+  { valor: 'rnnoise', titulo: 'Inteligente (recomendado)', texto: 'Tira teclado, ventilador e barulho de fundo, e deixa só a voz.' },
+  { valor: 'navegador', titulo: 'Básica', texto: 'Mais leve, tira menos ruído.' },
   { valor: 'nenhuma', titulo: 'Desligada', texto: 'O microfone vai como está. Bom para microfones de estúdio em lugar silencioso.' },
 ];
 
@@ -142,8 +142,8 @@ function AbaDeVoz() {
         <p className="ajuda">
           {ajustes.sensibilidadeAutomatica
             ? rnnoise
-              ? 'O microfone abre quando o RNNoise reconhece voz acima do barulho do ambiente: teclado, mouse e ventilador não abrem.'
-              : 'O microfone abre quando o som passa do barulho do ambiente, que o Ozamigos acompanha sozinho.'
+              ? 'O microfone abre quando reconhece voz acima do barulho do ambiente: teclado, mouse e ventilador não abrem.'
+              : 'O microfone abre quando o som passa do barulho do ambiente.'
             : 'Arraste o limite: o microfone abre quando a barra passa dele. Fale normalmente e deixe o limite logo acima do barulho de quando você está quieto.'}
         </p>
         <Medidor automatica={ajustes.sensibilidadeAutomatica} limiarDb={ajustes.limiarDb} aoMudarLimiar={(db) => mudar({ limiarDb: db })} />
@@ -282,7 +282,7 @@ function AbaGeral() {
         <h3 id="titulo-versao">Versão</h3>
         <p className="ajuda">
           {ponte?.versao ? `App para Windows ${ponte.versao}` : 'Versão web'}
-          {__COMMIT__ && ` · interface ${__COMMIT__}`}. A interface vem do servidor e se atualiza sozinha; o app para Windows se atualiza ao abrir.
+          {__COMMIT__ && ` · ${__COMMIT__}`}. O Ozamigos se atualiza sozinho.
         </p>
       </section>
       <section className="configuracoes-secao" aria-labelledby="titulo-servidor">

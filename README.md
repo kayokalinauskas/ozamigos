@@ -114,7 +114,7 @@
 - **Som do jogo sem eco:** a transmissão leva o som de todos os programas do PC, menos o do próprio **Ozamigos** (a voz dos amigos e as transmissões que você assiste) e o de apps de chamada de voz. Ninguém ouve a própria voz nem o próprio jogo de volta. O áudio vai em estéreo.
 - **Sem engasgos atrás do jogo:** a janela não é freada pelo Windows quando fica escondida, e a captura não cai para ~21 fps quando outro programa fica entre o jogo e o Ozamigos (desde a 1.2.14).
 - **Se recupera sozinho:** se a página travar e cair, ela abre de novo; e a janela guardada num monitor que foi desligado volta para a tela.
-- **Servidor dormindo:** o Render gratuito dorme depois de 15 minutos sem ninguém e leva até um minuto para acordar. O app mostra **"Acordando o servidor…"**, com o tempo, e abre a sala sozinho quando ele responde (antes, a janela demorava a aparecer).
+- **Servidor dormindo:** o Render gratuito dorme depois de 15 minutos sem ninguém e leva até um minuto para acordar. O app mostra **"Conectando…"**, com o tempo, e abre a sala sozinho quando ele responde (antes, a janela demorava a aparecer).
 - **Atualização automática da interface:** o app carrega a interface do servidor, então cada deploy chega a todos sem reinstalar.
 - **Convites que abrem o app:** um link `ozamigos://sala/CODIGO` abre o Ozamigos instalado direto na sala (com o app aberto em outra sala, ele pergunta antes). No navegador do Windows, o link de uma sala pergunta antes: **abrir no app**, **baixar o app** ou **continuar no navegador** (e lembra a escolha).
 - **O app se atualiza sozinho** (a partir da 1.2.0, na versão instalada): ao abrir, ele procura uma versão nova nas releases, baixa, instala e abre de novo. A versão portátil continua sendo atualizada à mão.

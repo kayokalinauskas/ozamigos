@@ -93,7 +93,7 @@ export function PainelEstatisticas({ aoFechar }: { aoFechar: () => void }) {
         entender depois um travamento.
       </p>
       <p className="ajuda">
-        Nos primeiros 15 a 25 segundos, a imagem ganha nitidez aos poucos: é o WebRTC medindo a internet. Se a captura estiver abaixo do fps da
+        Nos primeiros 15 a 25 segundos, a imagem ganha nitidez aos poucos: é a conexão medindo a internet. Se a captura estiver abaixo do fps da
         qualidade, o limite está em copiar a imagem do jogo no PC de quem transmite, não na rede.
       </p>
     </aside>

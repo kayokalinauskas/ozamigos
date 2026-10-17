@@ -84,7 +84,7 @@ test('com o servidor dormindo, explica e conta o tempo, e abre a sala sozinho qu
   const aberto = await abrirApp(endereco);
   try {
     await expect(aberto.janela.locator('#acordando')).toBeVisible({ timeout: 5_000 });
-    await expect(aberto.janela.locator('#acordando')).toContainText('Acordando o servidor');
+    await expect(aberto.janela.locator('#acordando')).toContainText('Conectando');
     expect(await aberto.janela.locator('#formulario').isVisible()).toBe(false);
     await expect.poll(() => aberto.janela.url(), { timeout: 10_000 }).toBe(`${endereco}/`);
     await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');

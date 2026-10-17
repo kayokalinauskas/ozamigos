@@ -118,7 +118,8 @@ async function limparCacheSeAtualizou() {
 // ===== Acordar o servidor =====
 // O Render gratuito dorme depois de 15 min sem ninguém: o primeiro pedido fica parado até ele acordar (75 s medidos
 // em 17/10/2026). A janela só aparecia com a página pronta, e o app parecia não abrir. Agora, se o servidor não
-// responde logo, a tela de início explica e conta o tempo, e a sala abre sozinha quando ele acorda.
+// responde logo, a tela de início mostra "Conectando…" com o tempo, e a sala abre sozinha quando ele acorda. A tela
+// não fala em servidor dormindo nem em plano gratuito (pedido do dono: o app é um produto).
 const MOSTRAR_ACORDANDO_DEPOIS = 1_500;
 const PRAZO_DE_CADA_PERGUNTA = 90_000; // o Render segura o pedido enquanto acorda: não desistir antes disso
 const PRAZO_PARA_ACORDAR = 3 * 60_000;
@@ -174,7 +175,7 @@ async function esperarOServidor(vez, origem, sala) {
         return;
       }
       if (Date.now() - comeco > PRAZO_PARA_ACORDAR) {
-        janela.loadFile(INICIO, { query: { erro: `O servidor ${origem} não acordou em 3 minutos. Confira o endereço, ou tente de novo daqui a pouco.` } });
+        janela.loadFile(INICIO, { query: { erro: `Não foi possível conectar a ${origem}. Confira a internet e o endereço, ou tente de novo daqui a pouco.` } });
         return;
       }
       await new Promise((pronto) => setTimeout(pronto, 2_000));

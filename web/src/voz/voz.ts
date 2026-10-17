@@ -588,7 +588,7 @@ class Voz {
     if (c.tentativas >= TENTATIVAS_DE_VOZ) {
       if (!this.avisouSemVoz.has(c.id)) {
         this.avisouSemVoz.add(c.id);
-        this.cliente?.avisar(`Não foi possível ligar a voz com ${this.nomeDe(c.id)}. Algumas redes exigem um servidor TURN.`, 'erro');
+        this.cliente?.avisar(`Não foi possível ligar a voz com ${this.nomeDe(c.id)}. A rede de um de vocês pode estar bloqueando a conexão.`, 'erro');
       }
       return;
     }

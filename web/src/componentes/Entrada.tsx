@@ -51,7 +51,7 @@ export function Entrada() {
     <main className="entrada">
       <form className="cartao-entrada" onSubmit={enviar}>
         <Logo grande />
-        <p className="subtitulo">Transmita seu jogo e converse com os amigos, direto de um PC para o outro.</p>
+        <p className="subtitulo">Transmita seu jogo e converse com os amigos.</p>
 
         <label className="campo">
           <span>Seu nome</span>
