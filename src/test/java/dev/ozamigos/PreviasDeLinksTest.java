@@ -109,14 +109,32 @@ class PreviasDeLinksTest {
     }
 
     @Test
-    void seOYoutubeRecusaOOembedOCartaoSaiComAMiniaturaPublicaDoVideo() throws Exception {
+    void seOYoutubeRecusaOOembedOTituloVemDaPaginaDoVideo() throws Exception {
+        // Vídeo com a incorporação desligada pelo dono: o oEmbed responde 401, a página continua com as metatags.
+        InternetFalsa internet = new InternetFalsa(Map.of(
+                "https://www.youtube.com/oembed?format=json&url=https%3A%2F%2Fyoutu.be%2FabcDEF12345",
+                new Buscador.Resposta(401, "text/html", new byte[0], null),
+                "https://www.youtube.com/watch?v=abcDEF12345",
+                texto("<meta property=\"og:title\" content=\"It Begins..\"><meta property=\"og:image\" content=\"https://i.ytimg.com/vi/abcDEF12345/maxresdefault.jpg\"><link itemprop=\"name\" content=\"O Canal &amp; Cia\">"),
+                "https://i.ytimg.com/vi/abcDEF12345/maxresdefault.jpg", new Buscador.Resposta(200, "image/png", png(1280, 720), null)));
+        PreviasDeLinks previas = new PreviasDeLinks(internet, JsonMapper.builder().build());
+
+        PreviasDeLinks.Previa previa = previas.buscar("https://youtu.be/abcDEF12345").get(5, TimeUnit.SECONDS).orElseThrow();
+
+        assertThat(previa.titulo()).isEqualTo("It Begins..");
+        assertThat(previa.autor()).isEqualTo("O Canal & Cia");
+        assertThat(previa.miniatura()).startsWith("data:image/jpeg;base64,");
+    }
+
+    @Test
+    void seOYoutubeRecusaOOembedEAPaginaOCartaoSaiComAMiniaturaPublicaDoVideo() throws Exception {
         InternetFalsa internet = new InternetFalsa(Map.of(
                 "https://i.ytimg.com/vi/hkm-8j0osQI/hqdefault.jpg", new Buscador.Resposta(200, "image/png", png(480, 360), null)));
         PreviasDeLinks previas = new PreviasDeLinks(internet, JsonMapper.builder().build());
 
         PreviasDeLinks.Previa previa = previas.buscar("https://www.youtube.com/watch?v=hkm-8j0osQI").get(5, TimeUnit.SECONDS).orElseThrow();
 
-        assertThat(previa.titulo()).isNull(); // o oEmbed respondeu 404 (a internet falsa não o conhece)
+        assertThat(previa.titulo()).isNull(); // o oEmbed e a página responderam 404 (a internet falsa não os conhece)
         assertThat(previa.miniatura()).startsWith("data:image/jpeg;base64,");
     }
 

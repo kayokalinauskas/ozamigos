@@ -57,10 +57,11 @@ public class PreviasDeLinks {
     enum Fonte { OEMBED, PAGINA }
 
     /**
-     * Um link de um site conhecido: onde buscar a prévia dele. imagemReserva: a imagem que vale se a busca falhar (a
-     * miniatura pública de um vídeo do YouTube, que não depende do oEmbed), ou null.
+     * Um link de um site conhecido: onde buscar a prévia dele. Se o oEmbed falhar, paginaReserva é a página de onde
+     * tirar as metatags (a do vídeo do YouTube), e imagemReserva a imagem que vale se nem ela der (a miniatura pública
+     * do vídeo). Os dois podem ser null.
      */
-    record Link(String url, String site, URI busca, Fonte fonte, String imagemReserva) {}
+    record Link(String url, String site, URI busca, Fonte fonte, URI paginaReserva, String imagemReserva) {}
 
     private record Dados(String titulo, String autor, String imagem) {}
 
@@ -73,7 +74,7 @@ public class PreviasDeLinks {
     private static final Pattern VIDEO_DO_YOUTUBE = Pattern.compile("[A-Za-z0-9_-]{6,20}");
 
     static final int MAXIMO_DO_OEMBED = 100_000;
-    static final int MAXIMO_DA_PAGINA = 1_500_000;
+    static final int MAXIMO_DA_PAGINA = 3_000_000; // a página de um vídeo do YouTube tem ~1,3 MB
     static final int MAXIMO_DA_IMAGEM = 3_000_000;
     /** Imagens maiores que isso (em pixels) nem são abertas: uma "bomba" de 50000×50000 encheria a memória. */
     static final long PIXELS_NO_MAXIMO = 40_000_000;
@@ -86,7 +87,9 @@ public class PreviasDeLinks {
     private static final int REDIRECIONAMENTOS = 3;
 
     // As páginas que o servidor pode abrir (para as metatags de prévia) e de onde podem vir as imagens.
-    private static final List<String> PAGINAS = List.of("twitch.tv", "clips.twitch.tv", "medal.tv");
+    private static final List<String> PAGINAS = List.of("youtube.com", "twitch.tv", "clips.twitch.tv", "medal.tv");
+    // O canal, na página de um vídeo do YouTube (as metatags og: não trazem).
+    private static final Pattern CANAL_DO_YOUTUBE = Pattern.compile("<link itemprop=\"name\" content=\"([^\"]{1,200})\"");
     private static final List<String> IMAGENS = List.of("ytimg.com", "jtvnw.net", "streamable.com", "tiktokcdn.com", "tiktokcdn-us.com", "medal.tv");
 
     private final Buscador buscador;
@@ -190,22 +193,23 @@ public class PreviasDeLinks {
     }
 
     private static Link oembed(String endereco, String site, String api) {
-        return new Link(endereco, site, URI.create(api + URLEncoder.encode(endereco, StandardCharsets.UTF_8)), Fonte.OEMBED, null);
+        return new Link(endereco, site, URI.create(api + URLEncoder.encode(endereco, StandardCharsets.UTF_8)), Fonte.OEMBED, null, null);
     }
 
     /**
-     * O YouTube pode recusar o oEmbed a servidores (pedidos de datacenter): sem ele, o cartão sai com a miniatura pública
-     * do vídeo, que fica num endereço fixo.
+     * O YouTube recusa o oEmbed dos vídeos cujo dono desligou a incorporação em outros sites (401), e pode recusar
+     * pedidos de datacenter. Sem ele, o título, o canal e a imagem vêm da página do vídeo (as metatags que o Discord
+     * também lê); sem nenhum dos dois, o cartão sai com a miniatura pública do vídeo, que fica num endereço fixo.
      */
     private static Link youtube(String endereco, String video) {
         String api = "https://www.youtube.com/oembed?format=json&url=";
         return new Link(endereco, "YouTube", URI.create(api + URLEncoder.encode(endereco, StandardCharsets.UTF_8)), Fonte.OEMBED,
-                "https://i.ytimg.com/vi/" + video + "/hqdefault.jpg");
+                URI.create("https://www.youtube.com/watch?v=" + video), "https://i.ytimg.com/vi/" + video + "/hqdefault.jpg");
     }
 
     // A página é remontada com as partes conferidas, não com o endereço que veio no chat.
     private static Link pagina(String endereco, String site, String pagina) {
-        return new Link(endereco, site, URI.create(pagina), Fonte.PAGINA, null);
+        return new Link(endereco, site, URI.create(pagina), Fonte.PAGINA, null, null);
     }
 
     /**
@@ -248,10 +252,17 @@ public class PreviasDeLinks {
         try {
             Dados dados;
             try {
-                dados = link.fonte() == Fonte.OEMBED ? doOembed(link) : daPagina(link);
+                dados = link.fonte() == Fonte.OEMBED ? doOembed(link) : daPagina(link.busca(), link.site());
             } catch (IOException | RuntimeException e) {
                 log.info("a prévia de um link do {} não saiu: {}", link.site(), e.getClass().getSimpleName());
                 dados = null;
+            }
+            if (dados == null && link.paginaReserva() != null) {
+                try {
+                    dados = daPagina(link.paginaReserva(), link.site());
+                } catch (IOException | RuntimeException e) {
+                    log.info("a página de um link do {} não saiu: {}", link.site(), e.getClass().getSimpleName());
+                }
             }
             if (dados == null && link.imagemReserva() != null) {
                 dados = new Dados(null, null, link.imagemReserva());
@@ -302,13 +313,14 @@ public class PreviasDeLinks {
     }
 
     /** As metatags de prévia (og:title, og:image) da página, seguindo redirecionamentos só dentro dos sites conhecidos. */
-    private Dados daPagina(Link link) throws IOException, InterruptedException {
-        Buscador.Resposta resposta = buscarSeguindo(link.busca(), MAXIMO_DA_PAGINA, PAGINAS);
+    private Dados daPagina(URI pagina, String site) throws IOException, InterruptedException {
+        Buscador.Resposta resposta = buscarSeguindo(pagina, MAXIMO_DA_PAGINA, PAGINAS);
         if (resposta == null || resposta.status() != 200) {
-            log.info("a prévia de um link do {} não saiu: {}", link.site(), resposta == null ? "redirecionamento fora da lista" : "HTTP " + resposta.status());
+            log.info("a página de um link do {} não saiu: {}", site, resposta == null ? "redirecionamento fora da lista" : "HTTP " + resposta.status());
             return null;
         }
-        Map<String, String> metas = metatags(new String(resposta.corpo(), StandardCharsets.UTF_8));
+        String html = new String(resposta.corpo(), StandardCharsets.UTF_8);
+        Map<String, String> metas = metatags(html);
         String titulo = metas.get("og:title");
         if (titulo != null) {
             titulo = titulo.replaceFirst("\\s+-\\s+(Twitch|Medal)$", "").strip();
@@ -320,7 +332,9 @@ public class PreviasDeLinks {
         if (imagem != null && imagem.contains("ttv-static-metadata")) {
             imagem = null; // o logotipo da Twitch, não a imagem do clipe
         }
-        return new Dados(titulo, null, imagem);
+        Matcher canal = CANAL_DO_YOUTUBE.matcher(html);
+        String autor = site.equals("YouTube") && canal.find() ? desfazerEntidades(canal.group(1)) : null;
+        return titulo == null && imagem == null ? null : new Dados(titulo, autor, imagem);
     }
 
     static Map<String, String> metatags(String html) {
