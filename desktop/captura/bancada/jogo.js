@@ -1,4 +1,4 @@
-// Bancada da captura (veja "Captura própria" no AGENTS.md). Rodar de desktop/: node_modules\.bin\electron capturaancada\jogo.js
+// Bancada da captura (veja "Captura própria" no AGENTS.md). Rodar de desktop/: node_modules/.bin/electron captura/bancada/jogo.js
 // O "jogo", num processo só dele: tela cheia, sem limite de fps. Grava o fps em jogo.log a cada segundo;
 // trava a carga quando aparece travar.flag e fecha quando aparece sair.flag.
 const { app, BrowserWindow, screen } = require('electron');

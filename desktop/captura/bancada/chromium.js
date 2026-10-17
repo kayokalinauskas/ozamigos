@@ -1,5 +1,5 @@
 // Bancada da captura: o fps da captura do Chromium (o caminho do app) por 15 s. Rodar de desktop/ com o jogo.js aberto:
-// node_modules\.bin\electron capturaancada\chromium.js (FPS=60 para pedir 60 fps).
+// node_modules/.bin/electron captura/bancada/chromium.js (FPS=60 para pedir 60 fps).
 // Só a captura do Chromium (a DesktopCaptureDevice do getDisplayMedia do app), por N segundos.
 const { app, BrowserWindow, desktopCapturer } = require('electron');
 const fs = require('node:fs'), path = require('node:path');
