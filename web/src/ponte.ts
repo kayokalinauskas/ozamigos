@@ -9,17 +9,35 @@ export type FonteDeCaptura = {
   icone: string | null; // data URL do ícone do aplicativo (só janelas)
 };
 
-export type EscolhaDeFonte = { id: string; audio: boolean };
+/** captura: o tamanho e o fps pedidos à captura de vídeo do app (1.2.18 em diante); sem ela, vai a do Chromium. */
+export type EscolhaDeFonte = { id: string; audio: boolean; captura?: TamanhoDaCaptura | null };
+
+export type TamanhoDaCaptura = { largura: number; altura: number; fps: number };
+
+/**
+ * somDoApp: o som do PC vem do auxiliar do app (sem o Discord e sem o Ozamigos), não do navegador. videoDoApp: o vídeo
+ * vem da captura do app (1.2.18 em diante) e o getDisplayMedia foi recusado de propósito; tipo e fonte dizem de onde.
+ */
+export type ResultadoDaEscolha = { somDoApp: boolean; videoDoApp?: boolean; tipo?: FonteDeCaptura['tipo']; fonte?: string };
 
 export type PonteOzamigos = {
   versao: string;
   /** Chamado quando a página pede getDisplayMedia: a interface mostra o seletor e responde. */
   aoPedirFonte(ouvinte: (fontes: FonteDeCaptura[]) => void): void;
-  /** somDoApp: o som do PC vem do auxiliar do app (sem o Discord e sem o Ozamigos), não do navegador. */
-  responderFonte(escolha: EscolhaDeFonte | null): Promise<{ somDoApp: boolean }>;
+  responderFonte(escolha: EscolhaDeFonte | null): Promise<ResultadoDaEscolha>;
   /** Pedaços do som do PC: float32 estéreo intercalado, 48 kHz. */
   aoReceberSom(ouvinte: (dados: Uint8Array) => void): void;
   pararSom(): void;
+  /**
+   * A captura de vídeo do app (1.2.18 em diante). Cada quadro: um cabeçalho de 24 bytes ("OZQ1", largura e altura em
+   * u16, o número em u32, 4 de reserva e o momento da captura em ms desde 1970, f64) e a imagem em NV12.
+   */
+  video?: {
+    aoReceberQuadro(ouvinte: (dados: Uint8Array) => void): void;
+    /** Parou sozinha: a janela fechou, ou a captura falhou (a página troca para a do Chromium, pela fonte). */
+    aoParar(ouvinte: (aviso: { motivo: 'fechou' | 'falhou'; fonte: string }) => void): void;
+    parar(): void;
+  };
   /** Volta para a tela de escolher o servidor. */
   trocarServidor(): void;
   /** Um convite (link ozamigos://sala/CODIGO) chegou com o app aberto (app 1.2.16 em diante). */
@@ -97,7 +115,7 @@ export const noApp = ponte !== undefined;
 
 // A resposta do último seletor: o cliente consulta depois que getDisplayMedia termina,
 // para saber se precisa juntar a faixa de som do app ao vídeo.
-let ultimaEscolha: Promise<{ somDoApp: boolean }> = Promise.resolve({ somDoApp: false });
+let ultimaEscolha: Promise<ResultadoDaEscolha> = Promise.resolve({ somDoApp: false });
 
 export function responderFonte(escolha: EscolhaDeFonte | null) {
   ultimaEscolha = ponte?.responderFonte(escolha) ?? Promise.resolve({ somDoApp: false });
@@ -105,6 +123,11 @@ export function responderFonte(escolha: EscolhaDeFonte | null) {
 
 export function resultadoDaUltimaEscolha() {
   return ultimaEscolha;
+}
+
+/** Antes de abrir o seletor: um pedido que o app recusar sem mostrar as fontes não pode valer pela escolha de antes. */
+export function esquecerEscolha() {
+  ultimaEscolha = Promise.resolve({ somDoApp: false });
 }
 
 // O app leva uns 0,4 s para listar janelas e telas. O seletor abre já no clique, com espaços

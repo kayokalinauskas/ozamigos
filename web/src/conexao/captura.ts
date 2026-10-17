@@ -58,9 +58,35 @@ export async function capturarDoNavegador(fonte: Fonte, qualidade: Qualidade): P
   }
 }
 
+/**
+ * A mesma fonte que o app escolheu (o id do seletor dele), pela captura do Chromium, sem abrir o seletor de novo e sem
+ * precisar de um clique: é a volta para a captura antiga quando a do app para no meio. null se não deu.
+ */
+export async function capturarPelaFonte(id: string, qualidade: Qualidade): Promise<MediaStream | null> {
+  const { altura, fps } = QUALIDADES[qualidade];
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: id, maxWidth: Math.round((altura * 16) / 9), maxHeight: altura, maxFrameRate: fps },
+      },
+    } as MediaStreamConstraints);
+  } catch {
+    return null;
+  }
+}
+
+// O que cada trilha capturada pelo app mostra: a trilha do app não tem displaySurface (vem de um MediaStreamTrackGenerator).
+const superficies = new WeakMap<MediaStreamTrack, string>();
+
+export function marcarSuperficie(video: MediaStreamTrack, superficie: 'window' | 'monitor') {
+  superficies.set(video, superficie);
+}
+
 /** "Um aplicativo, com som": o que está sendo transmitido, para a tela e para o relatório. */
 export function descreverFonte(tela: MediaStream): string {
-  const { displaySurface } = tela.getVideoTracks()[0].getSettings() as MediaTrackSettings & { displaySurface?: string };
+  const [video] = tela.getVideoTracks();
+  const displaySurface = superficies.get(video) ?? (video.getSettings() as MediaTrackSettings & { displaySurface?: string }).displaySurface;
   const nomes: Record<string, string> = { window: 'Um aplicativo', monitor: 'A tela inteira', browser: 'Uma aba' };
   const audio = tela.getAudioTracks().length > 0 ? 'com som' : 'sem som';
   return `${nomes[displaySurface ?? ''] ?? 'Sua tela'}, ${audio}`;

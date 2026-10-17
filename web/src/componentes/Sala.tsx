@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useRef, useState, type DragEvent } from 'rea
 import { RefreshCw, WifiOff } from 'lucide-react';
 import { lembrado, lembrar } from '../armazenamento';
 import { cliente } from '../cliente';
+import { alternarCaptura, capturaDoAppExiste } from '../videoDoApp';
 import { pintarBarraDaJanela } from '../ponte';
 import { useCliente } from '../useCliente';
 import { BarraLateral } from './BarraLateral';
@@ -38,6 +39,7 @@ export function Sala() {
 
   // Ferramentas de diagnóstico, sem botão na tela: Ctrl+Shift+X abre o teste de desempenho, e Ctrl+Shift+G
   // começa (ou para) a gravação das estatísticas da sala. O código das duas só é baixado no primeiro uso.
+  // Ctrl+Shift+N (no app) troca entre a captura do app e a antiga, do navegador, para comparar as duas com os amigos.
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (!e.ctrlKey || !e.shiftKey) return;
@@ -45,6 +47,11 @@ export function Sala() {
       if (letra === 'x') { // era o D, que virou o atalho de desligar o som (como no Discord)
         e.preventDefault();
         setTesteAberto(true);
+      } else if (letra === 'n' && !e.repeat && capturaDoAppExiste()) {
+        e.preventDefault();
+        const captura = alternarCaptura() === 'app' ? 'Captura do app ligada' : 'Captura antiga (do navegador) ligada';
+        const quando = cliente.ler().minhaTela ? 'Vale quando você escolher de novo o que transmitir.' : 'Vale para a próxima transmissão.';
+        cliente.avisar(`${captura}. ${quando}`);
       } else if (letra === 'g' && !e.repeat) {
         e.preventDefault();
         import('../desempenho/gravadorDaSala').then(

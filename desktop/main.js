@@ -1,6 +1,7 @@
 // O app para Windows. Ele abre a interface que o servidor do Ozamigos já serve (a mesma do navegador)
-// e acrescenta o que só um app consegue: o seletor de janelas e telas, o som do PC sem o Discord
-// e sem o próprio app, notificações do Windows, e não ser freado quando fica atrás do jogo.
+// e acrescenta o que só um app consegue: o seletor de janelas e telas, uma captura de vídeo mais rápida que a do
+// navegador, o som do PC sem o Discord e sem o próprio app, notificações do Windows, e não ser freado quando fica
+// atrás do jogo.
 
 const { app, BrowserWindow, Menu, Notification, Tray, desktopCapturer, ipcMain, nativeImage, nativeTheme, net, screen, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
@@ -31,6 +32,7 @@ const PERMISSOES = new Set(['media', 'display-capture', 'notifications', 'fullsc
 let janela = null;
 let pedidoDeFonte = null; // { responder, fontes } enquanto o seletor está aberto
 let auxiliarDeSom = null; // o OzamigosSom.exe, enquanto alguém transmite com som
+let capturaDeVideo = null; // o OzamigosCaptura.exe, enquanto alguém transmite pela captura do app
 let ligandoAuxiliar = null; // Promise enquanto o auxiliar está abrindo
 let avisoDeAtualizacao = null; // a janelinha "Baixando a versão nova", enquanto baixa
 let bandeja = null; // o ícone perto do relógio
@@ -271,6 +273,7 @@ function criarJanela(atualizando) {
     if (!detalhes.isMainFrame || detalhes.isSameDocument) return;
     desligarContadores();
     desligarAuxiliarDeSom();
+    desligarCapturaDeVideo();
     desligarAtalhos(); // a página nova manda os atalhos de novo ao abrir
   });
   // A página travou ou caiu (falta de memória, falha da placa de vídeo): sem isto, a janela ficava vazia até a pessoa
@@ -281,6 +284,7 @@ function criarJanela(atualizando) {
     console.error('A página caiu:', reason);
     desligarContadores();
     desligarAuxiliarDeSom();
+    desligarCapturaDeVideo();
     desligarAtalhos();
     if (reason === 'clean-exit' || janela.isDestroyed()) return;
     const seguida = Date.now() - ultimaQueda < 30_000;
@@ -366,24 +370,40 @@ function configurarSessao() {
     );
   });
 
-  // Devolve { somDoApp: true } quando o som vem do auxiliar: a página então junta essa faixa ao vídeo.
+  // Devolve { somDoApp: true } quando o som vem do auxiliar: a página então junta essa faixa ao vídeo. Com
+  // { videoDoApp: true }, o vídeo vem da captura do app (OzamigosCaptura.exe): o getDisplayMedia da página é recusado
+  // e ela monta a trilha com os quadros que chegam por "quadro". Só quando a página pede (escolha.captura): a página
+  // de antes não saberia montar a trilha.
   ipcMain.handle('fonte-escolhida', async (evento, escolha) => {
     if (!pedidoDeFonte || origemDe(evento.senderFrame?.url) !== origemDoServidor()) return { somDoApp: false };
     const { responder, fontes } = pedidoDeFonte;
     pedidoDeFonte = null;
     const fonte = escolha && fontes.find((f) => f.id === escolha.id);
     if (!fonte) {
-      responder(null); // a pessoa cancelou
+      responder(null); // a pessoa cancelou (a transmissão de agora, se houver, continua como está)
       return { somDoApp: false };
     }
-    if (!escolha.audio) {
-      responder({ video: fonte });
-      return { somDoApp: false };
+    const tipo = fonte.id.startsWith('screen:') ? 'tela' : 'janela';
+    const somDoApp = escolha.audio ? await ligarAuxiliarDeSom() : false;
+    const captura = tamanhoDaCaptura(escolha.captura);
+    // Sem o auxiliar de som, o som do Windows inteiro vem pelo Chromium: o vídeo vai junto, pela captura dele.
+    if (captura && (somDoApp || !escolha.audio)) {
+      const motivo = await ligarCapturaDeVideo(fonte, captura);
+      if (!motivo) {
+        responder(null);
+        return { somDoApp, videoDoApp: true, tipo, fonte: fonte.id };
+      }
+      console.warn('A captura do app não abriu, vai a do Chromium:', motivo);
+    } else {
+      desligarCapturaDeVideo(); // trocou para a captura do Chromium
     }
-    const somDoApp = await ligarAuxiliarDeSom();
-    // Se o auxiliar não rodar (Windows antigo demais), vai o som do Windows inteiro, como no navegador.
-    responder(somDoApp ? { video: fonte } : { video: fonte, audio: 'loopback' });
-    return { somDoApp };
+    // Se o auxiliar de som não rodar (Windows antigo demais), vai o som do Windows inteiro, como no navegador.
+    responder(somDoApp || !escolha.audio ? { video: fonte } : { video: fonte, audio: 'loopback' });
+    return { somDoApp, videoDoApp: false, tipo };
+  });
+
+  ipcMain.on('video-parar', (evento) => {
+    if (vindoDaPagina(evento)) desligarCapturaDeVideo();
   });
 
   ipcMain.on('som-parar', (evento) => {
@@ -478,6 +498,148 @@ function desligarAuxiliarDeSom() {
   auxiliarDeSom.stdin.end(); // ele termina sozinho quando a entrada fecha
   auxiliarDeSom.kill();
   auxiliarDeSom = null;
+}
+
+// ===== Captura de vídeo do app (desktop/captura, roda escondido; 1.2.18 em diante) =====
+// O Chromium copia o quadro inteiro para a memória antes de reduzir e nunca deixa a cópia passar de metade do tempo:
+// com o jogo pesado, a captura dele ficava em ~21 fps. O auxiliar captura pelo Windows (Windows Graphics Capture), reduz
+// e converte na placa de vídeo, e escreve os quadros NV12 prontos (no Path of Exile, 28–30 fps; ~7 ms até a página e ~2%
+// do processador, medidos em 17/10/2026). A página monta a trilha do WebRTC com eles. Se ele não abrir, vai a captura
+// do Chromium; se parar no meio, a página troca para a do Chromium sozinha (video-parou).
+
+const ESPERA_DO_PRIMEIRO_QUADRO = 4_000;
+const SEM_QUADROS_POR = 3_000; // ele repete o último a cada 100 ms com a imagem parada: 3 s sem nada é defeito
+
+function caminhoDaCaptura() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'captura', 'OzamigosCaptura.exe')
+    : path.join(__dirname, 'captura', 'publicado', 'OzamigosCaptura.exe');
+}
+
+/** { largura, altura, fps } pedidos pela página, conferidos; null se a página não pediu a captura do app. */
+function tamanhoDaCaptura(pedido) {
+  if (!pedido || typeof pedido !== 'object') return null;
+  const inteiro = (valor, minimo, maximo) => (Number.isInteger(valor) && valor >= minimo && valor <= maximo ? valor : null);
+  const largura = inteiro(pedido.largura, 160, 3840);
+  const altura = inteiro(pedido.altura, 90, 2160);
+  const fps = inteiro(pedido.fps, 5, 120);
+  return largura && altura && fps ? { largura, altura, fps } : null;
+}
+
+/**
+ * O que o auxiliar captura: a janela pelo HWND (o id do Chromium é "window:HWND:0"), ou a tela por um ponto no meio
+ * dela, em pixels de verdade (o auxiliar acha a tela pelo ponto). null se não der para saber.
+ */
+function argumentosDaFonte(fonte) {
+  const [tipo, numero] = fonte.id.split(':');
+  if (tipo === 'window') return /^\d+$/.test(numero) ? ['--janela', numero] : null;
+  const tela = screen.getAllDisplays().find((t) => String(t.id) === fonte.display_id);
+  if (!tela) return null;
+  const { x, y, width, height } = tela.bounds;
+  const meio = screen.dipToScreenPoint({ x: x + width / 2, y: y + height / 2 });
+  return ['--tela', `${Math.round(meio.x)},${Math.round(meio.y)}`];
+}
+
+/**
+ * Liga a captura do app para a fonte, no lugar da que estiver ligada. Resolve null quando o primeiro quadro chega
+ * (já indo para a página), ou o motivo de não ter dado certo (a página fica com a captura do Chromium).
+ */
+function ligarCapturaDeVideo(fonte, { largura, altura, fps }) {
+  desligarCapturaDeVideo();
+  const argumentos = argumentosDaFonte(fonte);
+  if (!argumentos) return Promise.resolve('fonte desconhecida');
+  if (!fs.existsSync(caminhoDaCaptura())) return Promise.resolve('sem o auxiliar de captura');
+  return new Promise((resolver) => {
+    const processo = spawn(caminhoDaCaptura(), ['--fps', String(fps), '--largura', String(largura), '--altura', String(altura), ...argumentos], {
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const atual = { processo, fonte: fonte.id, fechou: false, ultimoQuadro: 0, vigia: null };
+    capturaDeVideo = atual;
+    let resolvido = false;
+    let erro = '';
+    const terminar = (motivo) => {
+      if (resolvido) return;
+      resolvido = true;
+      clearTimeout(desistir);
+      resolver(motivo);
+    };
+    const desistir = setTimeout(() => {
+      terminar(erro || 'nenhum quadro em 4 s');
+      if (capturaDeVideo === atual) desligarCapturaDeVideo();
+    }, ESPERA_DO_PRIMEIRO_QUADRO);
+
+    processo.stderr.setEncoding('utf8');
+    processo.stderr.on('data', (texto) => {
+      for (const linha of texto.split(/\r?\n/).filter(Boolean)) {
+        if (linha === 'fechou') atual.fechou = true;
+        else if (linha.startsWith('erro:')) erro = linha;
+        else if (!linha.startsWith('{')) console.log('[captura]', linha); // as medidas de cada segundo ficam de fora
+      }
+    });
+
+    // Cada quadro: 24 bytes de cabeçalho ("OZQ1", largura e altura em u16…) e o NV12, largura × altura × 1,5 bytes.
+    // Junta os pedaços só quando o quadro inteiro chegou (~1,4 MB por quadro em 720p, em pedaços de 64 KB).
+    let pedacos = [];
+    let acumulado = 0;
+    let esperado = 0;
+    processo.stdout.on('data', (dados) => {
+      pedacos.push(dados);
+      acumulado += dados.length;
+      while (true) {
+        if (!esperado) {
+          if (acumulado < 24) return;
+          const cabecalho = pedacos[0].length >= 24 ? pedacos[0] : Buffer.concat(pedacos, acumulado);
+          if (cabecalho.toString('latin1', 0, 4) !== 'OZQ1') {
+            erro = 'quadro estragado';
+            processo.kill();
+            return;
+          }
+          esperado = 24 + (cabecalho.readUInt16LE(4) * cabecalho.readUInt16LE(6) * 3) / 2;
+        }
+        if (acumulado < esperado) return;
+        const tudo = pedacos.length === 1 ? pedacos[0] : Buffer.concat(pedacos, acumulado);
+        if (capturaDeVideo === atual && janela && !janela.isDestroyed() && origemDe(janela.webContents.getURL()) === origemDoServidor()) {
+          janela.webContents.send('quadro', tudo.subarray(0, esperado));
+          atual.ultimoQuadro = Date.now();
+          terminar(null);
+        }
+        const resto = tudo.subarray(esperado);
+        pedacos = resto.length ? [resto] : [];
+        acumulado = resto.length;
+        esperado = 0;
+      }
+    });
+    // Travou sem cair (não manda mais nada): é desligado, e a página troca para a captura do Chromium.
+    atual.vigia = setInterval(() => {
+      if (atual.ultimoQuadro && Date.now() - atual.ultimoQuadro > SEM_QUADROS_POR) {
+        erro ||= 'parou de mandar quadros';
+        processo.kill();
+      }
+    }, 1_000);
+    processo.on('error', (e) => {
+      erro = String(e?.message ?? e);
+    });
+    processo.on('exit', (codigo) => {
+      clearInterval(atual.vigia);
+      terminar(erro || `terminou (código ${codigo})`);
+      if (capturaDeVideo !== atual) return; // desligado pelo app: nada a avisar
+      capturaDeVideo = null;
+      console.warn('A captura do app parou:', atual.fechou ? 'a janela fechou' : erro || codigo);
+      if (atual.ultimoQuadro && janela && !janela.isDestroyed()) {
+        janela.webContents.send('video-parou', { motivo: atual.fechou ? 'fechou' : 'falhou', fonte: atual.fonte });
+      }
+    });
+  });
+}
+
+function desligarCapturaDeVideo() {
+  const atual = capturaDeVideo;
+  if (!atual) return;
+  capturaDeVideo = null; // antes de matar: assim o "exit" sabe que foi o app
+  clearInterval(atual.vigia);
+  atual.processo.stdin.end(); // ele termina sozinho quando a entrada fecha
+  atual.processo.kill();
 }
 
 // ===== Tela de início (escolher o servidor) =====
@@ -687,6 +849,7 @@ ipcMain.handle('desempenho-amostra', (evento) => {
   const metricas = app.getAppMetrics();
   const pids = new Set(metricas.map((m) => String(m.pid)));
   if (auxiliarDeSom?.pid) pids.add(String(auxiliarDeSom.pid));
+  if (capturaDeVideo?.processo.pid) pids.add(String(capturaDeVideo.processo.pid));
   if (contadores?.pid) pids.add(String(contadores.pid));
   // percentCPUUsage já vem em % do processador inteiro (o Electron divide pelos núcleos).
   const processos = {};
@@ -984,5 +1147,8 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', () => {
     saindo = true;
   });
-  app.on('will-quit', desligarAuxiliarDeSom);
+  app.on('will-quit', () => {
+    desligarAuxiliarDeSom();
+    desligarCapturaDeVideo();
+  });
 }

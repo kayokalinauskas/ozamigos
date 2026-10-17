@@ -111,6 +111,7 @@
 
 **Só no app para Windows**
 - **Seletor próprio** de janelas e telas, com miniaturas e ícones.
+- **Captura própria, mais rápida que a do navegador** (1.2.18): com o jogo pesado, a captura do navegador ficava em ~21 fps; a do app pega a janela ou a tela direto do Windows e reduz a imagem na placa de vídeo, e dá 28–30 fps no mesmo jogo, com o cursor e sem borda amarela. Se ela falhar, a transmissão continua pela do navegador, sozinha.
 - **Som do jogo sem eco:** a transmissão leva o som de todos os programas do PC, menos o do próprio **Ozamigos** (a voz dos amigos e as transmissões que você assiste) e o de apps de chamada de voz. Ninguém ouve a própria voz nem o próprio jogo de volta. O áudio vai em estéreo.
 - **Sem engasgos atrás do jogo:** a janela não é freada pelo Windows quando fica escondida, e a captura não cai para ~21 fps quando outro programa fica entre o jogo e o Ozamigos (desde a 1.2.14).
 - **Se recupera sozinho:** se a página travar e cair, ela abre de novo; e a janela guardada num monitor que foi desligado volta para a tela.
@@ -203,6 +204,14 @@ No app, um `AudioWorklet` transforma esse fluxo numa faixa de áudio que vai jun
 
 Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema inteiro.
 
+**Captura de vídeo do app** (1.2.18). A captura do Chromium copia cada quadro inteiro (2560×1440) para a memória antes de reduzir, e nunca deixa essa cópia passar de metade do tempo: com o jogo ocupando a placa de vídeo, ela ficava em ~21 fps. O auxiliar `OzamigosCaptura.exe` (C#, Direct3D 11), também dentro do instalador:
+
+1. captura a janela ou a tela escolhida no seletor pelo Windows Graphics Capture (com o cursor, e sem a borda amarela no Windows 11);
+2. reduz até 1280×720, sem mudar a proporção, e converte para NV12 (BT.709) no processador de vídeo da placa;
+3. escreve cada quadro pronto na saída padrão, só quando a imagem muda (com ela parada, repete o último a cada 100 ms).
+
+O app passa os quadros à página por IPC, e a página monta a trilha de vídeo do WebRTC (`MediaStreamTrackGenerator`); dali em diante, tudo é igual (H.265 ou H.264 pela placa, uma conexão por amigo). Medido no Path of Exile: 28–30 fps de captura, ~7 ms da captura até a página e ~2% do processador. Se o auxiliar não abrir, a transmissão vai pela captura do Chromium; se ele parar no meio, a página troca para ela sozinha, sem refazer as conexões; a janela transmitida fechando encerra a transmissão. A captura antiga fica num atalho escondido (**Ctrl+Shift+N** na sala), para comparar as duas.
+
 ---
 
 ## Estrutura do repositório
@@ -227,16 +236,18 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │       ├── folga.ts                  Folga de rede do vídeo, ajustada à conexão de cada um
 │       ├── qualidade.ts              A qualidade da transmissão (720p a 30 fps, sempre)
 │       ├── somDoApp.ts               Faixa de áudio do auxiliar de som (AudioWorklet)
+│       ├── videoDoApp.ts             Trilha de vídeo da captura do app (os quadros NV12 do auxiliar)
 │       ├── ponte.ts                  Contrato com o app Electron
 │       ├── desempenho/               Teste de desempenho e gravação da sala: medição, análise e os relatórios (HTML e para IA)
 │       └── componentes/              Entrada, Sala, BarraLateral, Palco, Transmissao, ...
 ├── site/                   Site de apresentação em português e inglês (en/), publicado no GitHub Pages
 ├── desktop/                App para Windows (Electron 44)
-│   ├── main.js                       Janela, permissões, seletor de fontes e auxiliar de som
+│   ├── main.js                       Janela, permissões, seletor de fontes e os auxiliares (som e captura)
 │   ├── preload.js                    Ponte segura entre a página e o app
 │   ├── inicio.html|js|css            Tela de escolher o servidor
 │   ├── build/                        Ícone (e o script que o gera) e a fonte do logotipo
-│   └── som/                          Auxiliar em C# (.NET 10): OzamigosSom.exe (som do PC; com --contadores, uso da placa de vídeo)
+│   ├── som/                          Auxiliar em C# (.NET 10): OzamigosSom.exe (som do PC; com --contadores, uso da placa de vídeo)
+│   └── captura/                      Auxiliar em C# (.NET 10): OzamigosCaptura.exe (a captura de vídeo), e a bancada que a mediu
 ├── docs/imagens/           Logotipo, telas e GIF de demonstração deste README
 ├── docs/vitrine/           Scripts que geram as imagens de docs/imagens
 ├── .github/                CI, release do app, site, Dependabot e modelos de issue e PR
@@ -255,7 +266,7 @@ O build da interface (`web/`) grava em `src/main/resources/static/`. A pasta nã
 |---|---|---|
 | JDK | 25 | Servidor. O Maven vem pelo `mvnw`, sem instalar |
 | Node.js | 22 ou mais novo | Interface e app Electron |
-| .NET SDK | 10 | Compilar o auxiliar de som. Só para gerar o instalador |
+| .NET SDK | 10 | Compilar os auxiliares (som e captura). Só para gerar o instalador |
 | GitHub CLI (`gh`) | qualquer recente | Criar repositório e releases (opcional) |
 | Chrome ou Edge | atual | Testar pelo navegador |
 
@@ -292,6 +303,7 @@ Abra `http://localhost:5173`. O Vite repassa o WebSocket `/sinal` para a porta 8
 cd desktop
 npm install
 npm run som
+npm run captura
 npm start
 ```
 Na tela de início, use `http://localhost:8080`. O app só aceita `http://` para `localhost`; qualquer outro endereço precisa de `https://`.
@@ -349,7 +361,7 @@ git push origin v1.0.2
 
 **4. Pronto.** A marca `v1.0.2` dispara o workflow [`.github/workflows/release.yml`](.github/workflows/release.yml), que, numa máquina Windows do GitHub:
 - confere se a marca bate com a versão do `desktop/package.json`;
-- compila o auxiliar de som (.NET) e empacota o app (electron-builder);
+- compila os auxiliares de som e de captura (.NET) e empacota o app (electron-builder);
 - cria a release com o `Ozamigos-Instalador-1.0.2.exe` e o `Ozamigos-Portatil-1.0.2.exe`, mais o `latest.yml` e o `.blockmap`, que o app instalado lê para se atualizar sozinho.
 
 Acompanhe na aba **Actions** do repositório (leva de 5 a 10 minutos) ou com `gh run watch`.
@@ -460,7 +472,7 @@ Cada pessoa que assiste é mais um vídeo saindo do PC de quem transmite. O code
 
 A voz pesa pouco: Opus mono a 64 kbps para cada amigo da sala, e quase nada enquanto você não fala. Numa sala cheia (7 amigos), são no máximo ~450 kbps de upload.
 
-A transmissão sai sempre em **720p a 30 fps**, ~4 Mbps de upload para cada pessoa assistindo, como no Discord sem Nitro. Não há escolha de qualidade (até 14/10/2026 havia 1080p e 60 fps): em jogo pesado, a captura do navegador não passa de ~21–29 fps, e o 1080p dobrava o custo de codificar e de enviar sem melhorar o que os amigos viam.
+A transmissão sai sempre em **720p a 30 fps**, ~4 Mbps de upload para cada pessoa assistindo, como no Discord sem Nitro. Não há escolha de qualidade (até 14/10/2026 havia 1080p e 60 fps): em jogo pesado, a captura do navegador não passava de ~21–29 fps (a do app, desde a 1.2.18, dá 28–30), e o 1080p dobrava o custo de codificar e de enviar sem melhorar o que os amigos viam.
 
 Quando falta processador ou internet, o próprio WebRTC baixa o fps e a nitidez em vez de travar, mas a imagem continua em 720p (como o Stoat faz com a tela). Como cada amigo tem a sua conexão, isso vale por pessoa: quem está num Wi-Fi ruim recebe uma imagem menos nítida, e quem está no cabo nem percebe. O selo da transmissão mostra o que chega (por exemplo, "720p · 24 fps").
 
@@ -470,7 +482,7 @@ Exemplo: para 4 amigos, são cerca de 16 Mbps de upload; para 7 (a sala cheia), 
 
 | O que aparece | Significado | O que fazer |
 |---|---|---|
-| `Captura` abaixo de 30 fps | O jogo ocupa a placa de vídeo inteira | Limite o fps do jogo (60 é o ideal) e use "janela sem bordas" |
+| `Captura` abaixo de 30 fps | O jogo ocupa a placa de vídeo inteira | Confira se a linha diz "do app" (1.2.18 em diante); "do navegador" é a captura antiga. Limite o fps do jogo (60 é o ideal) e use "janela sem bordas" |
 | `Captura` presa em ~21 fps com a placa folgada | App anterior à 1.2.14 (o Windows tirava o relógio fino do app escondido) | Atualize o app: basta fechar pelo **Sair** da bandeja e abrir de novo |
 | `Limite: processador / placa de vídeo` | O codificador não dá conta | Fps do jogo limitado, driver atualizado |
 | `Limite: internet` / `Banda estimada` baixa | O upload não aguenta | Use cabo ou tenha menos gente assistindo |
@@ -478,7 +490,7 @@ Exemplo: para 4 amigos, são cerca de 16 Mbps de upload; para 7 (a sala cheia), 
 
 ### Teste de desempenho
 
-Ferramentas de diagnóstico, sem botão na tela. São duas:
+Ferramentas de diagnóstico, sem botão na tela. São duas (e, no app, o **Ctrl+Shift+N**, que troca entre a captura do app e a antiga, do navegador, a partir da próxima vez que você escolher o que transmitir; as estatísticas dizem qual está valendo):
 
 | Atalho | O que faz | O que mede |
 |---|---|---|
@@ -539,7 +551,7 @@ Um comando roda a suíte inteira, da camada mais rápida para a mais lenta, e mo
 | **Interface** (Vitest) | `web/src/**/*.test.ts` | Código e link da sala, preferências, qualidade, folga de rede, ajustes de voz, a análise do teste de desempenho e as regras das imagens do chat (tamanho final, cabeçalho do WebP, e o que quem recebe recusa). |
 | **Áudio** (Vitest) | `web/src/voz/audio.test.ts` | O processador real do microfone (RNNoise + porta) com sons sintéticos: o começo das palavras que abrem com chiado ("**s**im") não é cortado, o ruído da sala não passa, cliques de teclado quase não passam e o limitador da saída nunca estoura. |
 | **Ponta a ponta** (Playwright) | `web/e2e/` | Navegadores de verdade, com microfone falso e um "jogo" desenhado, contra o servidor de verdade (porta 8090): senha errada não entra, a transmissão chega em movimento para quem assiste, a voz chega na caixa de som de quem ouve, o microfone desligado silencia, quem sai some da sala, e um print colado no chat chega comprimido ao amigo. |
-| **App do Windows** (Playwright + Electron) | `desktop/teste/` | O app abre a interface do servidor com a ponte (`window.ozamigos`) e sem acesso ao Node; sem servidor, mostra a tela de início com o erro. Roda com uma pasta de dados temporária e outro AppUserModelID, sem tocar no app instalado. |
+| **App do Windows** (Playwright + Electron) | `desktop/teste/` | O app abre a interface do servidor com a ponte (`window.ozamigos`) e sem acesso ao Node; sem servidor, mostra a tela de início com o erro; a captura do app manda à página os quadros da janela escolhida e avisa quando ela fecha (só no PC: o runner do GitHub não tem placa de vídeo). Roda com uma pasta de dados temporária e outro AppUserModelID, sem tocar no app instalado. |
 
 Cada camada também roda sozinha:
 
@@ -578,7 +590,6 @@ O workflow [CI](.github/workflows/ci.yml) roda as cinco camadas em cada push na 
 ## Limitações conhecidas
 
 - **Sem servidor TURN:** quem está atrás de CGNAT, em 4G/5G ou em rede corporativa pode não conseguir conectar (nem o vídeo nem a voz). O TURN repassa o vídeo e tem custo por GB.
-- **Sem "apertar para falar":** por enquanto, a voz usa só a detecção de voz. Apertar uma tecla para falar com o jogo em primeiro plano precisa de um gancho de teclado no auxiliar do Windows.
 - **Voz em malha:** cada pessoa manda a própria voz para cada amigo. Com o limite de 8 pessoas por sala, isso fica em ~450 kbps de upload no pior caso.
 - **Senha única por servidor:** pensada para grupos de amigos, cada grupo com o próprio deploy. Há um freio contra adivinhação (10 senhas erradas do mesmo endereço em 5 minutos), mas, para uso público, seria preciso senha por sala.
 - **Estado em memória:** as salas vivem num servidor só. Para mais de um servidor, seria preciso um armazenamento compartilhado (ex.: Redis).

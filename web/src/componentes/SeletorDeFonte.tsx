@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppWindow, Monitor } from 'lucide-react';
 import { lembrado, lembrar } from '../armazenamento';
+import { cliente } from '../cliente';
 import { aoCarregarSeletor, ponte, responderFonte, type FonteDeCaptura } from '../ponte';
+import { prepararVideoDoApp, usarCapturaDoApp } from '../videoDoApp';
 
 type Fase = 'fechado' | 'carregando' | 'escolhendo';
 
@@ -56,7 +58,9 @@ export function SeletorDeFonte() {
       cancelouAntes.current = true; // ainda não há pedido do app para responder
     } else {
       lembrar('ozamigos-audio', audio ? '' : 'nao');
-      responderFonte(id ? { id, audio } : null);
+      // A captura do app (1.2.18 em diante), a não ser que a antiga esteja escolhida (Ctrl+Shift+N na sala).
+      const captura = id && usarCapturaDoApp() ? prepararVideoDoApp(cliente.ler().qualidade) : null;
+      responderFonte(id ? { id, audio, captura } : null);
     }
     setFase('fechado');
   }

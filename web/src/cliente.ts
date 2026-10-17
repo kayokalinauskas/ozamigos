@@ -8,8 +8,9 @@ import { lembrado, lembrar } from './armazenamento';
 import { QUALIDADE, QUALIDADES, type Qualidade } from './qualidade';
 import { notificacaoLigada, type TipoDeNotificacao } from './notificacoes';
 import { tocar } from './sons';
-import { noApp, ponte, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';
+import { esquecerEscolha, noApp, ponte, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';
 import { pararSomDoApp, trilhaDoSomDoApp } from './somDoApp';
+import { aoPararVideoDoApp, ehVideoDoApp, pararVideoDoApp, trilhaDoVideoDoApp } from './videoDoApp';
 import { voz } from './voz/voz';
 import { trocaDeImagens } from './imagens/troca';
 import { novoIdDeImagem, type Chegada } from './imagens/protocolo';
@@ -19,8 +20,10 @@ import { LIMITE_POR_SALA, codigoValido, novoCodigo } from './conexao/codigoDaSal
 import {
   FPS_MINIMO_DA_CAPTURA,
   capturarDoNavegador,
+  capturarPelaFonte,
   codificacao,
   descreverFonte,
+  marcarSuperficie,
   montarEnvio,
   tamanhoDaCaptura,
   type Fonte,
@@ -232,6 +235,7 @@ class Cliente {
       gravacaoDaSala: null,
     };
     this.trocarSala(sala);
+    aoPararVideoDoApp((aviso) => void this.videoDoAppParou(aviso));
     // Um "estou aqui" a cada 30 s: sem isso, proxies e hospedagens gratuitas fecham a conexão parada.
     setInterval(() => {
       if (!this.sinalizacao.aberta || this.estado.fase !== 'sala') return;
@@ -934,12 +938,27 @@ class Cliente {
   }
 
   private async capturar(fonte: Fonte): Promise<MediaStream | null> {
-    if (noApp) seletorCarregando(true);
-    const tela = await capturarDoNavegador(fonte, this.estado.qualidade);
+    if (noApp) {
+      esquecerEscolha();
+      seletorCarregando(true);
+    }
+    let tela = await capturarDoNavegador(fonte, this.estado.qualidade);
     if (noApp) seletorCarregando(false); // se o app recusou antes de mostrar as fontes, o seletor fecha
-    if (!tela || !noApp) return tela;
+    if (!noApp) return tela;
+    const { somDoApp, videoDoApp, tipo } = await resultadoDaUltimaEscolha();
+    const videoAtual = this.estado.minhaTela?.getVideoTracks()[0];
+    const trilhaDoApp = trilhaDoVideoDoApp();
+    if (videoDoApp && trilhaDoApp) {
+      // O vídeo vem da captura do app: o app recusou o getDisplayMedia de propósito.
+      tela?.getTracks().forEach((trilha) => trilha.stop());
+      marcarSuperficie(trilhaDoApp, tipo === 'tela' ? 'monitor' : 'window');
+      tela = new MediaStream([trilhaDoApp]);
+    } else if (tela || !ehVideoDoApp(videoAtual)) {
+      // Vai a captura do Chromium (ou nada foi escolhido sem transmitir): a trilha do app, se montada, não serve.
+      pararVideoDoApp();
+    }
+    if (!tela) return null;
     // No app, o som do PC vem do auxiliar do Windows (sem o Discord e sem o próprio Ozamigos).
-    const { somDoApp } = await resultadoDaUltimaEscolha();
     if (somDoApp) {
       try {
         tela.addTrack(await trilhaDoSomDoApp());
@@ -960,10 +979,53 @@ class Cliente {
     video.contentHint = 'motion'; // jogo: priorizar movimento fluido em vez de nitidez de texto
     tela.getAudioTracks().forEach((audio) => (audio.contentHint = 'music'));
     video.onended = () => this.pararDeTransmitir(true); // botão "Parar compartilhamento" do navegador
-    video.applyConstraints(tamanhoDaCaptura(this.estado.qualidade, true)).catch((erro) => console.warn('A captura não aceitou o piso de fps', erro));
+    // A captura do app já sai no tamanho, no fps e com o piso (repete o último quadro com a imagem parada).
+    if (!ehVideoDoApp(video)) {
+      video.applyConstraints(tamanhoDaCaptura(this.estado.qualidade, true)).catch((erro) => console.warn('A captura não aceitou o piso de fps', erro));
+    }
     this.mudar({ minhaTela: tela });
     const { width, height, frameRate } = video.getSettings();
-    this.registrar(`transmitindo: ${this.descreverFonte()}, captura ${width}x${height} @${frameRate}`);
+    this.registrar(
+      ehVideoDoApp(video)
+        ? `transmitindo: ${this.descreverFonte()}, captura do app`
+        : `transmitindo: ${this.descreverFonte()}, captura do navegador ${width}x${height} @${frameRate}`,
+    );
+  }
+
+  /** Por onde a imagem da minha transmissão é capturada (para as estatísticas): 'app', 'navegador' ou null. */
+  origemDaCaptura(): 'app' | 'navegador' | null {
+    const [video] = this.estado.minhaTela?.getVideoTracks() ?? [];
+    return video ? (ehVideoDoApp(video) ? 'app' : 'navegador') : null;
+  }
+
+  /**
+   * A captura do app parou sozinha. A janela fechou: a transmissão acaba, como na captura do Chromium. Falhou: a mesma
+   * fonte passa para a captura do Chromium, sem ninguém clicar e sem refazer as conexões.
+   */
+  private async videoDoAppParou({ motivo, fonte }: { motivo: 'fechou' | 'falhou'; fonte: string }) {
+    const tela = this.estado.minhaTela;
+    if (!tela || !ehVideoDoApp(tela.getVideoTracks()[0])) return;
+    const descricao = this.descreverFonte();
+    if (motivo === 'fechou') {
+      this.registrar('a janela transmitida fechou');
+      this.pararDeTransmitir(true);
+      return;
+    }
+    this.registrar('a captura do app parou: a transmissão segue pela captura do navegador');
+    const nova = await capturarPelaFonte(fonte, this.estado.qualidade);
+    if (this.estado.minhaTela !== tela) {
+      nova?.getTracks().forEach((trilha) => trilha.stop()); // parou ou trocou de fonte enquanto isso
+      return;
+    }
+    if (!nova) {
+      this.pararDeTransmitir(true);
+      this.avisar('A transmissão parou por um erro na captura. Clique em Transmitir para continuar.', 'erro');
+      return;
+    }
+    const [video] = nova.getVideoTracks();
+    marcarSuperficie(video, descricao.startsWith('A tela') ? 'monitor' : 'window');
+    pararVideoDoApp();
+    await this.trocarFonte(new MediaStream([video, ...tela.getAudioTracks()]));
   }
 
   // Troca o que está sendo transmitido sem refazer as conexões:
@@ -990,7 +1052,10 @@ class Cliente {
     if (!minhaTela) return;
     this.registrar('parei de transmitir');
     minhaTela.getTracks().forEach((trilha) => trilha.stop());
-    if (noApp) pararSomDoApp();
+    if (noApp) {
+      pararSomDoApp();
+      pararVideoDoApp();
+    }
     for (const { canal, id } of [...this.conexoes.values()]) {
       if (canal === 'envio') this.fecharConexao(canal, id);
     }
@@ -1013,7 +1078,7 @@ class Cliente {
   private async aplicarQualidade() {
     // A captura acompanha a qualidade: a 30 fps, o navegador copia a tela metade das vezes; em 720p, já sai menor.
     const [trilha] = this.estado.minhaTela?.getVideoTracks() ?? [];
-    if (trilha) {
+    if (trilha && !ehVideoDoApp(trilha)) {
       try {
         await trilha.applyConstraints(tamanhoDaCaptura(this.estado.qualidade, true));
       } catch (erro) {

@@ -1,4 +1,4 @@
-// Fase 2, a medição do transporte: o auxiliar (OzamigosCaptura --crua) captura e reduz na placa, o processo principal
+// Fase 2, a medição do transporte: o auxiliar (OzamigosCaptura, a tela principal) captura e reduz na placa, o processo principal
 // lê os quadros NV12 da saída dele e repassa à página por IPC, e a página monta uma trilha de vídeo (VideoFrame +
 // MediaStreamTrackGenerator) e a envia em H.265 numa conexão WebRTC interna. Mede o fps em cada ponto, quanto o
 // quadro leva da captura até a página, o processador de cada processo e o codificador.
@@ -7,9 +7,9 @@ const { app, BrowserWindow, session } = require('electron');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 
-const AUXILIAR = path.join(__dirname, '..', 'bin', 'Release', 'net10.0-windows', 'win-x64', 'OzamigosCaptura.exe');
+const AUXILIAR = path.join(__dirname, '..', 'publicado', 'OzamigosCaptura.exe'); // npm run captura, em desktop/
 const SEGUNDOS = 25;
-const L = 1280, A = 720, TAMANHO = 24 + (L * A * 3) / 2;
+const L = 1280, A = 720, TAMANHO = 24 + (L * A * 3) / 2; // a tela principal em 16:9
 
 const PAGINA = `<!doctype html><body style="margin:0;background:#111;color:#eee;font:14px sans-serif">
 <video id=v autoplay muted playsinline style="width:640px;height:360px"></video><pre id=t></pre><script>
@@ -72,7 +72,7 @@ app.whenReady().then(async () => {
   require('node:fs').writeFileSync(arquivo, PAGINA);
   await janela.loadFile(arquivo).catch((e) => console.log('[loadFile]', e.message));
 
-  const auxiliar = spawn(AUXILIAR, ['--crua', '--segundos', String(SEGUNDOS + 15)], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const auxiliar = spawn(AUXILIAR, ['--tela', '1,1', '--segundos', String(SEGUNDOS + 15)], { stdio: ['ignore', 'pipe', 'pipe'] });
   const medidasDoAuxiliar = [];
   auxiliar.stderr.on('data', (d) => String(d).split(/\r?\n/).forEach((l) => { try { medidasDoAuxiliar.push(JSON.parse(l)); } catch {} }));
   let pedacos = [], acumulado = 0, noPrincipal = 0;
@@ -97,7 +97,7 @@ app.whenReady().then(async () => {
   const aux = medidasDoAuxiliar.slice(8);
   const cpuAux = aux.length > 1 ? +(((aux[aux.length - 1].processadorMs - aux[0].processadorMs) / (aux.length - 1)) / 10 / require('node:os').cpus().length).toFixed(1) : null;
   console.log(JSON.stringify({ ...resultado,
-    leituraNoAuxiliarMs: +(aux.reduce((s, x) => s + x.msLeitura, 0) / aux.length).toFixed(2),
+    conversaoNoAuxiliarMs: +(aux.reduce((s, x) => s + x.msConversao, 0) / aux.length).toFixed(2),
     processadorPct: { auxiliar: cpuAux, principal: media('Browser'), pagina: media('Tab'), gpu: media('GPU') } }, null, 1));
   auxiliar.kill();
   app.quit();

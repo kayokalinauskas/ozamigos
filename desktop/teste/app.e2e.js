@@ -1,7 +1,7 @@
 // Fumaça do app para Windows: abre o Electron de verdade (pelo embrulho), confere a janela e a ponte, e fecha.
 const { test, expect, _electron: electron } = require('@playwright/test');
 const fs = require('node:fs');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawn } = require('node:child_process');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
@@ -133,6 +133,64 @@ test('os atalhos de voz chegam à página pelo auxiliar do app, que lê as tecla
   }
 });
 
+test('a captura do app manda à página os quadros prontos da janela escolhida, e avisa quando a janela fecha', async () => {
+  test.skip(Boolean(process.env.CI), 'o runner do GitHub não tem placa de vídeo para reduzir e converter os quadros');
+  // A janela a transmitir: um formulário do PowerShell, com um título que só ela tem.
+  const titulo = `ozamigos-teste-${Date.now()}`;
+  const formulario = spawn('powershell', [
+    '-NoProfile',
+    '-Command',
+    `Add-Type -AssemblyName System.Windows.Forms; $f = New-Object Windows.Forms.Form; $f.Text = '${titulo}'; $f.Width = 640; $f.Height = 480; [void]$f.ShowDialog()`,
+  ]);
+  const { servidor, endereco } = await servidorDeTeste();
+  const aberto = await abrirApp(endereco);
+  try {
+    await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');
+    // A página faz o que a interface faz: pede a tela (num clique), e responde ao seletor do app pedindo a captura dele.
+    await aberto.janela.evaluate((titulo) => {
+      window.__quadros = [];
+      window.ozamigos.video.aoReceberQuadro((dados) => {
+        const cabecalho = new DataView(dados.buffer, dados.byteOffset, 24);
+        window.__quadros.push({ marca: String.fromCharCode(...dados.subarray(0, 4)), largura: cabecalho.getUint16(4, true), altura: cabecalho.getUint16(6, true), bytes: dados.length });
+      });
+      window.ozamigos.video.aoParar((aviso) => (window.__parou = aviso.motivo));
+      window.ozamigos.aoPedirFonte((fontes) => {
+        const fonte = fontes.find((f) => f.nome === titulo);
+        window.__resultado = window.ozamigos.responderFonte(fonte ? { id: fonte.id, audio: false, captura: { largura: 1280, altura: 720, fps: 30 } } : null);
+      });
+      document.querySelector('h1').addEventListener('click', () => {
+        window.__captura = navigator.mediaDevices.getDisplayMedia({ video: true }).then(() => 'do Chromium', () => 'recusada');
+      });
+    }, titulo);
+    // O formulário leva uns segundos para abrir: pede de novo até ele aparecer no seletor.
+    await expect
+      .poll(
+        async () => {
+          await aberto.janela.click('h1');
+          await aberto.janela.waitForFunction(() => window.__captura, null, { timeout: 10_000 });
+          const captura = await aberto.janela.evaluate(() => window.__captura);
+          return captura === 'recusada' ? aberto.janela.evaluate(() => window.__resultado) : null;
+        },
+        { timeout: 20_000, intervals: [1_000] },
+      )
+      .toMatchObject({ videoDoApp: true, tipo: 'janela' });
+    // O getDisplayMedia foi recusado de propósito: o vídeo chega pelos quadros, já reduzidos e em NV12.
+    await expect.poll(() => aberto.janela.evaluate(() => window.__quadros.length), { timeout: 5_000 }).toBeGreaterThan(5);
+    const [quadro] = await aberto.janela.evaluate(() => window.__quadros);
+    expect(quadro.marca).toBe('OZQ1');
+    expect(quadro.largura % 2 + (quadro.altura % 2)).toBe(0);
+    expect(quadro.largura).toBeLessThanOrEqual(1280);
+    expect(quadro.bytes).toBe(24 + (quadro.largura * quadro.altura * 3) / 2);
+    // A janela transmitida fechou: a página fica sabendo (e encerra a transmissão, como na captura do Chromium).
+    formulario.kill();
+    await expect.poll(() => aberto.janela.evaluate(() => window.__parou), { timeout: 5_000 }).toBe('fechou');
+  } finally {
+    formulario.kill();
+    await fechar(aberto);
+    servidor.close();
+  }
+});
+
 test('fechar a janela deixa o app na bandeja, e a página tem a bandeja, o aviso de mensagens e a tela acordada', async () => {
   const { servidor, endereco } = await servidorDeTeste();
   const aberto = await abrirApp(endereco);
@@ -162,7 +220,7 @@ test('fechar a janela deixa o app na bandeja, e a página tem a bandeja, o aviso
 
 /** As regras de economia de energia do Windows para o processo (ProcessPowerThrottling), lidas pelo PowerShell. */
 function economiaDoProcesso(pid) {
-  const { execFileSync } = require('node:child_process');
+  const { execFileSync, spawn } = require('node:child_process');
   const script = `
 Add-Type @'
 using System; using System.Runtime.InteropServices;

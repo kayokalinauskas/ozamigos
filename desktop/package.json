@@ -1,7 +1,7 @@
 {
   "name": "ozamigos-share",
   "productName": "Ozamigos",
-  "version": "1.2.17",
+  "version": "1.2.18",
   "description": "Transmita seu jogo para os amigos, direto de um PC para o outro.",
   "author": "Ozamigos",
   "license": "MIT",
@@ -13,8 +13,9 @@
     "start": "electron .",
     "test": "playwright test",
     "icone": "node build/gerar-icone.js",
-    "instalador": "npm run som && electron-builder --win --publish never",
-    "som": "dotnet publish som -c Release -o som/publicado"
+    "instalador": "npm run som && npm run captura && electron-builder --win --publish never",
+    "som": "dotnet publish som -c Release -o som/publicado",
+    "captura": "dotnet publish captura -c Release -o captura/publicado"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
@@ -78,6 +79,10 @@
       {
         "from": "som/publicado/OzamigosSom.exe",
         "to": "som/OzamigosSom.exe"
+      },
+      {
+        "from": "captura/publicado/OzamigosCaptura.exe",
+        "to": "captura/OzamigosCaptura.exe"
       }
     ]
   },

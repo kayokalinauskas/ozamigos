@@ -11,6 +11,8 @@ const LIMITES: Record<string, { texto: string; dica?: string }> = {
   other: { texto: 'outro' },
 };
 
+const ORIGENS: Record<string, string> = { app: ' · do app', navegador: ' · do navegador' };
+
 const REDES: Record<string, string> = { host: 'mesma rede', srflx: 'pela internet', prflx: 'pela internet', relay: 'por servidor TURN' };
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
@@ -34,7 +36,7 @@ function Cartao({ m, qualidade }: { m: Metrica; qualidade: Qualidade }) {
       <dl>
         <Linha rotulo="Imagem" valor={m.largura ? `${m.largura}×${m.altura} · ${m.fps} fps` : 'aguardando…'} />
         <Linha rotulo="Taxa" valor={`${m.mbps.toFixed(1)} Mbps · ${m.codec}`} />
-        {enviando && <Linha rotulo="Captura" valor={m.captura != null ? `${Math.round(m.captura)} fps` : '?'} />}
+        {enviando && <Linha rotulo="Captura" valor={`${m.captura != null ? `${Math.round(m.captura)} fps` : '?'}${ORIGENS[cliente.origemDaCaptura() ?? ''] ?? ''}`} />}
         {enviando && <Linha rotulo="Codificador" valor={m.codificador ?? '?'} />}
         {enviando && <Linha rotulo="Limite" valor={limite?.texto ?? '? (o Firefox não informa)'} />}
         {enviando && m.banda != null && <Linha rotulo="Banda estimada" valor={`${m.banda.toFixed(1)} Mbps`} />}

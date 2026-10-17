@@ -16,9 +16,36 @@ contextBridge.exposeInMainWorld('ozamigos', {
     ipcRenderer.removeAllListeners('escolher-fonte');
     ipcRenderer.on('escolher-fonte', (_evento, fontes) => ouvinte(fontes));
   },
-  /** Resolve { somDoApp }: true quando o som do PC vem do auxiliar (sem o Discord e sem o app). */
+  /**
+   * Resolve { somDoApp }: true quando o som do PC vem do auxiliar (sem o Discord e sem o app). Com escolha.captura
+   * ({ largura, altura, fps }, app 1.2.18 em diante), o vídeo vem da captura do app: { videoDoApp: true }.
+   */
   responderFonte(escolha) {
-    return ipcRenderer.invoke('fonte-escolhida', escolha ? { id: String(escolha.id), audio: Boolean(escolha.audio) } : null);
+    if (!escolha) return ipcRenderer.invoke('fonte-escolhida', null);
+    const { captura } = escolha;
+    return ipcRenderer.invoke('fonte-escolhida', {
+      id: String(escolha.id),
+      audio: Boolean(escolha.audio),
+      captura: captura ? { largura: Number(captura.largura), altura: Number(captura.altura), fps: Number(captura.fps) } : null,
+    });
+  },
+  /**
+   * A captura de vídeo do app (1.2.18 em diante): cada quadro é um cabeçalho de 24 bytes ("OZQ1", largura e altura em
+   * u16, o número em u32, 4 de reserva e o momento da captura em ms, f64) e a imagem em NV12.
+   */
+  video: {
+    aoReceberQuadro(ouvinte) {
+      ipcRenderer.removeAllListeners('quadro');
+      ipcRenderer.on('quadro', (_evento, dados) => ouvinte(dados));
+    },
+    /** A captura parou sozinha: { motivo: 'fechou' (a janela fechou) | 'falhou', fonte: o id da fonte }. */
+    aoParar(ouvinte) {
+      ipcRenderer.removeAllListeners('video-parou');
+      ipcRenderer.on('video-parou', (_evento, aviso) => ouvinte({ motivo: String(aviso?.motivo), fonte: String(aviso?.fonte) }));
+    },
+    parar() {
+      ipcRenderer.send('video-parar');
+    },
   },
   /** O som do PC chega em pedaços de float32 estéreo, 48 kHz. */
   aoReceberSom(ouvinte) {

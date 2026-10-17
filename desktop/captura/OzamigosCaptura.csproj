@@ -1,13 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Fase 1 da captura própria (medição, ainda fora do instalador): captura a tela pela duplicação do Windows,
-    reduz para 720p e converte para NV12 na placa de vídeo, e codifica em H.265 pelo Media Foundation (o codificador
-    da placa), sem nenhum quadro passar pelo processador. Grava o vídeo num arquivo e escreve as medidas de cada segundo.
-    O objetivo é saber se o limite de ~21 fps da captura do Chromium em jogos pesados some fora dele.
+    Auxiliar de captura de vídeo do app para Windows (1.2.18 em diante). Roda escondido (WinExe: nunca abre janela),
+    captura a janela ou a tela pelo Windows (Windows Graphics Capture), reduz e converte para NV12 na placa de vídeo e
+    escreve os quadros na saída padrão; o app os passa à página, que os manda pelo WebRTC.
   -->
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -15,14 +14,24 @@
     <AssemblyName>OzamigosCaptura</AssemblyName>
     <RootNamespace>Ozamigos.Captura</RootNamespace>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Um .exe só, com o .NET dentro: os amigos não precisam instalar nada. -->
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>true</PublishTrimmed>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <DebuggerSupport>false</DebuggerSupport>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Direct3D 11, DXGI e Media Foundation para .NET (MIT), sem a interop COM embutida. -->
+    <!-- Direct3D 11 e DXGI para .NET (MIT), sem a interop COM embutida. -->
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
     <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
-    <PackageReference Include="Vortice.MediaFoundation" Version="3.8.3" />
+  </ItemGroup>
+
+  <!-- A bancada (desktop/captura/bancada) roda pelo Electron, fora do .exe. -->
+  <ItemGroup>
+    <None Remove="bancada\**" />
   </ItemGroup>
 
 </Project>

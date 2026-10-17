@@ -8,7 +8,10 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.2.18] - 2026-10-17
+
 ### Adicionado
+- **Captura própria do app, mais fluida em jogo pesado:** o app passa a capturar a janela ou a tela direto do Windows e a reduzir a imagem na placa de vídeo, em vez de usar a captura do navegador. Num jogo que ocupa a placa inteira, a captura antiga ficava em ~21 fps; a nova dá 28–30 no mesmo jogo, com o cursor e sem a borda amarela do Windows. Se ela falhar no meio, a transmissão continua pela captura antiga, sozinha. As estatísticas dizem qual está valendo, e **Ctrl+Shift+N** na sala troca entre as duas (para comparar).
 - **Prévia de links de vídeo no chat:** um link do YouTube, da Twitch, da Kick, do TikTok, do Streamable ou do Medal vira um cartão com a imagem, o título e o canal. O link de um canal da Twitch ou da Kick transmitindo mostra **AO VIVO**, o título da live e o jogo. Clique para abrir. Quem busca a prévia é o servidor: ninguém da sala acessa o site só por receber o link.
 
 ### Mudado
@@ -273,7 +276,8 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
-[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.17...HEAD
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.18...HEAD
+[1.2.18]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.17...v1.2.18
 [1.2.17]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.16...v1.2.17
 [1.2.16]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.15...v1.2.16
 [1.2.15]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.14...v1.2.15
