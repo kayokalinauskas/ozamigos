@@ -11,7 +11,7 @@ export const SEGUNDOS_DESCARTADOS = 8;
 export const FORMATO_DA_SALA = 'ozamigos-sala/1';
 
 /**
- * simulado: espectadores criados no próprio PC, num roteiro automático (Ctrl+Shift+D).
+ * simulado: espectadores criados no próprio PC, num roteiro automático (Ctrl+Shift+X).
  * sala: uma transmissão de verdade, tirada da gravação das estatísticas da sala (Ctrl+Shift+G).
  */
 export type Modo = 'simulado' | 'sala';

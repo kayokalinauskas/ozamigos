@@ -175,6 +175,11 @@ test('a transmissão de uma pessoa chega em movimento para quem assiste', async 
   expect(montagem.streamDoVideo).not.toBe('-');
   expect(montagem.streamDoSom).not.toBe(montagem.streamDoVideo);
   expect(montagem.faixas).toEqual(['audio', 'video']);
+
+  // O print da transmissão vai para a bandeja do chat, no tamanho que chega, e só vai com o Enter.
+  await beto.getByRole('figure', { name: 'Transmissão de Ana' }).hover();
+  await beto.getByRole('button', { name: 'Mandar um print de Ana para o chat' }).click();
+  await expect(beto.getByLabel('Imagens para mandar').getByRole('img', { name: 'Imagem para mandar' })).toBeVisible({ timeout: 15_000 });
 });
 
 test('a voz chega, o microfone desligado silencia e quem sai some da sala', async ({ browser }) => {
@@ -191,6 +196,33 @@ test('a voz chega, o microfone desligado silencia e quem sai some da sala', asyn
   await expect(beto.getByLabel('Sala e pessoas')).toContainText('Ana');
   await ana.getByRole('button', { name: 'Sair da sala' }).click();
   await expect(beto.getByLabel('Sala e pessoas')).not.toContainText('Ana');
+});
+
+test('apertar para falar: a voz só vai com a tecla apertada, e o atalho de mudo desliga o microfone', async ({ browser }) => {
+  const sala = novaSala();
+  const ana = await entrarNaSala(browser, sala, 'Ana');
+  const beto = await entrarNaSala(browser, sala, 'Beto');
+  await expect.poll(() => volumeNaSaida(beto), { timeout: 30_000 }).toBeGreaterThan(0.01); // a voz da Ana chega
+
+  await ana.getByRole('button', { name: 'Configurações' }).click();
+  await ana.getByRole('tab', { name: 'Atalhos' }).click();
+  await ana.getByRole('radio', { name: /Apertar para falar/ }).check();
+  await ana.getByRole('button', { name: /^Apertar para falar: nenhum atalho/ }).click();
+  await ana.keyboard.press('F8');
+  await expect(ana.getByRole('button', { name: /^Apertar para falar: F8/ })).toBeVisible();
+  await ana.keyboard.press('Escape'); // fecha a engrenagem
+  await expect(ana.getByRole('region', { name: 'Você', exact: true })).toContainText('Aperte F8 para falar');
+
+  await beto.waitForTimeout(1000); // o que já estava a caminho termina de chegar
+  expect(await volumeNaSaida(beto)).toBeLessThan(0.001);
+  await ana.keyboard.down('F8');
+  await expect.poll(() => volumeNaSaida(beto, 500), { timeout: 10_000 }).toBeGreaterThan(0.01);
+  await ana.keyboard.up('F8');
+  await beto.waitForTimeout(1000);
+  expect(await volumeNaSaida(beto)).toBeLessThan(0.001);
+
+  await ana.keyboard.press('Control+Shift+M'); // o atalho padrão, como no Discord
+  await expect(ana.getByRole('region', { name: 'Você', exact: true })).toContainText('Mudo');
 });
 
 test('a mensagem do chat chega, conta como nova para quem está com o chat fechado, e quem chega depois não vê a antiga', async ({ browser }) => {

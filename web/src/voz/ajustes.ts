@@ -14,6 +14,7 @@ export type AjustesDeVoz = {
   supressao: Supressao;
   cancelarEco: boolean;
   ganhoAutomatico: boolean;
+  apertarParaFalar: boolean; // a voz só vai com a tecla do atalho apertada (voz/atalhos.ts)
 };
 
 export const AJUSTES_PADRAO: AjustesDeVoz = {
@@ -26,6 +27,7 @@ export const AJUSTES_PADRAO: AjustesDeVoz = {
   supressao: 'rnnoise',
   cancelarEco: true,
   ganhoAutomatico: true,
+  apertarParaFalar: false,
 };
 
 const CHAVE = 'ozamigos-voz';
@@ -52,6 +54,7 @@ export function lerAjustes(): AjustesDeVoz {
     supressao: salvo.supressao === 'navegador' || salvo.supressao === 'nenhuma' ? salvo.supressao : 'rnnoise',
     cancelarEco: sim(salvo.cancelarEco, p.cancelarEco),
     ganhoAutomatico: sim(salvo.ganhoAutomatico, p.ganhoAutomatico),
+    apertarParaFalar: sim(salvo.apertarParaFalar, p.apertarParaFalar),
   };
 }
 

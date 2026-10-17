@@ -63,7 +63,8 @@ main {
   width: min(100%, 460px);
 }
 
-form {
+form,
+.cartao {
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -149,6 +150,61 @@ button {
 button:disabled {
   opacity: 0.6;
   cursor: wait;
+}
+
+button.secundario {
+  border: 1px solid var(--borda);
+  background: var(--painel-2);
+  color: var(--texto);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Acordando o servidor (o Render gratuito dorme): a página do servidor demora até um minuto para chegar. */
+.acordando-topo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.acordando-topo h1 {
+  margin: 0;
+  font-family: 'Sora', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.girando {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--painel-3);
+  border-top-color: var(--destaque);
+  border-radius: 50%;
+  animation: girar 0.9s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .girando {
+    animation-duration: 3s;
+  }
+}
+
+.acordando-tempo {
+  overflow: hidden;
+  color: var(--texto-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .erro {

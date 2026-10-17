@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { LoaderCircle, Maximize, Maximize2, PictureInPicture2, Volume1, Volume2, VolumeX, X } from 'lucide-react';
+import { Camera, LoaderCircle, Maximize, Maximize2, PictureInPicture2, Volume1, Volume2, VolumeX, X } from 'lucide-react';
 import { cliente } from '../cliente';
 import type { Metrica } from '../conexao/medidor';
 import { useCliente, useNumeroLembrado, useVoz } from '../useCliente';
 import { Avatar } from './Avatar';
+import { adicionarImagens } from './PainelChat';
 
 // Silenciar vale enquanto a página estiver aberta, mesmo se a transmissão mudar de lugar no palco.
 const silenciados = new Set<string>();
@@ -85,6 +86,21 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
     }
   }
 
+  /**
+   * O quadro que está na tela vai para a bandeja do chat, como um print colado: no tamanho que chega (720p), e só vai
+   * com o Enter. Em tela cheia o chat não aparece: o aviso diz onde o print ficou.
+   */
+  async function mandarPrint() {
+    const elemento = video.current;
+    if (!elemento?.videoWidth) return;
+    const tela = new OffscreenCanvas(elemento.videoWidth, elemento.videoHeight);
+    tela.getContext('2d')!.drawImage(elemento, 0, 0);
+    const png = await tela.convertToBlob({ type: 'image/png' });
+    adicionarImagens([new File([png], `print-${nome}.png`, { type: 'image/png' })]);
+    cliente.abrirChat(true);
+    if (document.fullscreenElement) cliente.avisar('O print está na bandeja do chat: saia da tela cheia (Esc) e aperte Enter para mandar.');
+  }
+
   const IconeDeVolume = mudo || volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
   // Recusada (outra coisa já em tela cheia, ou sem gesto da pessoa): nada a fazer, o vídeo continua onde estava.
   const telaCheia = () => void bloco.current?.requestFullscreen().catch(() => undefined);
@@ -135,6 +151,16 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
         />
         <span className="volume-numero">{mudo ? 0 : volume}%</span>
         <span className="espaco" />
+        <button
+          type="button"
+          className="botao-icone"
+          aria-label={`Mandar um print de ${nome} para o chat`}
+          title="Print para o chat (vai para a bandeja; manda com o Enter)"
+          disabled={!stream}
+          onClick={() => void mandarPrint()}
+        >
+          <Camera size={18} />
+        </button>
         {aoDestacar && !principal && (
           <button type="button" className="botao-icone" aria-label={`Destacar ${nome}`} title="Destacar" onClick={aoDestacar}>
             <Maximize2 size={18} />

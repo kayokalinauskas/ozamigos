@@ -2,7 +2,7 @@
 // e acrescenta o que só um app consegue: o seletor de janelas e telas, o som do PC sem o Discord
 // e sem o próprio app, notificações do Windows, e não ser freado quando fica atrás do jogo.
 
-const { app, BrowserWindow, Menu, Notification, Tray, desktopCapturer, ipcMain, nativeImage, nativeTheme, screen, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, Tray, desktopCapturer, ipcMain, nativeImage, nativeTheme, net, screen, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -115,15 +115,78 @@ async function limparCacheSeAtualizou() {
 
 // ===== Janela =====
 
+// ===== Acordar o servidor =====
+// O Render gratuito dorme depois de 15 min sem ninguém: o primeiro pedido fica parado até ele acordar (75 s medidos
+// em 17/10/2026). A janela só aparecia com a página pronta, e o app parecia não abrir. Agora, se o servidor não
+// responde logo, a tela de início explica e conta o tempo, e a sala abre sozinha quando ele acorda.
+const MOSTRAR_ACORDANDO_DEPOIS = 1_500;
+const PRAZO_DE_CADA_PERGUNTA = 90_000; // o Render segura o pedido enquanto acorda: não desistir antes disso
+const PRAZO_PARA_ACORDAR = 3 * 60_000;
+let esperaDoServidor = 0; // cada espera tem um número: abrir outra coisa (trocar o servidor) cancela a anterior
+
+/**
+ * O servidor está de pé? Qualquer resposta dele vale (a verificação de saúde do Render, /actuator/health, é a menor
+ * página que ele tem); 502, 503 e 504 são do Render, com o servidor ainda subindo. Enquanto acorda, o Render segura
+ * o pedido sem responder. Lança se a rede falhar (sem internet, endereço errado).
+ */
+async function servidorAcordado(origem) {
+  const resposta = await net.fetch(`${origem}/actuator/health`, {
+    cache: 'no-store',
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(PRAZO_DE_CADA_PERGUNTA),
+  });
+  return ![502, 503, 504].includes(resposta.status);
+}
+
 /** sala: o código de um convite (link ozamigos://), para abrir já com a sala certa na entrada. */
 function abrirServidorOuInicio(erro, sala = null) {
-  if (!erro && origemDoServidor()) {
-    // Sempre pergunta ao servidor pela página: um deploy novo aparece na hora, nunca a cópia guardada.
-    janela.loadURL(`${origemDoServidor()}/${sala ? `?sala=${sala}` : ''}`, { extraHeaders: 'pragma: no-cache\ncache-control: no-cache\n' });
-  } else {
+  const vez = ++esperaDoServidor;
+  if (erro || !origemDoServidor()) {
     janela.loadFile(INICIO, { query: erro ? { erro } : {} });
+    return;
+  }
+  void esperarOServidor(vez, origemDoServidor(), sala);
+}
+
+async function esperarOServidor(vez, origem, sala) {
+  const vale = () => vez === esperaDoServidor && janela && !janela.isDestroyed();
+  const comeco = Date.now();
+  const acordando = setTimeout(() => vale() && janela.loadFile(INICIO, { query: { acordando: origem, desde: String(comeco) } }), MOSTRAR_ACORDANDO_DEPOIS);
+  let falhas = 0;
+  try {
+    while (vale()) {
+      let acordado = false;
+      try {
+        acordado = await servidorAcordado(origem);
+        falhas = 0;
+      } catch (erro) {
+        // Sem internet ou endereço errado: duas falhas seguidas (a primeira pode ser um soluço) mostram o erro.
+        if (!vale()) return;
+        if (++falhas >= 2 && erro?.name !== 'TimeoutError') {
+          janela.loadFile(INICIO, { query: { erro: `Não foi possível abrir ${origem} (${erro?.message ?? erro}). Confira o endereço e a internet.` } });
+          return;
+        }
+      }
+      if (!vale()) return;
+      if (acordado) {
+        // Sempre pergunta ao servidor pela página: um deploy novo aparece na hora, nunca a cópia guardada.
+        janela.loadURL(`${origem}/${sala ? `?sala=${sala}` : ''}`, { extraHeaders: 'pragma: no-cache\ncache-control: no-cache\n' });
+        return;
+      }
+      if (Date.now() - comeco > PRAZO_PARA_ACORDAR) {
+        janela.loadFile(INICIO, { query: { erro: `O servidor ${origem} não acordou em 3 minutos. Confira o endereço, ou tente de novo daqui a pouco.` } });
+        return;
+      }
+      await new Promise((pronto) => setTimeout(pronto, 2_000));
+    }
+  } finally {
+    clearTimeout(acordando);
   }
 }
+
+ipcMain.on('parar-de-esperar', (evento) => {
+  if (vindoDoInicio(evento)) esperaDoServidor++;
+});
 
 // Os botões da janela (minimizar, maximizar, fechar) desenhados pelo Windows, por cima da página.
 const BARRA_DA_JANELA = { color: '#0b0e0a', symbolColor: '#c9d4bb', height: 32 };
@@ -207,6 +270,7 @@ function criarJanela(atualizando) {
     if (!detalhes.isMainFrame || detalhes.isSameDocument) return;
     desligarContadores();
     desligarAuxiliarDeSom();
+    desligarAtalhos(); // a página nova manda os atalhos de novo ao abrir
   });
   // A página travou ou caiu (falta de memória, falha da placa de vídeo): sem isto, a janela ficava vazia até a pessoa
   // apertar Ctrl+R. Abre de novo sozinha; se cair outra vez em menos de 30 s, mostra a tela de início com o erro, em vez
@@ -216,6 +280,7 @@ function criarJanela(atualizando) {
     console.error('A página caiu:', reason);
     desligarContadores();
     desligarAuxiliarDeSom();
+    desligarAtalhos();
     if (reason === 'clean-exit' || janela.isDestroyed()) return;
     const seguida = Date.now() - ultimaQueda < 30_000;
     ultimaQueda = Date.now();
@@ -442,6 +507,7 @@ ipcMain.on('trocar-servidor', (evento) => {
 });
 
 function trocarServidor() {
+  esperaDoServidor++;
   janela?.loadFile(INICIO);
 }
 
@@ -477,6 +543,62 @@ ipcMain.handle('estatisticas-abrir-pasta', async (evento, pasta) => {
   const destino = path.join(pastaDasEstatisticas(), pasta);
   if (!fs.existsSync(destino)) return false;
   return (await shell.openPath(destino)) === '';
+});
+
+// ===== Atalhos globais: mudo, som desligado e apertar para falar, com o jogo na frente =====
+// O auxiliar (--atalhos, Atalhos.cs) pergunta ao Windows o estado das teclas: não toma a tecla do jogo, como o
+// globalShortcut do Electron tomaria, e conta quando ela é solta (apertar para falar). A página manda as teclas
+// (teclas virtuais do Windows) e recebe "mudo", "surdo", "falar 1" e "falar 0".
+
+let auxiliarDeAtalhos = null;
+const NOMES_DOS_ATALHOS = ['mudo', 'surdo', 'falar'];
+
+/** { mudo: [17, 16, 77], falar: [5] } vira "mudo=17,16,77 falar=5"; o que não for válido fica de fora. */
+function linhaDosAtalhos(atalhos) {
+  if (!atalhos || typeof atalhos !== 'object') return '';
+  return NOMES_DOS_ATALHOS.map((nome) => {
+    const teclas = Array.isArray(atalhos[nome]) ? atalhos[nome].filter((t) => Number.isInteger(t) && t >= 1 && t <= 254) : [];
+    return teclas.length > 0 && teclas.length <= 4 ? `${nome}=${teclas.join(',')}` : '';
+  })
+    .filter(Boolean)
+    .join(' ');
+}
+
+function desligarAtalhos() {
+  auxiliarDeAtalhos?.stdin.end();
+  auxiliarDeAtalhos?.kill();
+  auxiliarDeAtalhos = null;
+}
+
+/** Resolve true se os atalhos valem com o jogo na frente (o auxiliar existe); false: só com a janela em foco. */
+ipcMain.handle('atalhos-definir', (evento, atalhos) => {
+  if (!vindoDaPagina(evento)) return false;
+  const linha = linhaDosAtalhos(atalhos);
+  if (!linha) {
+    desligarAtalhos();
+    return fs.existsSync(caminhoDoAuxiliar());
+  }
+  if (!auxiliarDeAtalhos) {
+    if (!fs.existsSync(caminhoDoAuxiliar())) return false;
+    const processo = spawn(caminhoDoAuxiliar(), ['--atalhos'], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+    auxiliarDeAtalhos = processo;
+    let resto = '';
+    processo.stdout.setEncoding('utf8');
+    processo.stdout.on('data', (texto) => {
+      const linhas = (resto + texto).split(/\r?\n/);
+      resto = linhas.pop();
+      if (!janela || janela.isDestroyed() || origemDe(janela.webContents.getURL()) !== origemDoServidor()) return;
+      for (const evento of linhas) {
+        if (/^(mudo|surdo|falar [01])$/.test(evento)) janela.webContents.send('atalho', evento);
+      }
+    });
+    processo.on('error', (erro) => console.error('Auxiliar dos atalhos não abriu', erro));
+    processo.on('exit', () => {
+      if (auxiliarDeAtalhos === processo) auxiliarDeAtalhos = null;
+    });
+  }
+  auxiliarDeAtalhos.stdin.write(`${linha}\n`);
+  return true;
 });
 
 // ===== Teste de desempenho (o que o navegador não mede: o PC e a placa de vídeo) =====

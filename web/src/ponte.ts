@@ -40,6 +40,14 @@ export type PonteOzamigos = {
     ler(): Promise<boolean | null>;
     definir(ligada: boolean): void;
   };
+  /**
+   * Atalhos de voz com o jogo na frente (app 1.2.17 em diante): as teclas virtuais do Windows de cada atalho.
+   * Resolve true se valem fora da janela. O ouvinte recebe "mudo", "surdo", "falar 1" ou "falar 0".
+   */
+  atalhos?: {
+    definir(atalhos: Record<'mudo' | 'surdo' | 'falar', number[]>): Promise<boolean>;
+    aoApertar(ouvinte: (evento: string) => void): void;
+  };
   /** Gravação das estatísticas da sala (app 1.2.11 em diante): salva em Documentos\Ozamigos\Estatísticas\<pasta>. */
   estatisticas?: {
     /** Devolve o caminho da pasta, ou null se recusou. */

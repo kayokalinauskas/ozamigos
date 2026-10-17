@@ -14,6 +14,7 @@ static class Programa
     {
         if (argumentos.Contains("--contadores")) return Contadores.Rodar(); // teste de desempenho (veja Contadores.cs)
         if (argumentos.Contains("--relogio")) return Relogio.Rodar(argumentos); // captura sem cair para ~21 fps (veja Relogio.cs)
+        if (argumentos.Contains("--atalhos")) return Atalhos.Rodar(); // mudo e apertar para falar com o jogo na frente (veja Atalhos.cs)
 
         var pidsExcluidos = new HashSet<uint> { (uint)Environment.ProcessId };
         var nomesExcluidos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

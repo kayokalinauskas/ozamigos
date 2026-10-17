@@ -1,4 +1,4 @@
-// O teste de desempenho de quem transmite (Ctrl+Shift+D): um roteiro automático com espectadores criados no
+// O teste de desempenho de quem transmite (Ctrl+Shift+X): um roteiro automático com espectadores criados no
 // próprio PC (conexões WebRTC locais, sem servidor nem internet), passando pelas qualidades e por 1, 3 e 7
 // espectadores. Quem já assiste de verdade entra nas medidas de envio. O resultado é uma Gravacao (tipos.ts).
 // Com os amigos de verdade, a medida é a gravação da sala (Ctrl+Shift+G, gravadorDaSala.ts).

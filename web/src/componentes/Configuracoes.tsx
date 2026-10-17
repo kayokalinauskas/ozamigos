@@ -6,6 +6,7 @@ import { ligarSons, sonsLigados } from '../sons';
 import { useVoz } from '../useCliente';
 import type { Supressao } from '../voz/ajustes';
 import { voz } from '../voz/voz';
+import { AbaDeAtalhos } from './Atalhos';
 
 const SUPRESSOES: { valor: Supressao; titulo: string; texto: string }[] = [
   { valor: 'rnnoise', titulo: 'RNNoise (recomendado)', texto: 'Uma rede neural tira teclado, ventilador e barulho de fundo, e deixa a voz.' },
@@ -22,10 +23,14 @@ const PADRAO = ponte ? 'Padrão do Windows' : 'Padrão do sistema';
 
 const ABAS = [
   { id: 'voz', titulo: 'Voz e áudio' },
+  { id: 'atalhos', titulo: 'Atalhos' },
   { id: 'notificacoes', titulo: 'Notificações' },
   { id: 'geral', titulo: 'Geral' },
 ] as const;
 type Aba = (typeof ABAS)[number]['id'];
+// Num celular (sem teclado nem mouse), atalhos de teclado não servem.
+const SO_TOQUE = typeof matchMedia !== 'undefined' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+const ABAS_AQUI = ABAS.filter((a) => a.id !== 'atalhos' || !SO_TOQUE);
 
 /** A engrenagem, em abas como no Discord: a voz e o áudio, as notificações e o resto. */
 export function Configuracoes({ aoFechar }: { aoFechar: () => void }) {
@@ -52,7 +57,7 @@ export function Configuracoes({ aoFechar }: { aoFechar: () => void }) {
         </button>
       </header>
       <div className="segmentado configuracoes-abas" role="tablist" aria-label="Seções das configurações">
-        {ABAS.map((a) => (
+        {ABAS_AQUI.map((a) => (
           <button
             key={a.id}
             type="button"
@@ -68,6 +73,7 @@ export function Configuracoes({ aoFechar }: { aoFechar: () => void }) {
       </div>
       <div className="configuracoes-corpo" role="tabpanel" id={`painel-${aba}`} aria-labelledby={`aba-${aba}`}>
         {aba === 'voz' && <AbaDeVoz />}
+        {aba === 'atalhos' && <AbaDeAtalhos />}
         {aba === 'notificacoes' && <AbaDeNotificacoes />}
         {aba === 'geral' && <AbaGeral />}
       </div>

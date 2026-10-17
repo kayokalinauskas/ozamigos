@@ -2711,6 +2711,52 @@ button.chat-imagem-quadro:focus-visible {
   color: var(--ruim);
 }
 
+/* A conexão com o amigo, só quando está ruim (voz/qualidade.ts). */
+.sinal-da-conexao {
+  display: inline-flex;
+  flex: none;
+}
+
+.sinal-instavel {
+  color: var(--medio);
+}
+
+.sinal-ruim,
+.sinal-sem {
+  color: var(--ruim);
+}
+
+.menu-da-voz-conexao {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--texto-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.menu-da-voz-conexao .ponto {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--texto-3);
+}
+
+.menu-da-voz-conexao.sinal-boa .ponto {
+  background: var(--bom);
+}
+
+.menu-da-voz-conexao.sinal-instavel .ponto {
+  background: var(--medio);
+}
+
+.menu-da-voz-conexao.sinal-ruim .ponto,
+.menu-da-voz-conexao.sinal-sem .ponto {
+  background: var(--ruim);
+}
+
 .botao-quadrado {
   display: inline-grid;
   place-items: center;
@@ -2882,6 +2928,41 @@ button.chat-imagem-quadro:focus-visible {
 
 .configuracoes h3 {
   font-size: 15px;
+}
+
+/* Atalhos (aba da engrenagem): o nome da ação, a tecla (clique para gravar outra) e o X para tirar. */
+.atalhos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.atalho {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.atalho-titulo {
+  flex: 1;
+  min-width: 0;
+}
+
+.atalho-tecla {
+  min-width: 190px;
+  justify-content: flex-start;
+  font-variant-numeric: tabular-nums;
+}
+
+.atalho-sem-x {
+  flex: none;
+  width: 34px; /* o tamanho do .botao-icone */
+}
+
+.atalho-tecla.gravando {
+  border-color: var(--destaque);
+  color: var(--destaque);
 }
 
 .configuracoes-alerta {

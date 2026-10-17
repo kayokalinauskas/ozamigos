@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { FOLGA, FolgaAdaptativa } from './folga';
 import { AJUSTES_PADRAO, lerAjustes } from './voz/ajustes';
 import { Porta } from './voz/porta';
+import { LeitorDeAtalhos, ATALHOS_PADRAO, teclaVirtual } from './voz/atalhos';
+import { MedidorDaConexao } from './voz/qualidade';
 
 const AUTOMATICA = { automatica: true, limiarDb: -50 };
 
@@ -59,5 +61,46 @@ describe('ajustes de voz', () => {
     expect(lerAjustes()).toEqual({ ...AJUSTES_PADRAO, volumeEntrada: 200, cancelarEco: false });
     localStorage.setItem('ozamigos-voz', '{quebrado');
     expect(lerAjustes()).toEqual(AJUSTES_PADRAO);
+  });
+});
+
+describe('qualidade da conexão com cada amigo', () => {
+  it('piora na hora, melhora só depois de uns segundos, e não conta perda com o amigo calado', () => {
+    const medidor = new MedidorDaConexao();
+    const ler = (idaEVolta: number, recebidos: number, perdidos: number) => medidor.medir({ estado: 'connected', idaEVolta, recebidos, perdidos, jitter: 0.005 });
+    expect(ler(0.04, 0, 0).nivel).toBe('boa');
+    // Calado (DTX): 5 pacotes a cada 2 s, 1 perdido. Seria "17% de perda", mas são pacotes de menos para contar.
+    expect(ler(0.04, 5, 1).perdaPct).toBeNull();
+    expect(ler(0.2, 10, 1).nivel).toBe('instavel'); // 200 ms de ida e volta: piora na hora
+    expect(ler(0.04, 110, 1).nivel).toBe('instavel'); // melhorou, mas ainda não por tempo bastante
+    expect(ler(0.04, 210, 1).nivel).toBe('instavel');
+    const boa = ler(0.04, 310, 1);
+    expect(boa.nivel).toBe('boa'); // 3 leituras seguidas melhores
+    expect(boa.perdaPct).toBe(0.3); // falando: 1 perdido em 311
+    expect(ler(0.04, 360, 60).nivel).toBe('ruim'); // perda alta: ruim na hora
+    expect(medidor.medir({ estado: 'failed' }).nivel).toBe('sem');
+  });
+});
+
+describe('atalhos de voz', () => {
+  it('mudo troca ao completar a combinação; apertar para falar conta ao apertar e ao soltar', () => {
+    const eventos: string[] = [];
+    const atalhos = { ...ATALHOS_PADRAO, falar: { teclas: ['Mouse4'], nome: 'Mouse 4' } };
+    const leitor = new LeitorDeAtalhos(atalhos, (qual, apertado) => eventos.push(`${qual} ${apertado}`));
+    leitor.apertou('Control');
+    leitor.apertou('Shift');
+    leitor.apertou('KeyM');
+    leitor.soltou('KeyM');
+    leitor.apertou('KeyM'); // de novo, com Ctrl e Shift ainda apertados
+    leitor.apertou('Mouse4');
+    leitor.soltarTudo(); // a página perdeu o foco com tudo apertado
+    expect(eventos).toEqual(['mudo true', 'mudo true', 'falar true', 'falar false']);
+  });
+
+  it('as teclas viram as teclas virtuais que o app pergunta ao Windows', () => {
+    expect(['Control', 'Shift', 'KeyM', 'Digit0', 'F24', 'Numpad5', 'Mouse4', 'Semicolon'].map(teclaVirtual)).toEqual([
+      0x11, 0x10, 0x4d, 0x30, 0x87, 0x65, 0x05, 0xba,
+    ]);
+    expect(teclaVirtual('Fn')).toBeNull();
   });
 });

@@ -36,13 +36,13 @@ export function Sala() {
   const [arrastando, setArrastando] = useState(false);
   const entradas = useRef(0); // dragenter e dragleave disparam em cada filho: conta para saber quando saiu da sala
 
-  // Ferramentas de diagnóstico, sem botão na tela: Ctrl+Shift+D abre o teste de desempenho, e Ctrl+Shift+G
+  // Ferramentas de diagnóstico, sem botão na tela: Ctrl+Shift+X abre o teste de desempenho, e Ctrl+Shift+G
   // começa (ou para) a gravação das estatísticas da sala. O código das duas só é baixado no primeiro uso.
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (!e.ctrlKey || !e.shiftKey) return;
       const letra = e.key.toLowerCase();
-      if (letra === 'd') {
+      if (letra === 'x') { // era o D, que virou o atalho de desligar o som (como no Discord)
         e.preventDefault();
         setTesteAberto(true);
       } else if (letra === 'g' && !e.repeat) {

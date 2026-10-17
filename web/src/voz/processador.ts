@@ -9,7 +9,8 @@ declare class AudioWorkletProcessor {
   constructor(opcoes?: unknown);
 }
 
-export type AjustesDoProcessador = AjustesDaPorta & { ganho: number; tirarRuido: boolean };
+// semPorta: apertar para falar. Quem decide quando a voz vai é a tecla, não a porta (o começo da fala não é cortado).
+export type AjustesDoProcessador = AjustesDaPorta & { ganho: number; tirarRuido: boolean; semPorta: boolean };
 export type MedidaDoProcessador = { nivelDb: number; aberta: boolean; rnnoise: boolean };
 
 type Rnnoise = { processar(quadro: Float32Array): number };
@@ -61,7 +62,7 @@ const TAMANHO_DA_FILA = 4096;
 class ProcessadorDeVoz extends AudioWorkletProcessor {
   private rnnoise: Rnnoise | null = null;
   private readonly porta = new Porta();
-  private ajustes: AjustesDoProcessador = { ganho: 1, tirarRuido: true, automatica: true, limiarDb: -50 };
+  private ajustes: AjustesDoProcessador = { ganho: 1, tirarRuido: true, automatica: true, limiarDb: -50, semPorta: false };
   private readonly quadro = new Float32Array(QUADRO);
   private noQuadro = 0;
   // Fila de saída: começa com um quadro de silêncio, para nunca faltar amostra (10 ms de atraso, fixo).
@@ -120,7 +121,8 @@ class ProcessadorDeVoz extends AudioWorkletProcessor {
       }
     }
     const nivelDb = nivelEmDb(q);
-    const aberta = this.porta.decidir(nivelDb, chanceDeVoz, this.ajustes, picoNoQuadro(q));
+    const decidida = this.porta.decidir(nivelDb, chanceDeVoz, this.ajustes, picoNoQuadro(q)); // a porta segue aprendendo o ambiente
+    const aberta = this.ajustes.semPorta || decidida;
     this.guardados[this.vez].set(q);
     this.decisoes[this.vez] = aberta;
     this.vez = (this.vez + 1) % (ANTECIPAR + 1);

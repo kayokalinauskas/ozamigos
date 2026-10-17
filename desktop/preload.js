@@ -60,7 +60,19 @@ contextBridge.exposeInMainWorld('ozamigos', {
     ler: () => ipcRenderer.invoke('bandeja-ler'),
     definir: (ligada) => ipcRenderer.send('bandeja-definir', Boolean(ligada)),
   },
+  /**
+   * Atalhos globais (app 1.2.17 em diante): as teclas de cada atalho, em teclas virtuais do Windows. Resolve true se
+   * valem com o jogo na frente. O ouvinte recebe "mudo", "surdo", "falar 1" ou "falar 0".
+   */
+  atalhos: {
+    definir: (atalhos) => ipcRenderer.invoke('atalhos-definir', atalhos),
+    aoApertar(ouvinte) {
+      ipcRenderer.removeAllListeners('atalho');
+      ipcRenderer.on('atalho', (_evento, qual) => ouvinte(String(qual)));
+    },
+  },
   // Usadas só pela tela de início (o main.js recusa se o pedido vier de outro lugar).
   servidorAtual: () => ipcRenderer.invoke('servidor-atual'),
   salvarServidor: (endereco) => ipcRenderer.invoke('salvar-servidor', String(endereco)),
+  pararDeEsperar: () => ipcRenderer.send('parar-de-esperar'),
 });

@@ -1,8 +1,10 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { Check, Eye, EyeOff, HeadphoneOff, Headphones, Link, LogOut, Mic, MicOff, Settings, VolumeX } from 'lucide-react';
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Check, Eye, EyeOff, HeadphoneOff, Headphones, Link, LogOut, Mic, MicOff, Settings, SignalLow, SignalMedium, SignalZero, VolumeX } from 'lucide-react';
 import { cliente } from '../cliente';
 import { LIMITE_POR_SALA, linkDaSala } from '../conexao/codigoDaSala';
 import { useCliente, useVoz } from '../useCliente';
+import { atalhos } from '../voz/atalhos';
+import { descrever, type QualidadeDaConexao } from '../voz/qualidade';
 import { EU, voz } from '../voz/voz';
 import { Avatar } from './Avatar';
 import { Configuracoes } from './Configuracoes';
@@ -11,7 +13,7 @@ import { Versao } from './Versao';
 
 export function BarraLateral() {
   const { sala, pessoas, meuId, meuNome, transmitindo, plateias, assistindo } = useCliente();
-  const { falando, remotos } = useVoz();
+  const { falando, remotos, conexao } = useVoz();
   const [copiado, setCopiado] = useState(false);
   const [menuDe, setMenuDe] = useState<string | null>(null); // o amigo com o menu de voz aberto
   const total = pessoas.length + 1;
@@ -84,6 +86,7 @@ export function BarraLateral() {
                     <span className="pessoa-texto">
                       <span className="pessoa-nome">
                         <span className="pessoa-nome-texto">{nome}</span>
+                        <SinalDaConexao q={conexao[id]} nome={nome} />
                         {(naVoz?.surdo || naVoz?.mudo || silenciado) && (
                           <span className="pessoa-voz">
                             {naVoz?.surdo ? (
@@ -141,12 +144,27 @@ export function BarraLateral() {
 /** O cartão de baixo: você, a prévia da sua transmissão, quem te assiste, e o microfone, o som e a engrenagem. */
 function Voce({ nome, plateia, nomesDe }: { nome: string; plateia: string[] | null; nomesDe: (ids: string[]) => string }) {
   const { minhaTela } = useCliente();
-  const { mudo, surdo, falando, microfone } = useVoz();
+  const { mudo, surdo, falando, microfone, ajustes, apertado } = useVoz();
+  const teclaDeFalar = useSyncExternalStore(atalhos.inscrever, () => atalhos.ler().falar.nome);
   const previa = useRef<HTMLVideoElement>(null);
   const [configuracoes, setConfiguracoes] = useState(false);
   const semMicrofone = microfone !== 'ok' && microfone !== 'ligando';
   const microfoneDesligado = mudo || surdo || semMicrofone;
-  const status = semMicrofone ? 'Sem microfone' : surdo ? 'Som desligado' : mudo ? 'Mudo' : minhaTela ? 'Ao vivo' : 'Na voz';
+  // Apertar para falar, com a tecla solta: diz qual tecla abre o microfone (ou que falta escolher uma).
+  const esperandoATecla = ajustes.apertarParaFalar && !apertado;
+  const status = semMicrofone
+    ? 'Sem microfone'
+    : surdo
+      ? 'Som desligado'
+      : mudo
+        ? 'Mudo'
+        : esperandoATecla
+          ? teclaDeFalar
+            ? `Aperte ${teclaDeFalar} para falar`
+            : 'Escolha a tecla de falar (engrenagem)'
+          : minhaTela
+            ? 'Ao vivo'
+            : 'Na voz';
 
   useEffect(() => {
     if (previa.current) previa.current.srcObject = minhaTela;
@@ -213,8 +231,24 @@ function Voce({ nome, plateia, nomesDe }: { nome: string; plateia: string[] | nu
 }
 
 /** Clicar num amigo: o volume da voz dele (0 a 200%) e "silenciar para mim", lembrados pelo nome. */
+/**
+ * A conexão com o amigo, só quando ela está ruim: uma lista cheia de ícones verdes não diria nada. Os números ficam
+ * na dica e no menu de voz da pessoa.
+ */
+function SinalDaConexao({ q, nome }: { q: QualidadeDaConexao | undefined; nome: string }) {
+  if (!q || q.nivel === 'boa' || q.nivel === 'conectando') return null;
+  const Icone = q.nivel === 'instavel' ? SignalMedium : q.nivel === 'ruim' ? SignalLow : SignalZero;
+  const texto = `Conexão com ${nome}: ${descrever(q)}`;
+  return (
+    <span className={`sinal-da-conexao sinal-${q.nivel}`} title={texto}>
+      <Icone size={14} aria-label={texto} />
+    </span>
+  );
+}
+
 function MenuDaVoz({ id, nome, aoFechar }: { id: string; nome: string; aoFechar: () => void }) {
-  useVoz(); // redesenha quando o volume muda
+  const { conexao } = useVoz(); // redesenha quando o volume muda
+  const q = conexao[id];
   const volume = voz.volumeDe(id);
   const silenciado = voz.silenciadoParaMim(id);
   const caixa = useRef<HTMLLIElement>(null);
@@ -250,6 +284,11 @@ function MenuDaVoz({ id, nome, aoFechar }: { id: string; nome: string; aoFechar:
         <input type="checkbox" role="switch" checked={silenciado} onChange={(e) => voz.silenciarParaMim(id, e.target.checked)} />
         <span>Silenciar para mim</span>
       </label>
+      {q && (
+        <p className={`menu-da-voz-conexao sinal-${q.nivel}`}>
+          <span className="ponto" aria-hidden="true" /> Conexão {descrever(q)}
+        </p>
+      )}
     </li>
   );
 }

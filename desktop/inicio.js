@@ -8,7 +8,31 @@ function mostrarErro(texto) {
   erro.hidden = !texto;
 }
 
-mostrarErro(new URLSearchParams(location.search).get('erro'));
+const parametros = new URLSearchParams(location.search);
+mostrarErro(parametros.get('erro'));
+
+// Acordando o servidor: o main.js abre esta tela quando o servidor demora a responder, e troca pela sala quando
+// ele acorda. "Trocar o servidor" para a espera e mostra o formulário.
+const acordando = parametros.get('acordando');
+if (acordando) {
+  const formulario = document.getElementById('formulario');
+  const tela = document.getElementById('acordando');
+  const segundos = document.getElementById('segundos');
+  formulario.hidden = true;
+  tela.hidden = false;
+  document.getElementById('servidor').textContent = acordando;
+  const comeco = Number(parametros.get('desde')) || Date.now(); // a espera começou um pouco antes desta tela
+  const contar = () => (segundos.textContent = String(Math.floor((Date.now() - comeco) / 1000)));
+  contar();
+  const relogio = setInterval(contar, 1000);
+  document.getElementById('outro-servidor').addEventListener('click', () => {
+    clearInterval(relogio);
+    window.ozamigos.pararDeEsperar();
+    tela.hidden = true;
+    formulario.hidden = false;
+    endereco.focus();
+  });
+}
 window.ozamigos.servidorAtual().then((atual) => {
   if (atual && !endereco.value) endereco.value = atual;
 });

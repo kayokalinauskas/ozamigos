@@ -85,6 +85,8 @@
 - **Redução de ruído com o RNNoise** (padrão), uma rede neural que roda no seu PC: teclado, mouse e ventilador não chegam aos amigos. Dá para trocar pela do navegador ou desligar.
 - **Sensibilidade automática:** o microfone abre quando o RNNoise reconhece voz acima do barulho do ambiente. Ou manual, arrastando o limite sobre o medidor.
 - **Microfone e som a um clique** no seu cartão (desligar o som desliga o microfone também). Os amigos veem o ícone, e quem está falando ganha um **anel verde**.
+- **Atalhos com o jogo na frente** (no app; no navegador, com a aba em foco): **Ctrl+Shift+M** liga e desliga o microfone e **Ctrl+Shift+D** o som, como no Discord. Na engrenagem (aba **Atalhos**), dá para trocar as teclas e ligar o **apertar para falar**, com uma tecla ou um botão lateral do mouse. O app lê as teclas sem tirá-las do jogo.
+- **A conexão com cada amigo:** se ela estiver instável ou ruim, um ícone de sinal aparece ao lado do nome; o menu de voz da pessoa mostra o tempo de ida e volta e a perda. Ajuda a saber se o problema é a sua internet ou a dele.
 - **Engrenagem:** microfone e saída de áudio, volumes de entrada e de saída, teste do microfone, cancelamento de eco e controle automático de ganho.
 - **Cada amigo do seu jeito:** clicando no nome, o volume da voz dele (até 200%) e "silenciar para mim", lembrados para as próximas vezes.
 - **Baixo atraso:** a voz tem a própria conexão, separada do vídeo, em Opus a 64 kbps com correção de perda. Na bancada, na mesma rede, ela chega em 60 a 90 ms.
@@ -99,12 +101,12 @@
 - **Pouco atraso para quem assiste:** a folga contra soluços da rede se ajusta à conexão de cada um, de 80 a 250 ms.
 - **Sem escolher qualidade:** a transmissão sai sempre em 720p a 30 fps. Se a internet ou o PC apertarem, a imagem de quem não aguenta perde um pouco de nitidez ou de fps por alguns segundos, sem travar e sem sair de 720p; quem está bem nem percebe. Cada transmissão mostra um indicador de saúde (verde, amarelo ou vermelho), e o painel de **Estatísticas** mostra fps, resolução, taxa, codificador e o motivo de qualquer queda.
 - **Avisos:** quando alguém entra ou começa a transmitir, aparece um aviso com o botão **Assistir**. Há sons curtos e notificação do Windows quando o app está atrás do jogo; na engrenagem (aba **Notificações**), dá para desligar os sons e escolher quais notificações aparecem: alguém entrou, começou a transmitir ou mandou mensagem no chat.
-- **Configurações em abas:** Voz e áudio, Notificações e Geral (a versão e o servidor).
+- **Configurações em abas:** Voz e áudio, Atalhos, Notificações e Geral (a versão e o servidor).
 - **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
 - **Na bandeja, como o Discord** (app para Windows): fechar a janela deixa o Ozamigos perto do relógio, e a conversa continua; para sair, botão direito no ícone. Mensagens novas do chat aparecem como um ponto verde no ícone da barra de tarefas, que pisca quando chega uma com o jogo na frente.
 - **A tela não apaga** com mais alguém na sala, como numa chamada.
 - **Chat da sala:** mensagens de texto com links clicáveis, num painel à direita. Com o painel fechado, a mensagem aparece como aviso e o botão mostra quantas são novas. Nada fica guardado: quem entra depois não vê o que foi dito antes.
-- **Imagens no chat:** cole um print com **Ctrl+V** (Win+Shift+S), arraste para a sala ou use o botão de imagem; até 4 por vez, conferidas numa bandeja antes do Enter. Elas vão **direto de um PC para o outro**, sem passar pelo servidor, já comprimidas: um print de jogo de 8 MB em PNG chega com ~1 MB em WebP, no mesmo tamanho (até 2560×1440), sem perder a legibilidade do texto. Clique para ver grande, copiar ou salvar.
+- **Imagens no chat:** cole um print com **Ctrl+V** (Win+Shift+S), arraste para a sala, use o botão de imagem, ou tire um **print da transmissão** que você assiste (o botão de câmera no vídeo); até 4 por vez, conferidas numa bandeja antes do Enter. Elas vão **direto de um PC para o outro**, sem passar pelo servidor, já comprimidas: um print de jogo de 8 MB em PNG chega com ~1 MB em WebP, no mesmo tamanho (até 2560×1440), sem perder a legibilidade do texto. Clique para ver grande, copiar ou salvar.
 - **Reconexão automática:** se a internet oscilar ou o servidor reiniciar, o app volta sozinho para a sala. Quem transmitia continua transmitindo, e quem assistia continua assistindo. As transmissões já abertas não param enquanto isso.
 
 **Só no app para Windows**
@@ -112,6 +114,7 @@
 - **Som do jogo sem eco:** a transmissão leva o som de todos os programas do PC, menos o do próprio **Ozamigos** (a voz dos amigos e as transmissões que você assiste) e o de apps de chamada de voz. Ninguém ouve a própria voz nem o próprio jogo de volta. O áudio vai em estéreo.
 - **Sem engasgos atrás do jogo:** a janela não é freada pelo Windows quando fica escondida, e a captura não cai para ~21 fps quando outro programa fica entre o jogo e o Ozamigos (desde a 1.2.14).
 - **Se recupera sozinho:** se a página travar e cair, ela abre de novo; e a janela guardada num monitor que foi desligado volta para a tela.
+- **Servidor dormindo:** o Render gratuito dorme depois de 15 minutos sem ninguém e leva até um minuto para acordar. O app mostra **"Acordando o servidor…"**, com o tempo, e abre a sala sozinho quando ele responde (antes, a janela demorava a aparecer).
 - **Atualização automática da interface:** o app carrega a interface do servidor, então cada deploy chega a todos sem reinstalar.
 - **Convites que abrem o app:** um link `ozamigos://sala/CODIGO` abre o Ozamigos instalado direto na sala (com o app aberto em outra sala, ele pergunta antes). No navegador do Windows, o link de uma sala pergunta antes: **abrir no app**, **baixar o app** ou **continuar no navegador** (e lembra a escolha).
 - **O app se atualiza sozinho** (a partir da 1.2.0, na versão instalada): ao abrir, ele procura uma versão nova nas releases, baixa, instala e abre de novo. A versão portátil continua sendo atualizada à mão.
@@ -477,7 +480,7 @@ Ferramentas de diagnóstico, sem botão na tela. São duas:
 
 | Atalho | O que faz | O que mede |
 |---|---|---|
-| **Ctrl+Shift+D**: teste com espectadores simulados | Com o jogo já transmitindo, o app cria espectadores no próprio PC (conexões WebRTC locais, sem servidor nem internet) e segue um roteiro: 1, 3 e 7 espectadores. Completo: ~2 min; rápido: ~1 min. | O seu PC: captura, codificação, decodificação e o ritmo dos quadros na tela, mais processador e placa de vídeo |
+| **Ctrl+Shift+X**: teste com espectadores simulados | Com o jogo já transmitindo, o app cria espectadores no próprio PC (conexões WebRTC locais, sem servidor nem internet) e segue um roteiro: 1, 3 e 7 espectadores. Completo: ~2 min; rápido: ~1 min. | O seu PC: captura, codificação, decodificação e o ritmo dos quadros na tela, mais processador e placa de vídeo |
 | **Ctrl+Shift+G**: gravação das estatísticas da sala | Grava a sala de verdade, com os amigos: quem transmite, quem assiste quem, ou os dois ao mesmo tempo. Aperte de novo para parar. | Tudo acima, de cada transmissão e de cada PC da sala, mais a internet: perdas, ida e volta, congelamentos no PC de quem assiste |
 
 **Gravação da sala (Ctrl+Shift+G).** Os amigos não precisam fazer nada nem aceitar nada: todos veem o selo "Gravando estatísticas" no alto da sala, e cada PC manda, pelo servidor, só para quem grava, o que transmite e o que assiste a cada segundo (com o processador e a placa de vídeo, no app). Uma gravação por sala de cada vez, de até 2 horas (depois disso, ela para sozinha). Se o servidor reiniciar no meio, a gravação continua. No app (1.2.11 em diante), os arquivos ficam em `Documentos\Ozamigos\Estatísticas\<data> - sala <código>`:
@@ -487,7 +490,7 @@ Ferramentas de diagnóstico, sem botão na tela. São duas:
 
 No navegador, os arquivos são baixados no fim.
 
-**Teste simulado (Ctrl+Shift+D).** No fim, o relatório traz:
+**Teste simulado (Ctrl+Shift+X).** No fim, o relatório traz:
 - a recomendação (quantas pessoas o PC aguenta) e o gargalo principal;
 - os achados, com as evidências e o que fazer ("Para você" e "Para o app");
 - a tabela por trecho e os gráficos (fps ao longo do teste, intervalo entre quadros, codificação por espectador e onde está o atraso).

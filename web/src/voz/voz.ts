@@ -30,6 +30,7 @@ import {
 } from './ajustes';
 import type { AjustesDoProcessador, MedidaDoProcessador } from './processador';
 import { trocaDeImagens } from '../imagens/troca';
+import { amostraDe, MedidorDaConexao, type QualidadeDaConexao } from './qualidade';
 import urlDoProcessador from './processador.ts?worker&url';
 
 export type Dispositivo = { id: string; nome: string };
@@ -41,10 +42,12 @@ export type EstadoDaVoz = {
   microfone: Microfone;
   falando: string[]; // ids de quem está falando agora; eu sou EU
   remotos: Record<string, { mudo: boolean; surdo: boolean }>;
+  conexao: Record<string, QualidadeDaConexao>; // a qualidade da conexão com cada amigo (qualidade.ts)
   ajustes: AjustesDeVoz;
   entradas: Dispositivo[];
   saidas: Dispositivo[];
   testando: boolean; // "Testar o microfone": a pessoa se ouve
+  apertado: boolean; // apertar para falar: a tecla está apertada (a voz vai)
   rnnoise: boolean; // o RNNoise carregou
   podeEscolherSaida: boolean;
 };
@@ -69,6 +72,7 @@ type ConexaoDeVoz = {
   ganho?: GainNode;
   ultimaFala: number;
   tentativas: number;
+  medidor: MedidorDaConexao;
   espera?: ReturnType<typeof setTimeout>;
 };
 
@@ -78,6 +82,9 @@ const NIVEL_DE_FALA = 0.015;
 // O anel de quem fala apaga só depois disso sem fala: sem piscar entre uma palavra e outra.
 const ANEL_SEGURA = 250;
 const ESPERA_DESCONECTADO = 3_000;
+const MEDIR_A_CONEXAO_A_CADA = 2_000;
+// Apertar para falar: a voz continua um pouco depois de soltar a tecla, para não cortar o fim da última palavra.
+const SEGURA_AO_SOLTAR = 150;
 const TENTATIVAS_DE_VOZ = 3;
 const DO_SISTEMA = noApp ? 'do Windows' : 'do sistema'; // no navegador (e no celular), quem escolhe o padrão é o sistema
 
@@ -88,10 +95,12 @@ class Voz {
     microfone: 'ligando',
     falando: [],
     remotos: {},
+    conexao: {},
     ajustes: lerAjustes(),
     entradas: [],
     saidas: [],
     testando: false,
+    apertado: false,
     rnnoise: false,
     podeEscolherSaida: typeof AudioContext !== 'undefined' && 'setSinkId' in AudioContext.prototype,
   };
@@ -113,6 +122,7 @@ class Voz {
   private naSala = false;
   private minhaUltimaFala = 0;
   private avisouSemVoz = new Set<string>();
+  private soltar: ReturnType<typeof setTimeout> | undefined;
 
   // ===== Estado para o React =====
 
@@ -183,7 +193,9 @@ class Voz {
     this.fechar(id);
     const remotos = { ...this.estado.remotos };
     delete remotos[id];
-    this.mudar({ remotos, falando: this.estado.falando.filter((outro) => outro !== id) });
+    const conexao = { ...this.estado.conexao };
+    delete conexao[id];
+    this.mudar({ remotos, conexao, falando: this.estado.falando.filter((outro) => outro !== id) });
   }
 
   sair() {
@@ -194,7 +206,7 @@ class Voz {
       this.microfone.getTracks().forEach((t) => t.stop());
       this.microfoneParado = true;
     }
-    this.mudar({ falando: [], remotos: {}, testando: false });
+    this.mudar({ falando: [], remotos: {}, conexao: {}, testando: false });
   }
 
   // ===== Microfone, fone e ajustes =====
@@ -208,6 +220,21 @@ class Voz {
     this.mudar({ mudo, surdo });
     tocar(mudo ? 'mudo' : 'desmudo');
     this.aplicarMudoESurdo();
+  }
+
+  /** Apertar para falar: a tecla do atalho foi apertada ou solta (voz/atalhos.ts). Fora desse modo, não faz nada. */
+  falar(apertado: boolean) {
+    clearTimeout(this.soltar);
+    if (!this.estado.ajustes.apertarParaFalar) return;
+    if (apertado) {
+      if (!this.estado.apertado) this.mudar({ apertado: true });
+      this.aplicarMudoESurdo();
+      return;
+    }
+    this.soltar = setTimeout(() => {
+      this.mudar({ apertado: false });
+      this.aplicarMudoESurdo();
+    }, SEGURA_AO_SOLTAR);
   }
 
   alternarSurdo() {
@@ -320,6 +347,7 @@ class Voz {
     void this.aplicarSaida();
     navigator.mediaDevices?.addEventListener?.('devicechange', () => void this.atualizarDispositivos());
     setInterval(() => this.verQuemFala(), 100);
+    setInterval(() => void this.medirConexoes(), MEDIR_A_CONEXAO_A_CADA);
     // Sem esperar: a permissão do microfone pode ficar aberta na tela, e a conversa já pode começar (ouvindo).
     void this.abrirMicrofone();
   }
@@ -395,15 +423,17 @@ class Voz {
       tirarRuido: a.supressao === 'rnnoise',
       automatica: a.sensibilidadeAutomatica,
       limiarDb: a.limiarDb,
+      semPorta: a.apertarParaFalar,
     };
     this.processador.port.postMessage(ajustes);
   }
 
   private aplicarMudoESurdo() {
-    const { mudo, surdo, ajustes } = this.estado;
+    const { mudo, surdo, ajustes, apertado } = this.estado;
     // Mudo: a trilha manda silêncio (a conexão continua, e desmutar é na hora). Surdo também muta, como no Discord.
+    // Apertar para falar: só com a tecla apertada.
     const trilha = this.destino?.stream.getAudioTracks()[0];
-    if (trilha) trilha.enabled = !mudo && !surdo;
+    if (trilha) trilha.enabled = !mudo && !surdo && (!ajustes.apertarParaFalar || apertado);
     if (this.mestre) this.mestre.gain.value = surdo ? 0 : ajustes.volumeSaida / 100;
     this.contarMeuEstado();
   }
@@ -436,8 +466,9 @@ class Voz {
   private verQuemFala() {
     const agora = performance.now();
     const falando: string[] = [];
-    const { mudo, surdo, microfone } = this.estado;
-    if (!mudo && !surdo && microfone === 'ok' && agora - this.minhaUltimaFala < ANEL_SEGURA) falando.push(EU);
+    const { mudo, surdo, microfone, ajustes, apertado } = this.estado;
+    const vozVai = !mudo && !surdo && microfone === 'ok' && (!ajustes.apertarParaFalar || apertado);
+    if (vozVai && agora - this.minhaUltimaFala < ANEL_SEGURA) falando.push(EU);
     for (const c of this.conexoes.values()) {
       const [fonte] = c.receptor?.getSynchronizationSources() ?? [];
       if (fonte && (fonte.audioLevel ?? 0) > NIVEL_DE_FALA && agora - fonte.timestamp < 500) c.ultimaFala = agora;
@@ -445,6 +476,29 @@ class Voz {
     }
     const antes = this.estado.falando;
     if (falando.length !== antes.length || falando.some((id) => !antes.includes(id))) this.mudar({ falando });
+  }
+
+  /** A qualidade da conexão com cada amigo, a cada 2 s. Só redesenha quando algo mudou. */
+  private async medirConexoes() {
+    const conexao: Record<string, QualidadeDaConexao> = {};
+    for (const c of [...this.conexoes.values()]) {
+      let relatorio: RTCStatsReport | null = null;
+      try {
+        relatorio = c.pc.connectionState === 'connected' ? await c.pc.getStats() : null;
+      } catch {
+        // a conexão fechou no meio da consulta
+      }
+      if (this.conexoes.get(c.id) !== c) continue;
+      conexao[c.id] = c.medidor.medir(relatorio ? amostraDe(c.pc.connectionState, relatorio) : { estado: c.pc.connectionState });
+    }
+    const antes = this.estado.conexao;
+    const mudou =
+      Object.keys(conexao).length !== Object.keys(antes).length ||
+      Object.entries(conexao).some(([id, q]) => {
+        const a = antes[id];
+        return !a || a.nivel !== q.nivel || a.idaEVoltaMs !== q.idaEVoltaMs || a.perdaPct !== q.perdaPct || a.jitterMs !== q.jitterMs;
+      });
+    if (mudou) this.mudar({ conexao });
   }
 
   // ===== As conexões de voz =====
@@ -459,7 +513,7 @@ class Voz {
     const canal = pc.createDataChannel('estado', { negotiated: true, id: 0 });
     // As imagens do chat vão num segundo canal da mesma conexão (imagens/troca.ts): direto entre os PCs.
     trocaDeImagens.conectar(id, pc.createDataChannel('imagens', { negotiated: true, id: 1 }), () => pc.sctp?.maxMessageSize);
-    const c: ConexaoDeVoz = { id, pc, oferente, pendentes: [], canal, ultimaFala: 0, tentativas };
+    const c: ConexaoDeVoz = { id, pc, oferente, pendentes: [], canal, ultimaFala: 0, tentativas, medidor: new MedidorDaConexao() };
     this.conexoes.set(id, c);
     canal.onopen = () => this.contarMeuEstado(c);
     canal.onmessage = (e) => {

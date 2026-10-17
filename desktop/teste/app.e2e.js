@@ -1,6 +1,7 @@
 // Fumaça do app para Windows: abre o Electron de verdade (pelo embrulho), confere a janela e a ponte, e fecha.
 const { test, expect, _electron: electron } = require('@playwright/test');
 const fs = require('node:fs');
+const { execFileSync } = require('node:child_process');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
@@ -63,6 +64,36 @@ test('sem servidor, mostra a tela de início explicando o erro', async () => {
   }
 });
 
+test('com o servidor dormindo, explica e conta o tempo, e abre a sala sozinho quando ele acorda', async () => {
+  // Como o Render gratuito acordando: o pedido fica parado, sem resposta, e depois chega.
+  let acordou = false;
+  const servidor = http.createServer((req, res) => {
+    const responder = () => {
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      res.end('<!doctype html><title>Ozamigos</title><h1>servidor de teste</h1>');
+    };
+    if (acordou) responder();
+    else
+      setTimeout(() => {
+        acordou = true;
+        responder();
+      }, 4_000);
+  });
+  await new Promise((r) => servidor.listen(0, '127.0.0.1', r));
+  const endereco = `http://localhost:${servidor.address().port}`;
+  const aberto = await abrirApp(endereco);
+  try {
+    await expect(aberto.janela.locator('#acordando')).toBeVisible({ timeout: 5_000 });
+    await expect(aberto.janela.locator('#acordando')).toContainText('Acordando o servidor');
+    expect(await aberto.janela.locator('#formulario').isVisible()).toBe(false);
+    await expect.poll(() => aberto.janela.url(), { timeout: 10_000 }).toBe(`${endereco}/`);
+    await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');
+  } finally {
+    await fechar(aberto);
+    servidor.close();
+  }
+});
+
 /** Um servidor mínimo no lugar do Ozamigos: uma página qualquer, na origem que o app confia. */
 async function servidorDeTeste() {
   const servidor = http.createServer((_req, res) => {
@@ -72,6 +103,35 @@ async function servidorDeTeste() {
   await new Promise((r) => servidor.listen(0, '127.0.0.1', r));
   return { servidor, endereco: `http://localhost:${servidor.address().port}` };
 }
+
+test('os atalhos de voz chegam à página pelo auxiliar do app, que lê as teclas do Windows (valem com o jogo na frente)', async () => {
+  const { servidor, endereco } = await servidorDeTeste();
+  const aberto = await abrirApp(endereco);
+  try {
+    await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');
+    // F24 (0x87): uma tecla que existe para o Windows mas em nenhum teclado, então não mexe em nada do PC de quem roda.
+    const globais = await aberto.janela.evaluate(async () => {
+      window.__atalhos = [];
+      window.ozamigos.atalhos.aoApertar((evento) => window.__atalhos.push(evento));
+      return window.ozamigos.atalhos.definir({ mudo: [], surdo: [], falar: [0x87] });
+    });
+    expect(globais).toBe(true);
+    await new Promise((r) => setTimeout(r, 500)); // o auxiliar abre e lê a configuração
+    const tecla = (solta) =>
+      execFileSync('powershell', [
+        '-NoProfile',
+        '-Command',
+        `Add-Type -Name K -Namespace W -MemberDefinition '[DllImport("user32.dll")] public static extern void keybd_event(byte b, byte s, uint f, System.UIntPtr e);'; [W.K]::keybd_event(0x87, 0, ${solta ? 2 : 0}, [System.UIntPtr]::Zero)`,
+      ]);
+    tecla(false);
+    await new Promise((r) => setTimeout(r, 300));
+    tecla(true);
+    await expect.poll(() => aberto.janela.evaluate(() => window.__atalhos)).toEqual(['falar 1', 'falar 0']);
+  } finally {
+    await fechar(aberto);
+    servidor.close();
+  }
+});
 
 test('fechar a janela deixa o app na bandeja, e a página tem a bandeja, o aviso de mensagens e a tela acordada', async () => {
   const { servidor, endereco } = await servidorDeTeste();

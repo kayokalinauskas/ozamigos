@@ -9,6 +9,8 @@ import { manterTelaAcordada } from './telaAcordada';
 import { avisarNaBarraDeTarefas } from './avisoNaBarra';
 import { cliente } from './cliente';
 import { ponte } from './ponte';
+import { atalhos } from './voz/atalhos';
+import { voz } from './voz/voz';
 
 // Quando alguém grava as estatísticas da sala (Ctrl+Shift+G), este PC manda as próprias medidas para essa pessoa.
 acompanharGravacaoDaSala();
@@ -18,6 +20,15 @@ manterTelaAcordada();
 avisarNaBarraDeTarefas();
 // No app: um convite (link ozamigos://) aberto com o app já aberto.
 ponte?.aoAbrirSala?.((sala) => cliente.abrirConvite(sala));
+// Os atalhos de voz (mudo, som desligado e apertar para falar); no app, valem com o jogo na frente. Só numa sala:
+// na entrada, um Ctrl+Shift+M não muda nada sem a pessoa ver.
+atalhos.ligar((qual, apertado) => {
+  if (qual === 'falar') voz.falar(apertado);
+  else if (cliente.ler().fase === 'sala') {
+    if (qual === 'mudo') voz.alternarMudo();
+    else voz.alternarSurdo();
+  }
+});
 // Um arquivo solto fora da sala (na entrada, por exemplo) não abre no lugar da página. Na sala, ele vai para o chat.
 for (const evento of ['dragover', 'drop'] as const) {
   document.addEventListener(evento, (e) => {
