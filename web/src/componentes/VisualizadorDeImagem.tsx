@@ -75,7 +75,9 @@ export function VisualizadorDeImagem({ mensagem, aoFechar }: { mensagem: Mensage
           <X size={20} />
         </button>
       </header>
-      {imagem.url && <img src={imagem.url} alt={`Imagem de ${autor}`} width={imagem.largura} height={imagem.altura} onClick={(e) => e.stopPropagation()} />}
+      <div className="visualizador-quadro">
+        {imagem.url && <img src={imagem.url} alt={`Imagem de ${autor}`} width={imagem.largura} height={imagem.altura} onClick={(e) => e.stopPropagation()} />}
+      </div>
     </div>,
     document.body,
   );

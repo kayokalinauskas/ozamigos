@@ -1432,6 +1432,7 @@ button.chat-imagem-quadro:focus-visible {
 .chat-bandeja li {
   position: relative;
   display: grid;
+  flex: none;
   place-items: center;
   width: 64px;
   height: 64px;
@@ -1446,7 +1447,11 @@ button.chat-imagem-quadro:focus-visible {
   color: #ff8297;
 }
 
+/* Fora do cálculo de tamanho (absoluta): como item da grade, uma imagem em pé esticava a linha até a altura dela
+   e a miniatura passava do quadrado, por cima das mensagens. */
 .chat-bandeja img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   border-radius: calc(var(--raio-pequeno) - 1px);
@@ -1455,6 +1460,7 @@ button.chat-imagem-quadro:focus-visible {
 
 .chat-bandeja-tirar {
   position: absolute;
+  z-index: 1; /* por cima da imagem, que também é absoluta */
   top: -7px;
   right: -7px;
   display: grid;
@@ -1516,12 +1522,23 @@ button.chat-imagem-quadro:focus-visible {
   font-weight: 400;
 }
 
+/* O espaço que sobra abaixo do cabeçalho, e a imagem cabe nele inteira (nunca maior que o tamanho dela). Antes, o limite
+   era 100vh menos uma altura estimada do cabeçalho, e uma imagem em pé passava da tela no app. */
+.visualizador-quadro {
+  display: grid;
+  flex: 1;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  width: 100%;
+  min-height: 0;
+  padding: 0 16px 16px;
+}
+
 .visualizador img {
   width: auto;
   height: auto;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - var(--barra-da-janela) - 84px);
-  margin: auto;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
 }
 
