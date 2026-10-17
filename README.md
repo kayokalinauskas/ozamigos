@@ -105,7 +105,7 @@
 - **Volta automática:** se quem você assiste para e volta a transmitir, você volta a assistir sem clicar em nada.
 - **Na bandeja, como o Discord** (app para Windows): fechar a janela deixa o Ozamigos perto do relógio, e a conversa continua; para sair, botão direito no ícone. Mensagens novas do chat aparecem como um ponto verde no ícone da barra de tarefas, que pisca quando chega uma com o jogo na frente.
 - **A tela não apaga** com mais alguém na sala, como numa chamada.
-- **Chat da sala:** mensagens de texto com links clicáveis, num painel à direita. Um link de vídeo (YouTube, Twitch, TikTok, Streamable, Medal) vira um **cartão com a imagem, o título e o canal**; quem busca a prévia é o servidor, então ninguém da sala acessa o site só por receber o link. Com o painel fechado, a mensagem aparece como aviso e o botão mostra quantas são novas. Nada fica guardado: quem entra depois não vê o que foi dito antes.
+- **Chat da sala:** mensagens de texto com links clicáveis, num painel à direita. Um link de vídeo ou de canal (YouTube, Twitch, Kick, TikTok, Streamable, Medal) vira um **cartão com a imagem, o título e o canal** (um canal transmitindo mostra **AO VIVO**, o título da live e o jogo); quem busca a prévia é o servidor, então ninguém da sala acessa o site só por receber o link. Com o painel fechado, a mensagem aparece como aviso e o botão mostra quantas são novas. Nada fica guardado: quem entra depois não vê o que foi dito antes.
 - **Imagens no chat:** cole um print com **Ctrl+V** (Win+Shift+S), arraste para a sala, use o botão de imagem, ou tire um **print da transmissão** que você assiste (o botão de câmera no vídeo); até 4 por vez, conferidas numa bandeja antes do Enter. Elas vão **direto de um PC para o outro**, sem passar pelo servidor, já comprimidas: um print de jogo de 8 MB em PNG chega com ~1 MB em WebP, no mesmo tamanho (até 2560×1440), sem perder a legibilidade do texto. Clique para ver grande, copiar ou salvar.
 - **Reconexão automática:** se a internet oscilar ou o servidor reiniciar, o app volta sozinho para a sala. Quem transmitia continua transmitindo, e quem assistia continua assistindo. As transmissões já abertas não param enquanto isso.
 
@@ -391,6 +391,7 @@ gh release delete v1.0.1 --cleanup-tag --yes
 |---|---|---|---|
 | `OZAMIGOS_SENHA` | sim | — | Senha do grupo. Sem ela, o servidor não sobe |
 | `PORT` | não | `8080` | Porta HTTP. O Render define `10000` |
+| `YOUTUBE_API_KEY` | não | — | Chave da API de dados do YouTube (v3), para as prévias de links do chat. Sem ela, o YouTube vai pelo oEmbed e pela página do vídeo, que ele às vezes recusa a servidores de datacenter. Gratuita: 10 mil consultas por dia, 1 por link novo |
 
 **App para Windows**
 
@@ -446,7 +447,7 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `gravacao-da-sala` | `ligada`, `id`, `nome` | Alguém começou ou parou de gravar as estatísticas da sala (ou saiu da sala gravando) |
 | `medidas` | `de`, `pacote` | (para quem grava a sala) as medidas de um segundo de outra pessoa |
 | `chat` | `de`, `texto` | Uma mensagem do chat, para todos da sala (inclusive quem mandou, que assim sabe que chegou). O servidor não guarda nada: quem entra depois não vê as anteriores |
-| `previa` | `url`, `site`, `titulo`?, `autor`?, `miniatura`? | A prévia do primeiro link de vídeo de uma mensagem do chat (YouTube, Twitch, TikTok, Streamable, Medal), para todos da sala, logo depois da mensagem. O servidor busca no site e guarda na memória por 1 hora; a `miniatura` é um JPEG pequeno embutido (`data:`) |
+| `previa` | `url`, `site`, `titulo`?, `autor`?, `miniatura`?, `aoVivo`? | A prévia do primeiro link de vídeo ou de canal de uma mensagem do chat (YouTube, Twitch, Kick, TikTok, Streamable, Medal; `aoVivo` num canal transmitindo agora), para todos da sala, logo depois da mensagem. O servidor busca no site e guarda na memória por 1 hora; a `miniatura` é um JPEG pequeno embutido (`data:`) |
 | `erro` | `motivo` | `senha-errada`, `muitas-tentativas`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `chat-rapido-demais`, `mensagem-invalida`, ... |
 
 Com `senha-errada`, `muitas-tentativas` (10 senhas erradas do mesmo endereço em 5 minutos) e `sala-cheia`, o servidor fecha a conexão logo depois de avisar. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.

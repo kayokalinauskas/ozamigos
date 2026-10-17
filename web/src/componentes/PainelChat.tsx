@@ -228,13 +228,17 @@ function CartaoDoLink({ previa }: { previa: PreviaDeLink }) {
       {previa.miniatura && (
         <span className="chat-link-imagem">
           <img src={previa.miniatura} alt="" draggable={false} />
+          {previa.aoVivo && <span className="selo-ao-vivo chat-link-ao-vivo">Ao vivo</span>}
           <span className="chat-link-play" aria-hidden="true">
             <Play size={18} fill="currentColor" />
           </span>
         </span>
       )}
       <span className="chat-link-texto">
-        <span className="chat-link-site">{previa.site}</span>
+        <span className="chat-link-site">
+          {previa.site}
+          {previa.aoVivo && !previa.miniatura && ' · ao vivo'}
+        </span>
         <strong>{titulo}</strong>
         {previa.autor && <span className="chat-link-autor">{previa.autor}</span>}
       </span>

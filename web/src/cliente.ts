@@ -82,7 +82,14 @@ export type MensagemDoChat = {
 };
 
 /** O cartão de um link de vídeo (YouTube, Twitch...): o servidor busca, ninguém da sala acessa o site. */
-export type PreviaDeLink = { url: string; site: string; titulo: string | null; autor: string | null; miniatura: string | null };
+export type PreviaDeLink = {
+  url: string;
+  site: string;
+  titulo: string | null;
+  autor: string | null;
+  miniatura: string | null;
+  aoVivo: boolean; // um canal da Twitch ou da Kick transmitindo agora
+};
 
 /** Uma imagem do chat (imagens/): veio direto do PC de quem mandou e só existe na memória desta página. */
 export type ImagemDoChat = {
@@ -681,7 +688,14 @@ class Cliente {
     const texto = (valor: unknown, maximo: number) => (typeof valor === 'string' && valor.trim() ? valor.trim().slice(0, maximo) : null);
     if (typeof msg.url !== 'string' || !/^https?:\/\//.test(msg.url) || typeof msg.site !== 'string') return;
     const miniatura = typeof msg.miniatura === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(msg.miniatura) ? msg.miniatura : null;
-    const previa: PreviaDeLink = { url: msg.url, site: msg.site.slice(0, 40), titulo: texto(msg.titulo, 200), autor: texto(msg.autor, 100), miniatura };
+    const previa: PreviaDeLink = {
+      url: msg.url,
+      site: msg.site.slice(0, 40),
+      titulo: texto(msg.titulo, 200),
+      autor: texto(msg.autor, 100),
+      miniatura,
+      aoVivo: msg.aoVivo === true,
+    };
     const chat = this.estado.chat;
     for (let i = chat.length - 1; i >= 0; i--) {
       if (chat[i].previa || !chat[i].texto.includes(msg.url)) continue;

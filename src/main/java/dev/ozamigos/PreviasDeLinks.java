@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -35,6 +36,8 @@ import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import tools.jackson.databind.JsonNode;
@@ -52,18 +55,28 @@ public class PreviasDeLinks {
 
     private static final Logger log = LoggerFactory.getLogger(PreviasDeLinks.class);
 
-    public record Previa(String url, String site, String titulo, String autor, String miniatura) {}
+    /** aoVivo: um canal da Twitch ou da Kick transmitindo agora (o cartão mostra "AO VIVO"). */
+    public record Previa(String url, String site, String titulo, String autor, String miniatura, boolean aoVivo) {}
 
-    enum Fonte { OEMBED, PAGINA }
+    enum Fonte { OEMBED, PAGINA, CANAL_DA_TWITCH, CANAL_DA_KICK }
 
     /**
      * Um link de um site conhecido: onde buscar a prévia dele. Se o oEmbed falhar, paginaReserva é a página de onde
      * tirar as metatags (a do vídeo do YouTube), e imagemReserva a imagem que vale se nem ela der (a miniatura pública
-     * do vídeo). Os dois podem ser null.
+     * do vídeo). Os dois podem ser null. video: o id do vídeo do YouTube (para a API), ou null.
      */
-    record Link(String url, String site, URI busca, Fonte fonte, URI paginaReserva, String imagemReserva) {}
+    record Link(String url, String site, URI busca, Fonte fonte, URI paginaReserva, String imagemReserva, String video) {}
 
-    private record Dados(String titulo, String autor, String imagem) {}
+    /** imagens: as candidatas, na ordem; vale a primeira que abrir (a da live da Kick, por exemplo, às vezes é recusada). */
+    private record Dados(String titulo, String autor, List<String> imagens, boolean aoVivo) {
+        Dados(String titulo, String autor, String imagem) {
+            this(titulo, autor, imagem, false);
+        }
+
+        Dados(String titulo, String autor, String imagem, boolean aoVivo) {
+            this(titulo, autor, imagem == null ? List.of() : List.of(imagem), aoVivo);
+        }
+    }
 
     private record Guardada(CompletableFuture<Optional<Previa>> previa, long ate) {}
 
@@ -72,6 +85,17 @@ public class PreviasDeLinks {
     private static final Pattern ATRIBUTO = Pattern.compile("([a-zA-Z:-]+)\\s*=\\s*(\"([^\"]*)\"|'([^']*)')");
     private static final Pattern ID = Pattern.compile("[A-Za-z0-9_-]{1,100}");
     private static final Pattern VIDEO_DO_YOUTUBE = Pattern.compile("[A-Za-z0-9_-]{6,20}");
+    private static final Pattern CANAL_DA_TWITCH = Pattern.compile("[A-Za-z0-9_]{3,25}");
+    private static final Pattern CANAL_DA_KICK = Pattern.compile("[A-Za-z0-9_-]{3,25}");
+    // Páginas dos sites com cara de canal ("twitch.tv/directory"), que não são canais.
+    private static final List<String> NAO_SAO_CANAIS = List.of("directory", "videos", "settings", "search", "downloads", "jobs", "turbo",
+            "prime", "subscriptions", "inventory", "wallet", "drops", "friends", "messages", "login", "signup", "p", "store", "browse",
+            "following", "categories", "category", "terms-of-service", "privacy-policy", "community-guidelines", "dashboard", "help");
+    // A live na Twitch, na descrição da página, em inglês ou em português (o servidor pede pt-BR):
+    // "Título da live | Streaming League of Legends for 3991 viewers." ou "... | Transmitindo ... para 3991 viewers."
+    private static final Pattern LIVE_NA_TWITCH = Pattern.compile(
+            "^(.*?)\\s*\\|\\s*(?:Streaming|Transmitindo) (.+?) (?:for|para) [\\d,.]+ (?:viewers|espectadores)\\.?$", Pattern.DOTALL);
+    private static final Pattern TITULO_DA_TWITCH = Pattern.compile("\\s+-\\s+(?:(Live on|Ao vivo na) )?Twitch$");
 
     static final int MAXIMO_DO_OEMBED = 100_000;
     static final int MAXIMO_DA_PAGINA = 3_000_000; // a página de um vídeo do YouTube tem ~1,3 MB
@@ -87,13 +111,15 @@ public class PreviasDeLinks {
     private static final int REDIRECIONAMENTOS = 3;
 
     // As páginas que o servidor pode abrir (para as metatags de prévia) e de onde podem vir as imagens.
-    private static final List<String> PAGINAS = List.of("youtube.com", "twitch.tv", "clips.twitch.tv", "medal.tv");
+    private static final List<String> PAGINAS = List.of("youtube.com", "twitch.tv", "clips.twitch.tv", "medal.tv", "kick.com");
     // O canal, na página de um vídeo do YouTube (as metatags og: não trazem).
     private static final Pattern CANAL_DO_YOUTUBE = Pattern.compile("<link itemprop=\"name\" content=\"([^\"]{1,200})\"");
-    private static final List<String> IMAGENS = List.of("ytimg.com", "jtvnw.net", "streamable.com", "tiktokcdn.com", "tiktokcdn-us.com", "medal.tv");
+    private static final List<String> IMAGENS = List.of("ytimg.com", "jtvnw.net", "streamable.com", "tiktokcdn.com", "tiktokcdn-us.com", "medal.tv", "kick.com");
 
     private final Buscador buscador;
     private final JsonMapper json;
+    /** A chave da API de dados do YouTube (YOUTUBE_API_KEY): sem ela, o YouTube vai pelo oEmbed e pela página. */
+    private final String chaveDoYoutube;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     // Poucas buscas ao mesmo tempo: várias salas mandando links juntas não viram uma enxurrada de pedidos.
     private final Semaphore aoMesmoTempo = new Semaphore(4);
@@ -104,9 +130,18 @@ public class PreviasDeLinks {
         }
     };
 
-    public PreviasDeLinks(Buscador buscador, JsonMapper json) {
+    @Autowired
+    public PreviasDeLinks(Buscador buscador, JsonMapper json, @Value("${ozamigos.youtube.chave:}") String chaveDoYoutube) {
         this.buscador = buscador;
         this.json = json;
+        this.chaveDoYoutube = chaveDoYoutube == null ? "" : chaveDoYoutube.strip();
+        // Os leitores de imagem extras (o de WebP, para a Kick) são achados agora, no carregador de classes do app:
+        // numa thread virtual, o ImageIO poderia não enxergá-los dentro do jar do Spring Boot.
+        ImageIO.scanForPlugins();
+    }
+
+    PreviasDeLinks(Buscador buscador, JsonMapper json) {
+        this(buscador, json, "");
     }
 
     /** O primeiro link do texto (sem pontuação colada no fim, como "olha isso: https://...!"), ou null. */
@@ -178,6 +213,17 @@ public class PreviasDeLinks {
                 if (partes.length == 2 && partes[0].equals("videos") && partes[1].matches("\\d{1,20}")) {
                     return pagina(endereco, "Twitch", "https://www.twitch.tv/videos/" + partes[1]);
                 }
+                if (partes.length == 1 && CANAL_DA_TWITCH.matcher(partes[0]).matches() && !NAO_SAO_CANAIS.contains(partes[0].toLowerCase(Locale.ROOT))) {
+                    String canal = partes[0].toLowerCase(Locale.ROOT);
+                    return new Link(endereco, "Twitch", URI.create("https://www.twitch.tv/" + canal), Fonte.CANAL_DA_TWITCH, null, null, null);
+                }
+                return null;
+            }
+            case "kick.com" -> {
+                if (partes.length == 1 && CANAL_DA_KICK.matcher(partes[0]).matches() && !NAO_SAO_CANAIS.contains(partes[0].toLowerCase(Locale.ROOT))) {
+                    String canal = partes[0].toLowerCase(Locale.ROOT);
+                    return new Link(endereco, "Kick", URI.create("https://kick.com/api/v2/channels/" + canal), Fonte.CANAL_DA_KICK, null, null, null);
+                }
                 return null;
             }
             case "medal.tv" -> {
@@ -193,23 +239,24 @@ public class PreviasDeLinks {
     }
 
     private static Link oembed(String endereco, String site, String api) {
-        return new Link(endereco, site, URI.create(api + URLEncoder.encode(endereco, StandardCharsets.UTF_8)), Fonte.OEMBED, null, null);
+        return new Link(endereco, site, URI.create(api + URLEncoder.encode(endereco, StandardCharsets.UTF_8)), Fonte.OEMBED, null, null, null);
     }
 
     /**
-     * O YouTube recusa o oEmbed dos vídeos cujo dono desligou a incorporação em outros sites (401), e pode recusar
-     * pedidos de datacenter. Sem ele, o título, o canal e a imagem vêm da página do vídeo (as metatags que o Discord
-     * também lê); sem nenhum dos dois, o cartão sai com a miniatura pública do vídeo, que fica num endereço fixo.
+     * O YouTube, em degraus. Primeiro a API de dados (com a chave): é a feita para servidores, e não bloqueia. Sem
+     * ela, o oEmbed, que o YouTube recusa nos vídeos cujo dono desligou a incorporação em outros sites (401) e, de vez
+     * em quando, a pedidos de datacenter (o Render divide os IPs com muitos serviços). Depois a página do vídeo (as
+     * metatags que o Discord também lê) e, sem nada, a miniatura pública do vídeo, que fica num endereço fixo.
      */
     private static Link youtube(String endereco, String video) {
         String api = "https://www.youtube.com/oembed?format=json&url=";
         return new Link(endereco, "YouTube", URI.create(api + URLEncoder.encode(endereco, StandardCharsets.UTF_8)), Fonte.OEMBED,
-                URI.create("https://www.youtube.com/watch?v=" + video), "https://i.ytimg.com/vi/" + video + "/hqdefault.jpg");
+                URI.create("https://www.youtube.com/watch?v=" + video), "https://i.ytimg.com/vi/" + video + "/hqdefault.jpg", video);
     }
 
     // A página é remontada com as partes conferidas, não com o endereço que veio no chat.
     private static Link pagina(String endereco, String site, String pagina) {
-        return new Link(endereco, site, URI.create(pagina), Fonte.PAGINA, null, null);
+        return new Link(endereco, site, URI.create(pagina), Fonte.PAGINA, null, null, null);
     }
 
     /**
@@ -250,12 +297,25 @@ public class PreviasDeLinks {
     private Optional<Previa> montar(Link link) {
         aoMesmoTempo.acquireUninterruptibly();
         try {
-            Dados dados;
-            try {
-                dados = link.fonte() == Fonte.OEMBED ? doOembed(link) : daPagina(link.busca(), link.site());
-            } catch (IOException | RuntimeException e) {
-                log.info("a prévia de um link do {} não saiu: {}", link.site(), e.getClass().getSimpleName());
-                dados = null;
+            Dados dados = null;
+            if (link.video() != null && !chaveDoYoutube.isEmpty()) {
+                try {
+                    dados = daApiDoYoutube(link.video());
+                } catch (IOException | RuntimeException e) {
+                    log.info("a API do YouTube não respondeu: {}", e.getClass().getSimpleName());
+                }
+            }
+            if (dados == null) {
+                try {
+                    dados = switch (link.fonte()) {
+                        case OEMBED -> doOembed(link);
+                        case PAGINA -> daPagina(link.busca(), link.site());
+                        case CANAL_DA_TWITCH -> canalDaTwitch(link);
+                        case CANAL_DA_KICK -> canalDaKick(link);
+                    };
+                } catch (IOException | RuntimeException e) {
+                    log.info("a prévia de um link do {} não saiu: {}", link.site(), e.getClass().getSimpleName());
+                }
             }
             if (dados == null && link.paginaReserva() != null) {
                 try {
@@ -271,19 +331,24 @@ public class PreviasDeLinks {
                 return Optional.empty();
             }
             String miniatura = null;
-            try {
-                miniatura = dados.imagem() == null ? null : miniatura(dados.imagem());
-            } catch (VirtualMachineError e) {
-                throw e;
-            } catch (Exception | Error e) {
-                // Sem a imagem (formato estranho, ou o Java do servidor sem a parte gráfica): vai só o título.
-                log.info("a miniatura de um link do {} não saiu: {}", link.site(), e.getClass().getName());
+            for (String imagem : dados.imagens()) {
+                try {
+                    miniatura = miniatura(imagem);
+                } catch (VirtualMachineError e) {
+                    throw e;
+                } catch (Exception | Error e) {
+                    // Sem a imagem (formato estranho, ou o Java do servidor sem a parte gráfica): tenta a próxima, ou vai só o título.
+                    log.info("a miniatura de um link do {} não saiu: {}", link.site(), e.getClass().getName());
+                }
+                if (miniatura != null) {
+                    break;
+                }
             }
             String titulo = cortar(dados.titulo(), 200);
             if (titulo == null && miniatura == null) {
                 return Optional.empty();
             }
-            return Optional.of(new Previa(link.url(), link.site(), titulo, cortar(dados.autor(), 100), miniatura));
+            return Optional.of(new Previa(link.url(), link.site(), titulo, cortar(dados.autor(), 100), miniatura, dados.aoVivo()));
         } catch (VirtualMachineError e) {
             throw e;
         } catch (Exception | Error e) {
@@ -305,6 +370,94 @@ public class PreviasDeLinks {
         }
         JsonNode dados = json.readTree(resposta.corpo());
         return new Dados(texto(dados, "title"), texto(dados, "author_name"), texto(dados, "thumbnail_url"));
+    }
+
+    /** A API de dados do YouTube: título, canal, a maior miniatura e se é uma live acontecendo. Null se não der. */
+    private Dados daApiDoYoutube(String video) throws IOException, InterruptedException {
+        URI api = URI.create("https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" + video + "&key="
+                + URLEncoder.encode(chaveDoYoutube, StandardCharsets.UTF_8));
+        Buscador.Resposta resposta = buscador.buscar(api, MAXIMO_DO_OEMBED);
+        if (resposta.status() != 200) {
+            // 403: a cota do dia acabou ou a chave não vale. Sem a chave no registro (ela está no endereço).
+            log.info("a API do YouTube não respondeu: HTTP {}", resposta.status());
+            return null;
+        }
+        JsonNode trecho = json.readTree(resposta.corpo()).path("items").path(0).path("snippet");
+        if (trecho.isMissingNode()) {
+            return null; // vídeo apagado ou privado
+        }
+        String imagem = null;
+        for (String tamanho : List.of("maxres", "standard", "high", "medium", "default")) {
+            imagem = texto(trecho.path("thumbnails").path(tamanho), "url");
+            if (imagem != null) {
+                break;
+            }
+        }
+        boolean aoVivo = "live".equals(texto(trecho, "liveBroadcastContent"));
+        return new Dados(texto(trecho, "title"), texto(trecho, "channelTitle"), imagem, aoVivo);
+    }
+
+    /**
+     * Um canal da Twitch, pela página dele: "Fulano - Live on Twitch" no título quando está ao vivo, com o título da
+     * live e o jogo na descrição, e a imagem da live num endereço fixo. Offline, o nome e a foto do canal.
+     */
+    private Dados canalDaTwitch(Link link) throws IOException, InterruptedException {
+        Buscador.Resposta resposta = buscarSeguindo(link.busca(), MAXIMO_DA_PAGINA, PAGINAS);
+        if (resposta == null || resposta.status() != 200) {
+            log.info("a página de um canal da Twitch não saiu: {}", resposta == null ? "redirecionamento fora da lista" : "HTTP " + resposta.status());
+            return null;
+        }
+        Map<String, String> metas = metatags(new String(resposta.corpo(), StandardCharsets.UTF_8));
+        String titulo = metas.getOrDefault("og:title", "");
+        Matcher fim = TITULO_DA_TWITCH.matcher(titulo);
+        boolean aoVivo = fim.find() && fim.group(1) != null;
+        String nome = TITULO_DA_TWITCH.matcher(titulo).replaceFirst("").strip();
+        if (nome.isEmpty() || nome.equals("Twitch")) {
+            return null; // a página genérica: o canal não existe
+        }
+        String canal = link.busca().getPath().substring(1);
+        if (aoVivo) {
+            Matcher live = LIVE_NA_TWITCH.matcher(metas.getOrDefault("og:description", ""));
+            String daLive = live.matches() ? live.group(1).strip() : null;
+            String jogo = live.matches() ? live.group(2).strip() : null;
+            return new Dados(daLive == null || daLive.isEmpty() ? nome : daLive, jogo == null ? nome : nome + " · " + jogo,
+                    "https://static-cdn.jtvnw.net/previews-ttv/live_user_" + canal + "-640x360.jpg", true);
+        }
+        String foto = metas.get("og:image");
+        return new Dados(nome, "Canal da Twitch", foto != null && foto.contains("ttv-static-metadata") ? null : foto);
+    }
+
+    /** Um canal da Kick, pela API pública do site: a live (título, jogo e imagem) ou, offline, o nome e a foto. */
+    private Dados canalDaKick(Link link) throws IOException, InterruptedException {
+        Buscador.Resposta resposta = buscarSeguindo(link.busca(), MAXIMO_DO_OEMBED * 3, PAGINAS);
+        if (resposta == null || resposta.status() != 200) {
+            log.info("o canal da Kick não respondeu: {}", resposta == null ? "redirecionamento fora da lista" : "HTTP " + resposta.status());
+            return null;
+        }
+        JsonNode canal = json.readTree(resposta.corpo());
+        String nome = texto(canal.path("user"), "username");
+        if (nome == null) {
+            return null;
+        }
+        // A imagem da live (a Kick às vezes recusa a quem não está no site), o banner do canal (16:9) e a foto.
+        List<String> imagens = new ArrayList<>();
+        JsonNode live = canal.path("livestream");
+        boolean aoVivo = live.isObject() && live.path("is_live").asBoolean(false);
+        for (String imagem : new String[] {
+                aoVivo ? texto(live.path("thumbnail"), "url") : null,
+                texto(canal.path("offline_banner_image"), "src"),
+                texto(canal.path("banner_image"), "url"),
+                texto(canal.path("user"), "profile_pic")}) {
+            if (imagem != null) {
+                imagens.add(imagem);
+            }
+        }
+        if (aoVivo) {
+            String jogo = texto(live.path("categories").path(0), "name");
+            String titulo = texto(live, "session_title");
+            return new Dados(titulo == null ? nome : titulo, jogo == null ? nome : nome + " · " + jogo, imagens, true);
+        }
+        return new Dados(nome, "Canal da Kick", imagens, false);
     }
 
     private static String texto(JsonNode no, String campo) {

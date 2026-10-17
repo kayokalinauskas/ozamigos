@@ -303,6 +303,9 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         if (previa.miniatura() != null) {
             mensagem.put("miniatura", previa.miniatura());
         }
+        if (previa.aoVivo()) {
+            mensagem.put("aoVivo", true);
+        }
         for (WebSocketSession pessoa : salas.todos(sala)) {
             enviar(pessoa, mensagem);
         }

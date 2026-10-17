@@ -77,7 +77,7 @@ export type MensagemDoServidor =
   // O texto já vem limpo pelo servidor (sem caracteres de controle, até 500 caracteres).
   | { tipo: 'chat'; de: string; texto: string }
   // A prévia de um link de vídeo do chat, buscada pelo servidor (PreviasDeLinks): chega logo depois da mensagem.
-  | { tipo: 'previa'; url: string; site: string; titulo?: string; autor?: string; miniatura?: string }
+  | { tipo: 'previa'; url: string; site: string; titulo?: string; autor?: string; miniatura?: string; aoVivo?: boolean }
   | { tipo: 'erro'; motivo: MotivoDoErro }
   | { tipo: 'pong' };
 

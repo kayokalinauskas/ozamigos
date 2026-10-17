@@ -73,7 +73,10 @@ class PreviasDeLinksTest {
         assertThat(PreviasDeLinks.reconhecer("https://usuario@youtube.com/watch?v=x")).isNull();
         assertThat(PreviasDeLinks.reconhecer("https://youtube.com:8080/watch?v=x")).isNull();
         assertThat(PreviasDeLinks.reconhecer("https://www.youtube.com/@canal")).isNull(); // um canal, não um vídeo
-        assertThat(PreviasDeLinks.reconhecer("https://www.twitch.tv/gaules")).isNull();
+        assertThat(PreviasDeLinks.reconhecer("https://www.twitch.tv/Baiano").busca()).hasToString("https://www.twitch.tv/baiano"); // um canal
+        assertThat(PreviasDeLinks.reconhecer("https://kick.com/gaules").busca()).hasToString("https://kick.com/api/v2/channels/gaules");
+        assertThat(PreviasDeLinks.reconhecer("https://www.twitch.tv/directory")).isNull(); // página do site, não um canal
+        assertThat(PreviasDeLinks.reconhecer("https://kick.com/browse")).isNull();
         assertThat(PreviasDeLinks.reconhecer("ftp://youtube.com/watch?v=x")).isNull();
     }
 
@@ -137,6 +140,60 @@ class PreviasDeLinksTest {
         assertThat(previa.titulo()).isNull(); // o oEmbed e a página responderam 404 (a internet falsa não os conhece)
         assertThat(previa.miniatura()).startsWith("data:image/jpeg;base64,");
     }
+
+    @Test
+    void comAChaveOYoutubeVemDaApiOficialSemPassarPeloOembed() throws Exception {
+        InternetFalsa internet = new InternetFalsa(Map.of(
+                "https://www.googleapis.com/youtube/v3/videos?part=snippet&id=hkm-8j0osQI&key=chave-de-teste",
+                texto("{\"items\":[{\"snippet\":{\"title\":\"O PENTA\",\"channelTitle\":\"Yoda SL\",\"liveBroadcastContent\":\"none\","
+                        + "\"thumbnails\":{\"high\":{\"url\":\"https://i.ytimg.com/vi/hkm-8j0osQI/hqdefault.jpg\"},\"maxres\":{\"url\":\"https://i.ytimg.com/vi/hkm-8j0osQI/maxresdefault.jpg\"}}}}]}"),
+                "https://i.ytimg.com/vi/hkm-8j0osQI/maxresdefault.jpg", new Buscador.Resposta(200, "image/png", png(1280, 720), null)));
+        PreviasDeLinks previas = new PreviasDeLinks(internet, JsonMapper.builder().build(), "chave-de-teste");
+
+        PreviasDeLinks.Previa previa = previas.buscar("https://www.youtube.com/watch?v=hkm-8j0osQI").get(5, TimeUnit.SECONDS).orElseThrow();
+
+        assertThat(previa.titulo()).isEqualTo("O PENTA");
+        assertThat(previa.autor()).isEqualTo("Yoda SL");
+        assertThat(previa.miniatura()).startsWith("data:image/jpeg;base64,");
+        assertThat(internet.pedidos).noneMatch(p -> p.contains("oembed")); // a maior miniatura, e nada de oEmbed
+    }
+
+    @Test
+    void umCanalDaTwitchAoVivoMostraOTituloDaLiveOJogoEAImagemDaLive() throws Exception {
+        InternetFalsa internet = new InternetFalsa(Map.of(
+                "https://www.twitch.tv/baiano",
+                texto("<meta property=\"og:title\" content=\"Baiano - Ao vivo na Twitch\"/><meta property=\"og:description\" "
+                        + "content=\"FURIA x MVK | WORLDS 2026 | Transmitindo league of legends para 3991 viewers.\"/>"),
+                "https://static-cdn.jtvnw.net/previews-ttv/live_user_baiano-640x360.jpg", new Buscador.Resposta(200, "image/png", png(640, 360), null)));
+        PreviasDeLinks previas = new PreviasDeLinks(internet, JsonMapper.builder().build());
+
+        PreviasDeLinks.Previa previa = previas.buscar("https://www.twitch.tv/baiano").get(5, TimeUnit.SECONDS).orElseThrow();
+
+        assertThat(previa.aoVivo()).isTrue();
+        assertThat(previa.titulo()).isEqualTo("FURIA x MVK | WORLDS 2026"); // o "|" do título da live fica
+        assertThat(previa.autor()).isEqualTo("Baiano · league of legends");
+        assertThat(previa.miniatura()).startsWith("data:image/jpeg;base64,");
+    }
+
+    @Test
+    void umCanalDaKickOfflineMostraONomeEAFotoEmWebp() throws Exception {
+        InternetFalsa internet = new InternetFalsa(Map.of(
+                "https://kick.com/api/v2/channels/gaules",
+                texto("{\"user\":{\"username\":\"Gaules\",\"profile_pic\":\"https://files.kick.com/images/user/1/foto.webp\"},\"livestream\":null}"),
+                "https://files.kick.com/images/user/1/foto.webp",
+                new Buscador.Resposta(200, "image/webp", Base64.getDecoder().decode(WEBP_8X8), null)));
+        PreviasDeLinks previas = new PreviasDeLinks(internet, JsonMapper.builder().build());
+
+        PreviasDeLinks.Previa previa = previas.buscar("https://kick.com/gaules").get(5, TimeUnit.SECONDS).orElseThrow();
+
+        assertThat(previa.aoVivo()).isFalse();
+        assertThat(previa.titulo()).isEqualTo("Gaules");
+        assertThat(previa.autor()).isEqualTo("Canal da Kick");
+        assertThat(previa.miniatura()).startsWith("data:image/jpeg;base64,"); // o WebP abriu e virou JPEG
+    }
+
+    /** Um WebP de 8×8 pixels (gerado pelo Chrome), para conferir que o leitor de WebP está no servidor. */
+    private static final String WEBP_8X8 = "UklGRhoCAABXRUJQVlA4WAoAAAAgAAAABwAABwAASUNDUMgBAAAAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADZWUDggLAAAAHABAJ0BKggACAABQCYloAJ0AUAAAP7aJuuLmyIo/+vR//56P//PR/nAAAAA";
 
     @Test
     void imagemDeUmEnderecoForaDaListaNaoEhBuscadaEAPaginaSoSegueRedirecionamentoPermitido() throws Exception {

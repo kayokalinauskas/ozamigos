@@ -9,7 +9,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ## [Não lançado]
 
 ### Adicionado
-- **Prévia de links de vídeo no chat:** um link do YouTube, da Twitch, do TikTok, do Streamable ou do Medal vira um cartão com a imagem, o título e o canal. Clique para abrir. Quem busca a prévia é o servidor: ninguém da sala acessa o site só por receber o link.
+- **Prévia de links de vídeo no chat:** um link do YouTube, da Twitch, da Kick, do TikTok, do Streamable ou do Medal vira um cartão com a imagem, o título e o canal. O link de um canal da Twitch ou da Kick transmitindo mostra **AO VIVO**, o título da live e o jogo. Clique para abrir. Quem busca a prévia é o servidor: ninguém da sala acessa o site só por receber o link.
 
 ### Corrigido
 - Uma imagem em pé esticava a miniatura da bandeja do chat por cima das mensagens, e passava da tela ao abrir em tamanho grande.
