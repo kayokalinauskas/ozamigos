@@ -11,6 +11,9 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ### Adicionado
 - **Prévia de links de vídeo no chat:** um link do YouTube, da Twitch, da Kick, do TikTok, do Streamable ou do Medal vira um cartão com a imagem, o título e o canal. O link de um canal da Twitch ou da Kick transmitindo mostra **AO VIVO**, o título da live e o jogo. Clique para abrir. Quem busca a prévia é o servidor: ninguém da sala acessa o site só por receber o link.
 
+### Mudado
+- **Imagem mais nítida nas transmissões, com a mesma internet:** quando a placa de vídeo de quem transmite e a de quem assiste aguentam, a transmissão vai em H.265 (HEVC) em vez de H.264. Medido: com os mesmos 4 Mbps, a imagem do H.265 ficou melhor que a do H.264 com 6,5 Mbps. Sem suporte de um dos lados, continua o H.264.
+
 ### Corrigido
 - Uma imagem em pé esticava a miniatura da bandeja do chat por cima das mensagens, e passava da tela ao abrir em tamanho grande.
 

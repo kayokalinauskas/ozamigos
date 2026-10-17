@@ -66,11 +66,20 @@ export function aquecerWebRtc() {
   }, 300);
 }
 
-/** H.264 é o codec que quase toda placa de vídeo codifica em hardware. */
-export function preferirH264(transceptor: RTCRtpTransceiver) {
+/**
+ * H.265 (HEVC) quando os dois lados conseguem, e o H.264 de reserva. Medido no app (17/10/2026, AMD RX 7800 XT, os dois
+ * na placa de vídeo, 720p a 30 fps, um jogo rolando): o H.265 a 4 Mbps deu 32,7 dB de PSNR usando 3,9 Mbps, e o H.264
+ * 31,0 dB passando do alvo (4,6 Mbps); o H.265 a 4 Mbps ficou melhor que o H.264 a 6,5 Mbps, por ~1 ms a mais de
+ * codificação por quadro. O AV1 e o VP9 deste Chromium codificam no processador (o dobro do tempo): ficam de fora.
+ * O Chromium só oferece o H.265 com a placa de vídeo codificando (quem transmite) e decodificando (quem assiste): sem isso,
+ * a negociação cai sozinha no H.264. hevcRecusado: o codificador H.265 desta placa não soltou quadros (cliente.ts).
+ */
+export function preferirCodecs(transceptor: RTCRtpTransceiver, hevcRecusado = false) {
   if (!transceptor.setCodecPreferences) return;
   const codecs = RTCRtpReceiver.getCapabilities('video')?.codecs ?? [];
-  const h264 = codecs.filter((c) => c.mimeType === 'video/H264');
-  if (h264.length === 0) return;
-  transceptor.setCodecPreferences([...h264, ...codecs.filter((c) => c.mimeType !== 'video/H264')]);
+  const ordem = hevcRecusado ? ['video/H264'] : ['video/H265', 'video/H264'];
+  const preferidos = ordem.flatMap((tipo) => codecs.filter((c) => c.mimeType === tipo));
+  if (preferidos.length === 0) return;
+  const resto = codecs.filter((c) => !ordem.includes(c.mimeType) && !(hevcRecusado && c.mimeType === 'video/H265'));
+  transceptor.setCodecPreferences([...preferidos, ...resto]);
 }

@@ -456,7 +456,7 @@ Com `senha-errada`, `muitas-tentativas` (10 senhas erradas do mesmo endereço em
 
 ## Qualidade, banda e diagnóstico
 
-Cada pessoa que assiste é mais um vídeo saindo do PC de quem transmite. O codec de vídeo preferido é o H.264, codificado pela placa de vídeo; o som do jogo vai em Opus estéreo, a até 128 kbps.
+Cada pessoa que assiste é mais um vídeo saindo do PC de quem transmite. O codec de vídeo preferido é o H.265 (HEVC), quando a placa de quem transmite codifica e a de quem assiste decodifica: na mesma banda, a imagem fica mais nítida que no H.264 (medido: o H.265 a 4 Mbps ficou melhor que o H.264 a 6,5 Mbps). Sem isso, vai o H.264, também pela placa de vídeo; o som do jogo vai em Opus estéreo, a até 128 kbps.
 
 A voz pesa pouco: Opus mono a 64 kbps para cada amigo da sala, e quase nada enquanto você não fala. Numa sala cheia (7 amigos), são no máximo ~450 kbps de upload.
 

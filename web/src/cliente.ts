@@ -134,6 +134,8 @@ const ESPERA_DESCONECTADO = 2_000;
 // enchia a fila de envio e a imagem congelava 3 ou 4 vezes nos primeiros segundos.
 const BITRATE_INICIAL = 0.5;
 const SUBIR_BITRATE_DEPOIS = 6_000;
+// Quanto depois da oferta conferir se o codificador H.265 está soltando quadros (preferirCodecs, em webrtc.ts).
+const CONFERIR_HEVC_DEPOIS = 10_000;
 
 // Recusas do servidor que mandam a pessoa de volta para a tela de entrada, com o motivo.
 const RECUSAS: Partial<Record<MotivoDoErro, string>> = {
@@ -183,6 +185,7 @@ class Cliente {
   private proximaMensagem = 1;
   private readonly imagensMinhas = new Map<string, ImagemComprimida>(); // para o "Tentar de novo"
   private envioDeImagens: number[] = []; // quando mandei as últimas imagens (o freio)
+  private hevcRecusado = false; // o codificador H.265 desta placa falhou (conferirHevc): só H.264 até recarregar
   private ecos: (() => void)[] = []; // imagens esperando o texto que vai antes delas voltar do servidor
   private avisoDoChat: { de: string; aviso: number } | null = null; // o aviso da última mensagem, enquanto na tela
   private envioDoChat: number[] = []; // quando mandei as últimas mensagens (o freio)
@@ -1128,8 +1131,9 @@ class Cliente {
     if (!tela) return;
     this.fecharConexao('envio', idEspectador); // conexão refeita começa do zero, na qualidade de agora
     const { pc } = this.novaConexao('envio', idEspectador);
-    montarEnvio(tela, this.estado.qualidade, pc, BITRATE_INICIAL);
+    montarEnvio(tela, this.estado.qualidade, pc, BITRATE_INICIAL, this.hevcRecusado);
     setTimeout(() => void this.bitrateCheio(pc), SUBIR_BITRATE_DEPOIS);
+    setTimeout(() => void this.conferirHevc(pc, idEspectador), CONFERIR_HEVC_DEPOIS);
     const oferta = await pc.createOffer();
     const descricao: RTCSessionDescriptionInit = { type: 'offer', sdp: opusEstereo(oferta.sdp ?? '') };
     await pc.setLocalDescription(descricao);
@@ -1140,7 +1144,29 @@ class Cliente {
   montarEnvio(pc: RTCPeerConnection) {
     const tela = this.estado.minhaTela;
     if (!tela) throw new Error('Ninguém está transmitindo');
-    montarEnvio(tela, this.estado.qualidade, pc);
+    montarEnvio(tela, this.estado.qualidade, pc, 1, this.hevcRecusado);
+  }
+
+  /**
+   * O H.265 foi negociado, a conexão está de pé e o codificador não soltou nenhum quadro (um driver com o H.265 quebrado):
+   * esta conexão é refeita em H.264, e as próximas já saem nele, até a página recarregar.
+   */
+  private async conferirHevc(pc: RTCPeerConnection, idEspectador: string) {
+    if (this.hevcRecusado || pc.connectionState !== 'connected') return;
+    const relatorio = await pc.getStats().catch(() => null);
+    if (!relatorio) return;
+    let codec = '';
+    let quadros = 0;
+    relatorio.forEach((r) => {
+      if (r.type === 'outbound-rtp' && r.kind === 'video') {
+        codec = relatorio.get(r.codecId)?.mimeType ?? '';
+        quadros = r.framesEncoded ?? 0;
+      }
+    });
+    if (codec !== 'video/H265' || quadros > 0) return;
+    this.hevcRecusado = true;
+    this.registrar('o codificador H.265 não soltou quadros: as transmissões passam para H.264');
+    if (this.conexoes.get(chave('envio', idEspectador))?.pc === pc) void this.enviarOferta(idEspectador);
   }
 
   /** Passados os primeiros segundos de uma pessoa nova, o bitrate sobe para o da qualidade. */

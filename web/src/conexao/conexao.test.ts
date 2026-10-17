@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ESPERAS_PARA_RECONECTAR, Sinalizacao } from './sinalizacao';
-import { opusDeVoz, opusEstereo } from './webrtc';
+import { opusDeVoz, opusEstereo, preferirCodecs } from './webrtc';
 
 /** Um WebSocket de mentira: o teste decide quando abre, fecha e o que chega. */
 class WebSocketFalso {
@@ -99,6 +99,23 @@ describe('Opus no SDP', () => {
     expect(opusEstereo(opusEstereo(sdp))).toBe(opusEstereo(sdp));
     expect(opusDeVoz(sdp)).toContain('usedtx=1;maxaveragebitrate=64000');
     expect(opusDeVoz('v=0\r\n')).toBe('v=0\r\n'); // sem Opus: não mexe
+  });
+});
+
+describe('codec da transmissão', () => {
+  it('H.265 primeiro e H.264 de reserva; com o H.265 recusado, só H.264', () => {
+    const codecs = ['video/VP8', 'video/H264', 'video/AV1', 'video/H265', 'video/rtx'].map((mimeType) => ({ mimeType, clockRate: 90000 }));
+    vi.stubGlobal('RTCRtpReceiver', { getCapabilities: () => ({ codecs, headerExtensions: [] }) });
+    const escolhidos: string[][] = [];
+    const transceptor = { setCodecPreferences: (c: RTCRtpCodec[]) => escolhidos.push(c.map((x) => x.mimeType)) } as unknown as RTCRtpTransceiver;
+
+    preferirCodecs(transceptor);
+    preferirCodecs(transceptor, true);
+
+    expect(escolhidos[0].slice(0, 2)).toEqual(['video/H265', 'video/H264']);
+    expect(escolhidos[1][0]).toBe('video/H264');
+    expect(escolhidos[1]).not.toContain('video/H265');
+    vi.unstubAllGlobals();
   });
 });
 

@@ -320,7 +320,7 @@ export function classificar(r: ResumoDoTrecho): Resultado {
 const CODIGO = {
   qualidades: 'web/src/qualidade.ts (QUALIDADES: bitrate, fps, altura e degradationPreference de cada opção)',
   captura: 'web/src/conexao/captura.ts (tamanhoDaCaptura, FPS_MINIMO_DA_CAPTURA), web/src/cliente.ts (usarTela) e desktop/main.js (desktopCapturer, setDisplayMediaRequestHandler, appendSwitch)',
-  codificador: 'web/src/conexao/captura.ts (montarEnvio, codificacao), web/src/conexao/webrtc.ts (preferirH264), web/src/cliente.ts (aplicarQualidade) e desktop/main.js (force-fieldtrials WebRTC-FrameDropper/Disabled)',
+  codificador: 'web/src/conexao/captura.ts (montarEnvio, codificacao), web/src/conexao/webrtc.ts (preferirCodecs), web/src/cliente.ts (aplicarQualidade) e desktop/main.js (force-fieldtrials WebRTC-FrameDropper/Disabled)',
   buffer: 'web/src/folga.ts (FolgaAdaptativa: o jitterBufferTarget de quem assiste) e web/src/cliente.ts (ajustarFolga)',
   rede: 'web/src/conexao/webrtc.ts (SERVIDORES_ICE: só STUN, sem TURN) e web/src/cliente.ts (refazerVideo)',
   interface: 'web/src/conexao/medidor.ts e web/src/cliente.ts (medir(): getStats de todas as conexões a cada 1 s e mudar() que re-renderiza o React) e web/src/componentes/',
@@ -385,7 +385,7 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
       detalhe: `O codificador em uso é "${software.envio.codificador}". Codificar por software pesa muito no processador e limita fps e resolução.`,
       evidencias: [`encoderImplementation=${software.envio.codificador}; powerEfficientEncoder=${software.envio.codificadorDaPlaca}`],
       paraVoce: 'Atualize o driver da placa de vídeo.',
-      paraOApp: 'Conferir se o H.264 de hardware foi negociado (preferirH264) e se o Chromium tem o codificador da placa liberado.',
+      paraOApp: 'Conferir se o H.265 ou o H.264 de hardware foi negociado (preferirCodecs) e se o Chromium tem o codificador da placa liberado.',
       ondeNoCodigo: [CODIGO.codificador],
     });
   }
