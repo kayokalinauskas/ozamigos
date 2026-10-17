@@ -2808,6 +2808,17 @@ button.chat-imagem-quadro:focus-visible {
   min-width: 0;
 }
 
+.entrada-privacidade {
+  align-self: center;
+  color: var(--texto-3);
+  font-size: 12px;
+}
+
+.entrada-privacidade:hover,
+.entrada-privacidade:focus-visible {
+  color: var(--texto-2);
+}
+
 .versao {
   color: var(--texto-3);
   font-size: 10px;

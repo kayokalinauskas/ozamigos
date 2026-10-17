@@ -151,6 +151,10 @@ export function Entrada() {
             </a>
           </>
         )}
+        {/* Onde o nome é pedido, o link para a política (LGPD: a pessoa sabe como os dados são tratados). */}
+        <a className="entrada-privacidade" href={`${SITE}privacidade.html`} target="_blank" rel="noopener noreferrer">
+          Política de privacidade
+        </a>
         <Versao />
       </form>
     </main>

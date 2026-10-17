@@ -784,3 +784,65 @@ h1 {
     transition: none;
   }
 }
+
+/* Páginas de texto (a política de privacidade): uma coluna de leitura, no tom do resto do site. */
+.documento {
+  max-width: 760px;
+  padding-block: 48px 72px;
+}
+
+.documento h1 {
+  margin: 0 0 8px;
+  font-family: var(--titulos);
+  font-size: clamp(28px, 5vw, 40px);
+  line-height: 1.15;
+}
+
+.documento-data {
+  margin: 0 0 32px;
+  color: var(--texto-3);
+  font-size: 14px;
+}
+
+.documento section {
+  padding-block: 20px;
+  border-top: 1px solid var(--linha);
+}
+
+.documento h2 {
+  margin: 0 0 12px;
+  font-family: var(--titulos);
+  font-size: 20px;
+}
+
+.documento p,
+.documento li {
+  color: var(--texto-2);
+  line-height: 1.65;
+}
+
+.documento p {
+  margin: 0 0 12px;
+}
+
+.documento ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.documento li + li {
+  margin-top: 6px;
+}
+
+.documento b,
+.documento code {
+  color: var(--texto);
+}
+
+.documento code {
+  overflow-wrap: anywhere;
+}
+
+.documento a {
+  color: var(--destaque);
+}
