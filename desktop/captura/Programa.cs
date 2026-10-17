@@ -13,6 +13,7 @@ namespace Ozamigos.Captura;
 
 /// <summary>
 /// OzamigosCaptura.exe --segundos 20 --saida captura.h265 [--monitor 0] [--mbps 4] [--fps 30]
+/// OzamigosCaptura.exe --crua --segundos 20 (fase 2: os quadros NV12 na saída padrão, sem codificar)
 ///
 /// Fase 1 da captura própria, só para medir: duplica a tela pelo Windows (DXGI Desktop Duplication, a mesma origem da
 /// captura do Chromium), copia o quadro dentro da placa de vídeo, reduz para 720p e converte para NV12 no processador de
@@ -88,6 +89,12 @@ static class Programa
         int largura = Numero(argumentos, "--largura", 1280);
         int altura = Numero(argumentos, "--altura", 720);
         string arquivo = Texto(argumentos, "--saida", "captura.h265");
+        // --crua: em vez de codificar, cada quadro NV12 vai para a saída padrão, para o app montar a trilha de vídeo
+        // (fase 2). Cabeçalho de 24 bytes: "OZQ1", largura e altura (u16), número do quadro (u32), 4 de reserva e o
+        // momento da captura em ms desde 1970 (f64, para medir quanto o quadro leva até a página). As medidas vão
+        // para a saída de erro.
+        bool crua = argumentos.Contains("--crua");
+        var medidas = crua ? Console.Error : Console.Out;
         timeBeginPeriod(1);
 
         MediaFactory.MFStartup(true).CheckError();
@@ -137,6 +144,18 @@ static class Programa
             vistas[i] = videoDevice.CreateVideoProcessorOutputView(anel[i], enumerador,
                 new VideoProcessorOutputViewDescription { ViewDimension = VideoProcessorOutputViewDimension.Texture2D });
         }
+
+        // A cópia legível pelo processador do quadro NV12 (só no modo cru).
+        using var legivel = crua ? dispositivo.CreateTexture2D(new Texture2DDescription
+        {
+            Width = (uint)largura, Height = (uint)altura, MipLevels = 1, ArraySize = 1, Format = Format.NV12,
+            SampleDescription = new SampleDescription(1, 0), Usage = ResourceUsage.Staging, CPUAccessFlags = CpuAccessFlags.Read,
+        }) : null;
+        var saidaCrua = crua ? Console.OpenStandardOutput() : null;
+        var quadroCru = new byte[24 + largura * altura * 3 / 2];
+        long relogioBase = Stopwatch.GetTimestamp();
+        double epocaBase = (DateTime.UtcNow - DateTime.UnixEpoch).TotalMilliseconds;
+        long somaDaLeitura = 0, leituraAnt = 0;
 
         // O codificador H.265 da placa.
         var entrada = new RegisterTypeInfo { GuidMajorType = TipoVideo, GuidSubtype = FormatoNv12 };
@@ -277,7 +296,50 @@ static class Programa
                 [new VideoProcessorStream { Enable = true, InputSurface = vistaDeEntrada }]).CheckError();
             contexto.Flush();
             somaDoPreparo += Stopwatch.GetTimestamp() - inicio;
-            if (prontos.TryAdd((indice, numero, Stopwatch.GetTimestamp()))) entregues++;
+            if (crua)
+            {
+                // Copia o quadro NV12 para a textura legível e escreve as duas metades (Y e UV) sem o espaço de
+                // alinhamento de cada linha (RowPitch).
+                long antesDaLeitura = Stopwatch.GetTimestamp();
+                contexto.CopyResource(legivel!, anel[indice]);
+                var mapa = contexto.Map(legivel!, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+                try
+                {
+                    var cab = quadroCru.AsSpan(0, 24);
+                    "OZQ1"u8.CopyTo(cab);
+                    BitConverter.TryWriteBytes(cab[4..], (ushort)largura);
+                    BitConverter.TryWriteBytes(cab[6..], (ushort)altura);
+                    BitConverter.TryWriteBytes(cab[8..], (uint)numero);
+                    double momento = epocaBase + (inicio - relogioBase) * 1000.0 / Stopwatch.Frequency;
+                    BitConverter.TryWriteBytes(cab[16..], momento);
+                    unsafe
+                    {
+                        byte* origem = (byte*)mapa.DataPointer;
+                        int passo = (int)mapa.RowPitch, destino = 24;
+                        for (int y = 0; y < altura + altura / 2; y++) // as linhas de Y e, logo depois, as de UV
+                        {
+                            new ReadOnlySpan<byte>(origem + (long)y * passo, largura).CopyTo(quadroCru.AsSpan(destino, largura));
+                            destino += largura;
+                        }
+                    }
+                }
+                finally
+                {
+                    contexto.Unmap(legivel!, 0);
+                }
+                somaDaLeitura += Stopwatch.GetTimestamp() - antesDaLeitura;
+                try
+                {
+                    saidaCrua!.Write(quadroCru);
+                    saidaCrua.Flush();
+                }
+                catch (IOException)
+                {
+                    break; // o app fechou a saída: fim
+                }
+                entregues++;
+            }
+            else if (prontos.TryAdd((indice, numero, Stopwatch.GetTimestamp()))) entregues++;
             else perdidos++; // o codificador não acompanhou: o quadro é descartado
             numero++;
 
@@ -287,8 +349,10 @@ static class Programa
                 ultimoSegundo = segundo;
                 long cod = Interlocked.Read(ref codificados), byt = Interlocked.Read(ref bytes), cdf = Interlocked.Read(ref somaDaCodificacao);
                 long novosEntregues = entregues - entAnt, novosCodificados = cod - codAnt;
-                Console.WriteLine(JsonSerializer.Serialize(new
+                medidas.WriteLine(JsonSerializer.Serialize(new
                 {
+                    msLeitura = novosEntregues > 0 ? Math.Round((somaDaLeitura - leituraAnt) * 1000.0 / Stopwatch.Frequency / novosEntregues, 2) : 0,
+                    processadorMs = Math.Round(Process.GetCurrentProcess().TotalProcessorTime.TotalMilliseconds),
                     s = segundo,
                     capturados = capturados - capAnt,
                     entregues = novosEntregues,
@@ -298,6 +362,7 @@ static class Programa
                     msPreparo = novosEntregues > 0 ? Math.Round((somaDoPreparo - preparoAnt) * 1000.0 / Stopwatch.Frequency / novosEntregues, 2) : 0,
                     msCodificacao = novosCodificados > 0 ? Math.Round((cdf - codifAnt) * 1000.0 / Stopwatch.Frequency / novosCodificados, 2) : 0,
                 }));
+                leituraAnt = somaDaLeitura;
                 capAnt = capturados; entAnt = entregues; codAnt = cod; bytesAnt = byt; preparoAnt = somaDoPreparo; codifAnt = cdf;
             }
         }
