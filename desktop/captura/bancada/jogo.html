@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+  <body style="margin: 0; background: #000; overflow: hidden">
+    <canvas id="c"></canvas>
+    <div id="f" style="position: fixed; left: 20px; top: 20px; color: #fff; font: bold 40px sans-serif"></div>
+    <script>
+      // Um "jogo" que enche a placa de vídeo: um fractal com N voltas por pixel, em tela cheia, sem limite de fps.
+      // N é um parâmetro (uniform): começa leve e sobe até ~100 fps, sem recompilar o shader (recompilar com uma
+      // constante grande fazia o compilador desdobrar o laço e o driver cair).
+      const c = document.getElementById('c');
+      c.width = innerWidth * devicePixelRatio;
+      c.height = innerHeight * devicePixelRatio;
+      c.style.width = '100vw';
+      c.style.height = '100vh';
+      const g = c.getContext('webgl2', { antialias: false });
+      const fs = `#version 300 es
+precision highp float;
+uniform float t; uniform vec2 r; uniform int voltas; out vec4 o;
+void main() {
+  vec2 p = (gl_FragCoord.xy * 2. - r) / r.y; vec3 col = vec3(0);
+  for (int i = 0; i < 20000; i++) {
+    if (i >= voltas) break;
+    p = abs(p) / dot(p, p) - vec2(.9 + .1 * sin(t * .3), .6);
+    col += vec3(.002 * float(i % 7), .004, .006) * length(p);
+  }
+  o = vec4(col / float(voltas) * 40., 1);
+}`;
+      const vs = `#version 300 es
+in vec2 v; void main() { gl_Position = vec4(v, 0, 1); }`;
+      const p = g.createProgram();
+      for (const [tipo, fonte] of [[g.VERTEX_SHADER, vs], [g.FRAGMENT_SHADER, fs]]) {
+        const sh = g.createShader(tipo);
+        g.shaderSource(sh, fonte);
+        g.compileShader(sh);
+        if (!g.getShaderParameter(sh, g.COMPILE_STATUS)) window.erro = g.getShaderInfoLog(sh);
+        g.attachShader(p, sh);
+      }
+      g.linkProgram(p);
+      g.bindBuffer(g.ARRAY_BUFFER, g.createBuffer());
+      g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), g.STATIC_DRAW);
+      g.useProgram(p);
+      const l = g.getAttribLocation(p, 'v');
+      g.enableVertexAttribArray(l);
+      g.vertexAttribPointer(l, 2, g.FLOAT, false, 0, 0);
+      const uT = g.getUniformLocation(p, 't'), uR = g.getUniformLocation(p, 'r'), uV = g.getUniformLocation(p, 'voltas');
+      let voltas = 50, n = 0, inicio = performance.now();
+      window.fpsDoJogo = 0;
+      window.voltas = voltas;
+      function quadro(t) {
+        g.uniform1f(uT, t / 1000);
+        g.uniform2f(uR, c.width, c.height);
+        g.uniform1i(uV, voltas);
+        g.drawArrays(g.TRIANGLES, 0, 3);
+        n++;
+        const d = performance.now() - inicio;
+        if (d >= 1000) {
+          window.fpsDoJogo = Math.round((n * 1000) / d);
+          if (!window.travado) {
+            // Com VSync, o fps só cai abaixo da taxa do monitor quando a placa não acompanha: sobe a carga até ~90 fps.
+            if (window.fpsDoJogo > 100) voltas = Math.min(20000, Math.round(voltas * 1.5));
+            else if (window.fpsDoJogo < 80) voltas = Math.max(10, Math.round(voltas * 0.85));
+          }
+          window.voltas = voltas;
+          document.getElementById('f').textContent = window.fpsDoJogo + ' fps · ' + voltas + ' voltas (placa cheia)';
+          n = 0;
+          inicio = performance.now();
+        }
+        requestAnimationFrame(quadro);
+      }
+      requestAnimationFrame(quadro);
+    </script>
+  </body>
+</html>

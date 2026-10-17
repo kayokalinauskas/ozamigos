@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Fase 1 da captura própria (medição, ainda fora do instalador): captura a tela pela duplicação do Windows,
+    reduz para 720p e converte para NV12 na placa de vídeo, e codifica em H.265 pelo Media Foundation (o codificador
+    da placa), sem nenhum quadro passar pelo processador. Grava o vídeo num arquivo e escreve as medidas de cada segundo.
+    O objetivo é saber se o limite de ~21 fps da captura do Chromium em jogos pesados some fora dele.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>OzamigosCaptura</AssemblyName>
+    <RootNamespace>Ozamigos.Captura</RootNamespace>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Direct3D 11, DXGI e Media Foundation para .NET (MIT), sem a interop COM embutida. -->
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
+    <PackageReference Include="Vortice.MediaFoundation" Version="3.8.3" />
+  </ItemGroup>
+
+</Project>
