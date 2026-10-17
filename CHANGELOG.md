@@ -8,6 +8,8 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.2.17] - 2026-10-17
+
 ### Adicionado
 - **Imagens no chat:** cole um print com Ctrl+V, arraste para a sala ou use o botão de imagem (até 4 por vez, numa bandeja, e só vão com o Enter). Elas vão direto de um PC para o outro, sem passar pelo servidor, e nada fica guardado. Cada imagem é comprimida em WebP no tamanho da tela (até 2560×1440): um print de jogo de 8 MB chega com ~1 MB, com o texto legível. Clique para ver grande, copiar ou salvar. Se não chegar para alguém, aparece para quem e um "Tentar de novo".
 
@@ -262,7 +264,8 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
-[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.16...HEAD
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.17...HEAD
+[1.2.17]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.16...v1.2.17
 [1.2.16]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.15...v1.2.16
 [1.2.15]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.14...v1.2.15
 [1.2.14]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.13...v1.2.14
