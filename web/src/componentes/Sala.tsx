@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState, type DragEvent } from 'react';
 import { RefreshCw, WifiOff } from 'lucide-react';
 import { lembrado, lembrar } from '../armazenamento';
 import { cliente } from '../cliente';
@@ -6,7 +6,7 @@ import { pintarBarraDaJanela } from '../ponte';
 import { useCliente } from '../useCliente';
 import { BarraLateral } from './BarraLateral';
 import { Controles } from './Controles';
-import { PainelChat } from './PainelChat';
+import { PainelChat, adicionarImagens } from './PainelChat';
 import { PainelEstatisticas } from './PainelEstatisticas';
 import { Palco, type Modo } from './Palco';
 
@@ -33,6 +33,8 @@ export function Sala() {
   const [foco, setFoco] = useState<string | null>(null);
   const [estatisticasAbertas, setEstatisticasAbertas] = useState(false);
   const [testeAberto, setTesteAberto] = useState(false);
+  const [arrastando, setArrastando] = useState(false);
+  const entradas = useRef(0); // dragenter e dragleave disparam em cada filho: conta para saber quando saiu da sala
 
   // Ferramentas de diagnóstico, sem botão na tela: Ctrl+Shift+D abre o teste de desempenho, e Ctrl+Shift+G
   // começa (ou para) a gravação das estatísticas da sala. O código das duas só é baixado no primeiro uso.
@@ -83,8 +85,34 @@ export function Sala() {
     mudarModo('destaque');
   }
 
+  // Arrastar uma imagem para qualquer lugar da sala: o chat abre com ela na bandeja.
+  const temArquivos = (e: DragEvent) => e.dataTransfer.types.includes('Files');
+  const arrastar = {
+    onDragEnter(e: DragEvent) {
+      if (!temArquivos(e)) return;
+      entradas.current++;
+      setArrastando(true);
+    },
+    onDragLeave(e: DragEvent) {
+      if (temArquivos(e) && --entradas.current <= 0) setArrastando(false);
+    },
+    onDragOver(e: DragEvent) {
+      if (!temArquivos(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    },
+    onDrop(e: DragEvent) {
+      if (!temArquivos(e)) return;
+      e.preventDefault();
+      entradas.current = 0;
+      setArrastando(false);
+      cliente.abrirChat(true);
+      adicionarImagens(e.dataTransfer.files);
+    },
+  };
+
   return (
-    <div className="sala">
+    <div className="sala" {...arrastar}>
       <BarraLateral />
       <main className="principal">
         {conexaoPerdida && (
@@ -103,6 +131,11 @@ export function Sala() {
         </div>
         <Controles estatisticasAbertas={estatisticasAbertas} aoAlternarEstatisticas={alternarEstatisticas} />
       </main>
+      {arrastando && (
+        <div className="soltar-imagem" aria-hidden="true">
+          <span>Solte para mandar no chat</span>
+        </div>
+      )}
       {testeAberto && (
         <Suspense fallback={null}>
           <TesteDesempenho aoFechar={() => setTesteAberto(false)} />

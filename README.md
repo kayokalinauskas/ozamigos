@@ -104,6 +104,7 @@
 - **Na bandeja, como o Discord** (app para Windows): fechar a janela deixa o Ozamigos perto do relógio, e a conversa continua; para sair, botão direito no ícone. Mensagens novas do chat aparecem como um ponto verde no ícone da barra de tarefas, que pisca quando chega uma com o jogo na frente.
 - **A tela não apaga** com mais alguém na sala, como numa chamada.
 - **Chat da sala:** mensagens de texto com links clicáveis, num painel à direita. Com o painel fechado, a mensagem aparece como aviso e o botão mostra quantas são novas. Nada fica guardado: quem entra depois não vê o que foi dito antes.
+- **Imagens no chat:** cole um print com **Ctrl+V** (Win+Shift+S), arraste para a sala ou use o botão de imagem; até 4 por vez, conferidas numa bandeja antes do Enter. Elas vão **direto de um PC para o outro**, sem passar pelo servidor, já comprimidas: um print de jogo de 8 MB em PNG chega com ~1 MB em WebP, no mesmo tamanho (até 2560×1440), sem perder a legibilidade do texto. Clique para ver grande, copiar ou salvar.
 - **Reconexão automática:** se a internet oscilar ou o servidor reiniciar, o app volta sozinho para a sala. Quem transmitia continua transmitindo, e quem assistia continua assistindo. As transmissões já abertas não param enquanto isso.
 
 **Só no app para Windows**
@@ -219,6 +220,7 @@ Num Windows que não tenha esse recurso, o app volta a mandar o som do sistema i
 │       ├── conexao/                  Peças do núcleo: protocolo (mensagens com tipo), sinalização (WebSocket e
 │       │                             reconexão), captura, medidor (estatísticas), relatório e ajustes do WebRTC
 │       ├── voz/                      Conversa por voz: conexões, processador (RNNoise e porta) e ajustes
+│       ├── imagens/                  Imagens do chat: compressão (libwebp num worker), bandeja e troca direta entre os PCs
 │       ├── folga.ts                  Folga de rede do vídeo, ajustada à conexão de cada um
 │       ├── qualidade.ts              A qualidade da transmissão (720p a 30 fps, sempre)
 │       ├── somDoApp.ts               Faixa de áudio do auxiliar de som (AudioWorklet)
@@ -529,9 +531,9 @@ Um comando roda a suíte inteira, da camada mais rápida para a mais lenta, e mo
 | Camada | Onde | O que garante |
 |---|---|---|
 | **Servidor** (JUnit + AssertJ) | `src/test/` | Regras das salas (limite de pessoas, plateias, gravação, reconexão pela ficha) e a senha do grupo. A **sinalização** roda com clientes WebSocket de verdade contra o Tomcat: senha errada fecha a conexão, oferta só vai para o destinatário e com o remetente carimbado pelo servidor, nada atravessa salas, e quem sai (mesmo duas pessoas juntas) é avisado aos outros. |
-| **Interface** (Vitest) | `web/src/**/*.test.ts` | Código e link da sala, preferências, qualidade, folga de rede, ajustes de voz e a análise do teste de desempenho. |
+| **Interface** (Vitest) | `web/src/**/*.test.ts` | Código e link da sala, preferências, qualidade, folga de rede, ajustes de voz, a análise do teste de desempenho e as regras das imagens do chat (tamanho final, cabeçalho do WebP, e o que quem recebe recusa). |
 | **Áudio** (Vitest) | `web/src/voz/audio.test.ts` | O processador real do microfone (RNNoise + porta) com sons sintéticos: o começo das palavras que abrem com chiado ("**s**im") não é cortado, o ruído da sala não passa, cliques de teclado quase não passam e o limitador da saída nunca estoura. |
-| **Ponta a ponta** (Playwright) | `web/e2e/` | Navegadores de verdade, com microfone falso e um "jogo" desenhado, contra o servidor de verdade (porta 8090): senha errada não entra, a transmissão chega em movimento para quem assiste, a voz chega na caixa de som de quem ouve, o microfone desligado silencia e quem sai some da sala. |
+| **Ponta a ponta** (Playwright) | `web/e2e/` | Navegadores de verdade, com microfone falso e um "jogo" desenhado, contra o servidor de verdade (porta 8090): senha errada não entra, a transmissão chega em movimento para quem assiste, a voz chega na caixa de som de quem ouve, o microfone desligado silencia, quem sai some da sala, e um print colado no chat chega comprimido ao amigo. |
 | **App do Windows** (Playwright + Electron) | `desktop/teste/` | O app abre a interface do servidor com a ponte (`window.ozamigos`) e sem acesso ao Node; sem servidor, mostra a tela de início com o erro. Roda com uma pasta de dados temporária e outro AppUserModelID, sem tocar no app instalado. |
 
 Cada camada também roda sozinha:
@@ -590,3 +592,5 @@ Distribuído sob a [licença MIT](LICENSE): pode usar, copiar, modificar e distr
 **Marca:** a licença MIT vale para o código, não para a marca. O nome **Ozamigos**, o ícone "Tecla oz" e o logotipo pertencem a kayokalinauskas. Se você publicar uma versão modificada, use outro nome e outro ícone, para ninguém confundir com o app original.
 
 A fonte Sora, usada no logotipo, é distribuída sob a [SIL Open Font License 1.1](desktop/build/sora-licenca-OFL.txt).
+
+As imagens do chat são comprimidas pelo libwebp do Google, compilado para o navegador pelo [jSquash](https://github.com/jamsinclair/jSquash) (`@jsquash/webp`), sob a [licença Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0).

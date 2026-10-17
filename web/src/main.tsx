@@ -18,6 +18,14 @@ manterTelaAcordada();
 avisarNaBarraDeTarefas();
 // No app: um convite (link ozamigos://) aberto com o app já aberto.
 ponte?.aoAbrirSala?.((sala) => cliente.abrirConvite(sala));
+// Um arquivo solto fora da sala (na entrada, por exemplo) não abre no lugar da página. Na sala, ele vai para o chat.
+for (const evento of ['dragover', 'drop'] as const) {
+  document.addEventListener(evento, (e) => {
+    if (e.defaultPrevented || !e.dataTransfer?.types.includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'none';
+  });
+}
 
 createRoot(document.getElementById('raiz')!).render(
   <StrictMode>

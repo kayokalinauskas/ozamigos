@@ -29,6 +29,7 @@ import {
   type AjustesDeVoz,
 } from './ajustes';
 import type { AjustesDoProcessador, MedidaDoProcessador } from './processador';
+import { trocaDeImagens } from '../imagens/troca';
 import urlDoProcessador from './processador.ts?worker&url';
 
 export type Dispositivo = { id: string; nome: string };
@@ -456,6 +457,8 @@ class Voz {
     const pc = novaPeerConnection();
     // O canal de dados é combinado (mesmo id dos dois lados): não precisa de mais sinalização.
     const canal = pc.createDataChannel('estado', { negotiated: true, id: 0 });
+    // As imagens do chat vão num segundo canal da mesma conexão (imagens/troca.ts): direto entre os PCs.
+    trocaDeImagens.conectar(id, pc.createDataChannel('imagens', { negotiated: true, id: 1 }), () => pc.sctp?.maxMessageSize);
     const c: ConexaoDeVoz = { id, pc, oferente, pendentes: [], canal, ultimaFala: 0, tentativas };
     this.conexoes.set(id, c);
     canal.onopen = () => this.contarMeuEstado(c);
@@ -507,6 +510,7 @@ class Voz {
     const c = this.conexoes.get(id);
     if (!c) return;
     clearTimeout(c.espera);
+    trocaDeImagens.desconectar(id);
     c.pc.close();
     c.fonte?.disconnect();
     c.ganho?.disconnect();

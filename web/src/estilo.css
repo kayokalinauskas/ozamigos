@@ -1344,6 +1344,219 @@ input[type='range']::-moz-range-thumb {
   font-variant-numeric: tabular-nums;
 }
 
+/* ===== Imagens do chat (imagens/, PainelChat.tsx e VisualizadorDeImagem.tsx) ===== */
+.chat-imagem {
+  margin: 4px 0 0;
+}
+
+/* O quadro já tem o tamanho da imagem (largura e proporção vêm do componente): a lista não pula quando ela chega. */
+.chat-imagem-quadro {
+  position: relative;
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  background: var(--painel-2);
+}
+
+button.chat-imagem-quadro {
+  cursor: zoom-in;
+}
+
+button.chat-imagem-quadro:focus-visible {
+  outline: 2px solid var(--destaque);
+  outline-offset: 2px;
+}
+
+.chat-imagem-quadro img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.chat-imagem-quadro img.borrada {
+  filter: blur(10px);
+  transform: scale(1.15);
+}
+
+.chat-imagem-quadro.falhou,
+.chat-imagem-quadro.apagada {
+  border-style: dashed;
+  background: transparent;
+}
+
+.chat-imagem-progresso {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgb(11 14 10 / 0.75);
+  color: var(--texto);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-imagem figcaption {
+  margin-top: 4px;
+  color: var(--texto-3);
+  font-size: 12px;
+}
+
+.chat-imagem figcaption.erro {
+  color: #ff8297;
+}
+
+.chat-imagem-tentar {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--destaque);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* A bandeja: as imagens coladas ou arrastadas, esperando o Enter. */
+.chat-bandeja {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 16px 0;
+  border-top: 1px solid var(--borda);
+  list-style: none;
+}
+
+.chat-bandeja li {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-pequeno);
+  background: var(--painel-2);
+  color: var(--texto-3);
+}
+
+.chat-bandeja li.erro {
+  border-color: rgb(255 84 112 / 0.5);
+  color: #ff8297;
+}
+
+.chat-bandeja img {
+  width: 100%;
+  height: 100%;
+  border-radius: calc(var(--raio-pequeno) - 1px);
+  object-fit: cover;
+}
+
+.chat-bandeja-tirar {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--borda);
+  border-radius: 50%;
+  background: var(--painel-3);
+  color: var(--texto);
+  cursor: pointer;
+}
+
+.chat-bandeja-tirar:hover,
+.chat-bandeja-tirar:focus-visible {
+  background: var(--ao-vivo);
+}
+
+.chat-envio .chat-anexar {
+  color: var(--texto-2);
+}
+
+.chat-bandeja + .chat-envio {
+  border-top: 0;
+}
+
+/* A imagem grande, por cima de tudo. No app, o cabeçalho desce abaixo dos botões da janela. */
+.visualizador {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgb(5 7 5 / 0.96);
+  backdrop-filter: blur(6px);
+}
+
+.visualizador header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: calc(var(--barra-da-janela) + 10px) 16px 10px;
+}
+
+.visualizador-autor {
+  margin-right: auto;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.visualizador-autor time,
+.visualizador-autor small {
+  margin-left: 8px;
+  color: var(--texto-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.visualizador img {
+  width: auto;
+  height: auto;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - var(--barra-da-janela) - 84px);
+  margin: auto;
+  object-fit: contain;
+}
+
+/* No celular, os botões do cabeçalho ficam só com o ícone, para o nome e a hora caberem. */
+@media (max-width: 640px) {
+  .visualizador .rotulo {
+    display: none;
+  }
+
+  .visualizador-autor small {
+    display: none;
+  }
+}
+
+/* Arrastando um arquivo sobre a sala. */
+.soltar-imagem {
+  position: fixed;
+  inset: 8px;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--destaque);
+  border-radius: 16px;
+  background: rgb(11 14 10 / 0.7);
+  pointer-events: none;
+}
+
+.soltar-imagem span {
+  padding: 14px 22px;
+  border-radius: 12px;
+  background: var(--painel);
+  font-size: 17px;
+  font-weight: 600;
+}
+
 /* O número de mensagens novas no botão do chat: verde, com o texto escuro (nunca branco em cima do verde). */
 .botao-chat {
   position: relative;

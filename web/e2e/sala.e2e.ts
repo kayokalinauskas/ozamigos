@@ -236,6 +236,62 @@ test('quem digita no chat continua no campo quando um amigo com o volume aberto 
   await expect(campo).toHaveValue('bora jogar?');
 });
 
+test('um print colado no chat chega comprimido ao amigo, direto entre os PCs, e abre em tamanho grande', async ({ browser }) => {
+  const sala = novaSala();
+  const ana = await entrarNaSala(browser, sala, 'Ana');
+  const beto = await entrarNaSala(browser, sala, 'Beto');
+  await expect(ana.getByLabel('Sala e pessoas')).toContainText('Beto');
+
+  await ana.getByRole('button', { name: 'Chat' }).click();
+  const campo = ana.getByLabel('Mensagem para a sala');
+  // Um "print" 2560×1440 em PNG (formas, degradê e texto, como uma tela de jogo), colado com Ctrl+V.
+  await campo.evaluate(async (entrada) => {
+    const tela = document.createElement('canvas');
+    tela.width = 2560;
+    tela.height = 1440;
+    const g = tela.getContext('2d')!;
+    const fundo = g.createLinearGradient(0, 0, 2560, 1440);
+    fundo.addColorStop(0, '#1d3b12');
+    fundo.addColorStop(1, '#4a2d10');
+    g.fillStyle = fundo;
+    g.fillRect(0, 0, 2560, 1440);
+    let semente = 7;
+    const sorteio = () => ((semente = (semente * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 3000; i++) {
+      g.fillStyle = `hsl(${sorteio() * 360} 60% ${30 + sorteio() * 40}%)`;
+      g.fillRect(sorteio() * 2560, sorteio() * 1440, 4 + sorteio() * 60, 4 + sorteio() * 60);
+    }
+    g.fillStyle = '#fff';
+    g.font = 'bold 120px sans-serif';
+    g.fillText('Perfect Jeweller’s Orb', 200, 700);
+    const png = await new Promise<Blob>((pronto) => tela.toBlob((b) => pronto(b!), 'image/png'));
+    const dados = new DataTransfer();
+    dados.items.add(new File([png], 'print.png', { type: 'image/png' }));
+    entrada.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dados, bubbles: true, cancelable: true }));
+  });
+  await expect(ana.getByLabel('Imagens para mandar').getByRole('img', { name: 'Imagem para mandar' })).toBeVisible({ timeout: 15_000 });
+  await campo.fill('olha isso');
+  await campo.press('Enter');
+
+  await expect(ana.getByLabel('Chat da sala')).toContainText('Entregue', { timeout: 20_000 });
+  await expect(ana.getByLabel('Chat da sala')).toContainText('olha isso'); // o texto vai junto, logo depois
+  await expect(beto.getByRole('button', { name: /^Chat, \d+ mensage/ })).toBeVisible();
+  await beto.getByRole('button', { name: /^Chat/ }).click();
+  const recebida = beto.getByRole('img', { name: 'Imagem de Ana' });
+  await expect(recebida).toBeVisible();
+  const tamanho = await recebida.evaluate((img: HTMLImageElement) => ({ largura: img.naturalWidth, altura: img.naturalHeight, src: img.src }));
+  expect(tamanho).toMatchObject({ largura: 2560, altura: 1440 });
+  expect(tamanho.src).toMatch(/^blob:/); // veio pelo canal de dados, não de um endereço do servidor
+  const bytes = await recebida.evaluate(async (img: HTMLImageElement) => (await (await fetch(img.src)).blob()).size);
+  expect(bytes).toBeLessThanOrEqual(1_500_000);
+
+  await beto.getByRole('button', { name: 'Abrir a imagem de Ana' }).click();
+  await expect(beto.getByRole('dialog', { name: 'Imagem de Ana' })).toBeVisible();
+  await beto.keyboard.press('Escape');
+  await expect(beto.getByRole('dialog')).toHaveCount(0);
+  await expect(beto.getByLabel('Chat da sala')).toBeVisible(); // o Esc fechou a imagem, não o chat
+});
+
 test('no celular, nada passa da largura da tela (sem rolagem de lado), com o chat fechado ou aberto', async ({ browser }) => {
   const celular = { viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true };
   const pagina = await entrarNaSala(browser, novaSala(), 'Kayo', 'teste', celular);

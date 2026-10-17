@@ -11,6 +11,9 @@ import { tocar } from './sons';
 import { noApp, ponte, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';
 import { pararSomDoApp, trilhaDoSomDoApp } from './somDoApp';
 import { voz } from './voz/voz';
+import { trocaDeImagens } from './imagens/troca';
+import { novoIdDeImagem, type Chegada } from './imagens/protocolo';
+import type { ImagemComprimida } from './imagens/compressor';
 import { FOLGA, FolgaAdaptativa } from './folga';
 import { LIMITE_POR_SALA, codigoValido, novoCodigo } from './conexao/codigoDaSala';
 import {
@@ -67,7 +70,19 @@ export type Estado = {
 type Conexao = { pc: RTCPeerConnection; pendentes: RTCIceCandidateInit[]; canal: Canal; id: string };
 
 /** Uma mensagem do chat da sala. O nome é guardado na chegada: a pessoa pode sair da sala depois. */
-export type MensagemDoChat = { numero: number; de: string; nome: string; texto: string; momento: number; minha: boolean };
+export type MensagemDoChat = { numero: number; de: string; nome: string; texto: string; momento: number; minha: boolean; imagem?: ImagemDoChat };
+
+/** Uma imagem do chat (imagens/): veio direto do PC de quem mandou e só existe na memória desta página. */
+export type ImagemDoChat = {
+  id: string;
+  largura: number;
+  altura: number;
+  miniatura: string; // a prévia borrada, enquanto a imagem chega ('' sem)
+  url: string | null; // a imagem inteira, quando chega (e até sair da memória)
+  estado: 'chegando' | 'pronta' | 'falhou' | 'apagada';
+  progresso: number; // de 0 a 1, enquanto chega
+  envio: { para: Record<string, string>; entregues: string[]; falhas: string[] } | null; // só nas minhas (id -> nome)
+};
 
 /** O mesmo limite do servidor (SinalizacaoHandler.CHAT_MAXIMO): acima disso, ele corta. */
 export const LIMITE_DO_CHAT = 500;
@@ -76,6 +91,16 @@ const CHAT_RAJADA = 5;
 const CHAT_JANELA = 3_000;
 // O chat não fica guardado em lugar nenhum: só as últimas mensagens desta sessão, na memória da página.
 const MENSAGENS_NA_TELA = 200;
+// As imagens que ficam na memória (cada uma tem até 1,5 MB, mais a imagem decodificada na tela); as mais antigas saem.
+const IMAGENS_NA_MEMORIA = /Android|iPhone|iPad|Mobi/.test(navigator.userAgent) ? 20 : 50;
+// O freio de quem manda imagens (quem recebe tem um mais largo, em imagens/protocolo.ts).
+const IMAGENS_POR_MINUTO = 12;
+/**
+ * Quantos bytes por segundo as imagens podem usar enquanto eu transmito (sem transmitir, vão no ritmo da rede).
+ * A conexão de voz, por onde vão, não divide a banda com a do vídeo: sem freio, uma imagem podia encher o upload e
+ * engasgar a transmissão. 3 Mbps: um print de jogo (~1,4 MB) chega em ~4 s para cada pessoa.
+ */
+const RITMO_DAS_IMAGENS_TRANSMITINDO = 375_000;
 
 const chave = (canal: Canal, id: string) => `${canal}:${id}`;
 
@@ -137,6 +162,9 @@ class Cliente {
   private readonly saidas = new Map<string, { momento: number; assistia: boolean }>();
   private proximoAviso = 1;
   private proximaMensagem = 1;
+  private readonly imagensMinhas = new Map<string, ImagemComprimida>(); // para o "Tentar de novo"
+  private envioDeImagens: number[] = []; // quando mandei as últimas imagens (o freio)
+  private ecos: (() => void)[] = []; // imagens esperando o texto que vai antes delas voltar do servidor
   private avisoDoChat: { de: string; aviso: number } | null = null; // o aviso da última mensagem, enquanto na tela
   private envioDoChat: number[] = []; // quando mandei as últimas mensagens (o freio)
   private avisoDoFreio: number | null = null;
@@ -213,6 +241,10 @@ class Cliente {
       nomeDe: (id) => this.nomeDe(id),
       avisar: (texto, tipo) => this.avisar(texto, tipo),
       registrar: (evento) => this.registrar(evento),
+    });
+    trocaDeImagens.ligar({
+      chegou: (de, evento) => this.chegouImagem(de, evento),
+      ritmo: () => (this.estado.meuId && this.estado.transmitindo.includes(this.estado.meuId) ? RITMO_DAS_IMAGENS_TRANSMITINDO : Infinity),
     });
   }
 
@@ -618,22 +650,183 @@ class Cliente {
   }
 
   private receberMensagem(de: string, texto: string) {
+    const minha = de === this.estado.meuId;
+    const nome = minha ? this.estado.meuNome : this.nomeDe(de);
+    this.porNoChat({ de, nome, texto, minha });
+    if (minha) this.ecos.shift()?.(); // o texto que ia antes de imagens voltou do servidor: agora vão as imagens
+    else this.contarNova(de, `${nome}: ${texto}`, nome, texto);
+  }
+
+  private porNoChat(campos: Omit<MensagemDoChat, 'numero' | 'momento'>) {
+    const chat = [...this.estado.chat, { ...campos, numero: this.proximaMensagem++, momento: Date.now() }];
+    chat.slice(0, -MENSAGENS_NA_TELA).forEach((velha) => this.soltarImagem(velha.imagem));
+    this.mudar({ chat: chat.slice(-MENSAGENS_NA_TELA) });
+  }
+
+  /**
+   * Uma mensagem nova de outra pessoa. Não lida: o chat estava fechado, ou a janela estava atrás de outra (o jogo).
+   * Conta no botão e na barra de tarefas, toca o som, e vira aviso na tela e notificação do Windows.
+   */
+  private contarNova(de: string, aviso: string, titulo: string, corpo: string) {
     const e = this.estado;
-    const minha = de === e.meuId;
-    const nome = minha ? e.meuNome : this.nomeDe(de);
-    const mensagem: MensagemDoChat = { numero: this.proximaMensagem++, de, nome, texto, momento: Date.now(), minha };
-    // Não lida: o chat estava fechado, ou a janela estava atrás de outra (o jogo). Conta no botão e na barra de tarefas.
-    const lida = minha || (e.chatAberto && document.hasFocus());
-    this.mudar({ chat: [...e.chat, mensagem].slice(-MENSAGENS_NA_TELA), chatNaoLidas: e.chatNaoLidas + (lida ? 0 : 1) });
-    if (lida) return;
+    if (e.chatAberto && document.hasFocus()) return;
+    this.mudar({ chatNaoLidas: e.chatNaoLidas + 1 });
     tocar('mensagem');
     if (!e.chatAberto) {
       // Várias mensagens seguidas da mesma pessoa: o aviso novo toma o lugar do anterior, sem empilhar.
       if (this.avisoDoChat?.de === de) this.dispensar(this.avisoDoChat.aviso);
-      const aviso = this.mostrarAviso(`${nome}: ${texto}`, 'info', { rotulo: 'Responder', executar: () => this.abrirChat(true) });
-      this.avisoDoChat = { de, aviso };
+      const id = this.mostrarAviso(aviso, 'info', { rotulo: 'Responder', executar: () => this.abrirChat(true) });
+      this.avisoDoChat = { de, aviso: id };
     }
-    this.notificar('chat', nome, texto); // com a janela atrás do jogo
+    this.notificar('chat', titulo, corpo); // com a janela atrás do jogo
+  }
+
+  // ===== Imagens do chat (imagens/) =====
+
+  /**
+   * Manda as imagens da bandeja, uma mensagem para cada. Vão direto para o PC de cada pessoa da sala, pela conexão
+   * de voz; quem não tem essa conexão aparece em "não chegou para". Devolve false se o freio segurou.
+   */
+  mandarImagens(prontas: { imagem: ImagemComprimida; url: string }[], texto = ''): boolean {
+    const e = this.estado;
+    if (prontas.length === 0 || e.fase !== 'sala') return false;
+    const agora = Date.now();
+    this.envioDeImagens = this.envioDeImagens.filter((momento) => agora - momento < 60_000);
+    if (this.envioDeImagens.length + prontas.length > IMAGENS_POR_MINUTO) {
+      this.mostrarAviso(`Muitas imagens seguidas: até ${IMAGENS_POR_MINUTO} por minuto.`, 'erro');
+      return false;
+    }
+    this.envioDeImagens.push(...prontas.map(() => agora));
+    if (!texto.trim()) {
+      this.colocarImagens(prontas);
+      return true;
+    }
+    // Com texto: ele vai antes, como no Discord. O texto passa pelo servidor e as imagens vão direto, e as imagens
+    // chegavam antes dele para uns e depois para outros. Elas só saem quando o servidor devolve o texto (ou em 3 s).
+    if (!this.mandarMensagem(texto)) {
+      this.envioDeImagens = this.envioDeImagens.slice(0, -prontas.length);
+      return false;
+    }
+    let colocou = false;
+    const colocar = () => {
+      if (colocou) return;
+      colocou = true;
+      this.ecos = this.ecos.filter((eco) => eco !== colocar);
+      this.colocarImagens(prontas);
+    };
+    this.ecos.push(colocar);
+    setTimeout(colocar, 3_000);
+    return true;
+  }
+
+  private colocarImagens(prontas: { imagem: ImagemComprimida; url: string }[]) {
+    const e = this.estado;
+    if (e.fase !== 'sala') {
+      prontas.forEach(({ url }) => URL.revokeObjectURL(url));
+      return;
+    }
+    for (const { imagem, url } of prontas) {
+      const id = novoIdDeImagem();
+      this.imagensMinhas.set(id, imagem);
+      const para = Object.fromEntries(this.estado.pessoas.map((p) => [p.id, p.nome]));
+      const envio = { para, entregues: [], falhas: [] };
+      const { largura, altura } = imagem;
+      const minhaImagem: ImagemDoChat = { id, largura, altura, miniatura: '', url, estado: 'pronta', progresso: 1, envio };
+      this.porNoChat({ de: e.meuId ?? '', nome: e.meuNome, texto: '', minha: true, imagem: minhaImagem });
+      this.enviarImagem(id, Object.keys(para));
+    }
+    this.limitarImagens();
+  }
+
+  /** Manda de novo para quem não recebeu e ainda está na sala. */
+  reenviarImagem(id: string) {
+    const envio = this.estado.chat.find((m) => m.minha && m.imagem?.id === id)?.imagem?.envio;
+    if (!envio || !this.imagensMinhas.has(id)) return;
+    const naSala = envio.falhas.filter((pessoa) => this.estado.pessoas.some((p) => p.id === pessoa));
+    const falhas = envio.falhas.filter((pessoa) => !naSala.includes(pessoa));
+    this.mudarImagem(this.estado.meuId ?? '', id, (img) => ({ ...img, envio: { ...envio, falhas } }));
+    this.enviarImagem(id, naSala);
+  }
+
+  private enviarImagem(id: string, pessoas: string[]) {
+    const imagem = this.imagensMinhas.get(id);
+    if (!imagem || pessoas.length === 0) return;
+    const comeco = performance.now();
+    const meuId = this.estado.meuId ?? '';
+    const resultados = pessoas.map(async (pessoa) => {
+      const motivo = await trocaDeImagens.enviar(pessoa, { id, ...imagem });
+      this.mudarImagem(meuId, id, (img) => {
+        if (!img.envio) return img;
+        const envio = motivo ? { ...img.envio, falhas: [...img.envio.falhas, pessoa] } : { ...img.envio, entregues: [...img.envio.entregues, pessoa] };
+        return { ...img, envio };
+      });
+      return motivo ? `${this.nomeDe(pessoa)} (${motivo})` : null;
+    });
+    void Promise.all(resultados).then((falhas) => {
+      const naoChegou = falhas.filter(Boolean);
+      const segundos = ((performance.now() - comeco) / 1000).toFixed(1);
+      const kb = Math.round(imagem.bytes.length / 1024);
+      this.registrar(
+        `imagem de ${kb} KB (${imagem.largura}×${imagem.altura}) para ${pessoas.length} pessoa(s) em ${segundos} s` +
+          (naoChegou.length ? `; não chegou para ${naoChegou.join(', ')}` : ''),
+      );
+    });
+  }
+
+  private chegouImagem(de: string, evento: Chegada) {
+    const nome = this.nomeDe(de);
+    if (evento.tipo === 'comecou') {
+      const { id, largura, altura, miniatura } = evento;
+      const imagem: ImagemDoChat = {
+        id,
+        largura,
+        altura,
+        miniatura: miniatura && `data:image/webp;base64,${miniatura}`,
+        url: null,
+        estado: 'chegando',
+        progresso: 0,
+        envio: null,
+      };
+      this.porNoChat({ de, nome, texto: '', minha: false, imagem });
+    } else if (evento.tipo === 'progresso') {
+      // Redesenhar a cada pedaço de 64 KB seria demais: só a cada 5%.
+      this.mudarImagem(de, evento.id, (img) => (evento.fracao - img.progresso >= 0.05 ? { ...img, progresso: evento.fracao } : img));
+    } else if (evento.tipo === 'chegou') {
+      const url = URL.createObjectURL(new Blob([evento.bytes as BlobPart], { type: 'image/webp' }));
+      this.mudarImagem(de, evento.id, (img) => ({ ...img, url, estado: 'pronta', progresso: 1 }));
+      this.limitarImagens();
+      this.contarNova(de, `${nome} mandou uma imagem`, nome, 'Mandou uma imagem');
+    } else {
+      this.mudarImagem(de, evento.id, (img) => ({ ...img, estado: 'falhou' }));
+      this.registrar(`imagem de ${nome} não chegou: ${evento.motivo}`);
+    }
+  }
+
+  private mudarImagem(de: string, id: string, mudanca: (imagem: ImagemDoChat) => ImagemDoChat) {
+    let mudou = false;
+    const chat = this.estado.chat.map((m) => {
+      if (m.de !== de || m.imagem?.id !== id) return m;
+      const imagem = mudanca(m.imagem);
+      if (imagem === m.imagem) return m;
+      mudou = true;
+      return { ...m, imagem };
+    });
+    if (mudou) this.mudar({ chat });
+  }
+
+  /** Só as últimas IMAGENS_NA_MEMORIA ficam: as mais antigas saem da memória e viram um aviso no chat. */
+  private limitarImagens() {
+    const naMemoria = this.estado.chat.filter((m) => m.imagem?.url);
+    const sobrando = new Set(naMemoria.slice(0, Math.max(0, naMemoria.length - IMAGENS_NA_MEMORIA)));
+    if (sobrando.size === 0) return;
+    sobrando.forEach((m) => this.soltarImagem(m.imagem));
+    this.mudar({ chat: this.estado.chat.map((m) => (sobrando.has(m) && m.imagem ? { ...m, imagem: { ...m.imagem, url: null, estado: 'apagada' } } : m)) });
+  }
+
+  private soltarImagem(imagem: ImagemDoChat | undefined) {
+    if (!imagem) return;
+    if (imagem.url) URL.revokeObjectURL(imagem.url);
+    this.imagensMinhas.delete(imagem.id);
   }
 
   // ===== Assistir =====
