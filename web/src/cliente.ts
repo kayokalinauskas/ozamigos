@@ -70,7 +70,19 @@ export type Estado = {
 type Conexao = { pc: RTCPeerConnection; pendentes: RTCIceCandidateInit[]; canal: Canal; id: string };
 
 /** Uma mensagem do chat da sala. O nome é guardado na chegada: a pessoa pode sair da sala depois. */
-export type MensagemDoChat = { numero: number; de: string; nome: string; texto: string; momento: number; minha: boolean; imagem?: ImagemDoChat };
+export type MensagemDoChat = {
+  numero: number;
+  de: string;
+  nome: string;
+  texto: string;
+  momento: number;
+  minha: boolean;
+  imagem?: ImagemDoChat;
+  previa?: PreviaDeLink;
+};
+
+/** O cartão de um link de vídeo (YouTube, Twitch...): o servidor busca, ninguém da sala acessa o site. */
+export type PreviaDeLink = { url: string; site: string; titulo: string | null; autor: string | null; miniatura: string | null };
 
 /** Uma imagem do chat (imagens/): veio direto do PC de quem mandou e só existe na memória desta página. */
 export type ImagemDoChat = {
@@ -575,6 +587,9 @@ class Cliente {
       case 'chat':
         this.receberMensagem(msg.de, msg.texto);
         break;
+      case 'previa':
+        this.receberPrevia(msg);
+        break;
       case 'erro':
         if (msg.motivo === 'chat-rapido-demais') {
           this.avisarFreioDoChat(); // raro: o freio daqui já segura antes, mas o relógio dos dois lados difere um pouco
@@ -656,6 +671,23 @@ class Cliente {
     this.porNoChat({ de, nome, texto, minha });
     if (minha) this.ecos.shift()?.(); // o texto que ia antes de imagens voltou do servidor: agora vão as imagens
     else this.contarNova(de, `${nome}: ${texto}`, nome, texto);
+  }
+
+  /**
+   * A prévia de um link chega logo depois da mensagem: vai para a mensagem mais recente com esse link e sem prévia.
+   * A miniatura só entra se for uma imagem JPEG embutida (nunca um endereço: ninguém da sala busca nada no site).
+   */
+  private receberPrevia(msg: Extract<MensagemDoServidor, { tipo: 'previa' }>) {
+    const texto = (valor: unknown, maximo: number) => (typeof valor === 'string' && valor.trim() ? valor.trim().slice(0, maximo) : null);
+    if (typeof msg.url !== 'string' || !/^https?:\/\//.test(msg.url) || typeof msg.site !== 'string') return;
+    const miniatura = typeof msg.miniatura === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(msg.miniatura) ? msg.miniatura : null;
+    const previa: PreviaDeLink = { url: msg.url, site: msg.site.slice(0, 40), titulo: texto(msg.titulo, 200), autor: texto(msg.autor, 100), miniatura };
+    const chat = this.estado.chat;
+    for (let i = chat.length - 1; i >= 0; i--) {
+      if (chat[i].previa || !chat[i].texto.includes(msg.url)) continue;
+      this.mudar({ chat: chat.map((m, j) => (j === i ? { ...m, previa } : m)) });
+      return;
+    }
   }
 
   private porNoChat(campos: Omit<MensagemDoChat, 'numero' | 'momento'>) {

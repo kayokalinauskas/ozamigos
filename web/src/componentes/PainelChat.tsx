@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
-import { CircleAlert, ImagePlus, LoaderCircle, SendHorizontal, X } from 'lucide-react';
-import { LIMITE_DO_CHAT, cliente, type MensagemDoChat } from '../cliente';
+import { CircleAlert, ImagePlus, LoaderCircle, Play, SendHorizontal, X } from 'lucide-react';
+import { LIMITE_DO_CHAT, cliente, type MensagemDoChat, type PreviaDeLink } from '../cliente';
 import { bandeja } from '../imagens/bandeja';
 import { IMAGENS_POR_ENVIO } from '../imagens/regras';
 import { useCliente } from '../useCliente';
@@ -191,8 +191,22 @@ function juntaComAnterior(anterior: MensagemDoChat | undefined, m: MensagemDoCha
 type PropsDaMensagem = { m: MensagemDoChat; junto: boolean; aoAbrir: (m: MensagemDoChat) => void };
 
 function Mensagem({ m, junto, aoAbrir }: PropsDaMensagem) {
-  const conteudo = m.imagem ? <ImagemNoChat m={m} aoAbrir={aoAbrir} /> : <p>{comLinks(m.texto)}</p>;
-  if (junto) return <li className="chat-mensagem junto">{conteudo}</li>;
+  // Só o link, com o cartão dele: o cartão basta (como no Discord).
+  const soOLink = m.previa !== undefined && m.texto.trim() === m.previa.url;
+  const conteudo = m.imagem ? (
+    <ImagemNoChat m={m} aoAbrir={aoAbrir} />
+  ) : (
+    <>
+      {!soOLink && <p>{comLinks(m.texto)}</p>}
+      {m.previa && <CartaoDoLink previa={m.previa} />}
+    </>
+  );
+  if (junto)
+    return (
+      <li className="chat-mensagem junto">
+        <div>{conteudo}</div>
+      </li>
+    );
   return (
     <li className={m.minha ? 'chat-mensagem minha' : 'chat-mensagem'}>
       <Avatar nome={m.nome} tamanho={32} />
@@ -203,6 +217,28 @@ function Mensagem({ m, junto, aoAbrir }: PropsDaMensagem) {
         {conteudo}
       </div>
     </li>
+  );
+}
+
+/** O cartão de um link de vídeo: a imagem, o título e o canal. O clique abre o vídeo no navegador. */
+function CartaoDoLink({ previa }: { previa: PreviaDeLink }) {
+  const titulo = previa.titulo ?? previa.url;
+  return (
+    <a className="chat-link" href={previa.url} target="_blank" rel="noopener noreferrer" title={titulo}>
+      {previa.miniatura && (
+        <span className="chat-link-imagem">
+          <img src={previa.miniatura} alt="" draggable={false} />
+          <span className="chat-link-play" aria-hidden="true">
+            <Play size={18} fill="currentColor" />
+          </span>
+        </span>
+      )}
+      <span className="chat-link-texto">
+        <span className="chat-link-site">{previa.site}</span>
+        <strong>{titulo}</strong>
+        {previa.autor && <span className="chat-link-autor">{previa.autor}</span>}
+      </span>
+    </a>
   );
 }
 

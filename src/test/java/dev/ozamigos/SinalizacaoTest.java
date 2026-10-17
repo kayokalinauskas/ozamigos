@@ -3,6 +3,7 @@ package dev.ozamigos;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -14,6 +15,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.web.socket.CloseStatus;
@@ -90,6 +94,34 @@ class SinalizacaoTest {
             assertThat(msg.path("texto").asString()).isEqualTo("bora jogar?");
         }
         assertThat(caio.recebeu("chat")).isFalse();
+    }
+
+    /** Sem internet nos testes: o "YouTube" responde só o título e o canal. */
+    @TestConfiguration
+    static class SemInternet {
+        @Bean
+        @Primary
+        Buscador buscadorFalso() {
+            return (endereco, maximo) -> endereco.getHost().equals("www.youtube.com")
+                    ? new Buscador.Resposta(200, "application/json", "{\"title\":\"A jogada\",\"author_name\":\"Canal\"}".getBytes(StandardCharsets.UTF_8), null)
+                    : new Buscador.Resposta(404, "", new byte[0], null);
+        }
+    }
+
+    @Test
+    void umLinkDeVideoNoChatTrazAPreviaParaTodosDaSala() throws Exception {
+        Cliente ana = entrar(sala, "Ana");
+        Cliente beto = entrar(sala, "Beto");
+
+        ana.enviar("{\"tipo\":\"chat\",\"texto\":\"olha https://youtu.be/dQw4w9WgXcQ\"}");
+
+        for (Cliente quem : List.of(ana, beto)) {
+            JsonNode previa = quem.esperar("previa");
+            assertThat(previa.path("url").asString()).isEqualTo("https://youtu.be/dQw4w9WgXcQ");
+            assertThat(previa.path("site").asString()).isEqualTo("YouTube");
+            assertThat(previa.path("titulo").asString()).isEqualTo("A jogada");
+            assertThat(previa.path("autor").asString()).isEqualTo("Canal");
+        }
     }
 
     @Test

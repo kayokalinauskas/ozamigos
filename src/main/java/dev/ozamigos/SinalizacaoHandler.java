@@ -45,12 +45,14 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     private final SenhaDoGrupo senhaDoGrupo;
     private final TentativasDeSenha tentativas;
     private final JsonMapper json;
+    private final PreviasDeLinks previas;
 
-    public SinalizacaoHandler(Salas salas, SenhaDoGrupo senhaDoGrupo, TentativasDeSenha tentativas, JsonMapper json) {
+    public SinalizacaoHandler(Salas salas, SenhaDoGrupo senhaDoGrupo, TentativasDeSenha tentativas, JsonMapper json, PreviasDeLinks previas) {
         this.salas = salas;
         this.senhaDoGrupo = senhaDoGrupo;
         this.tentativas = tentativas;
         this.json = json;
+        this.previas = previas;
     }
 
     @Override
@@ -280,6 +282,27 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             return;
         }
         ObjectNode mensagem = json.createObjectNode().put("tipo", "chat").put("de", id).put("texto", limpo);
+        for (WebSocketSession pessoa : salas.todos(sala)) {
+            enviar(pessoa, mensagem);
+        }
+        // Um link de vídeo (YouTube, Twitch...): a prévia vai para a sala logo depois, quando o servidor a tiver.
+        String link = PreviasDeLinks.primeiroLink(limpo);
+        if (link != null) {
+            previas.buscar(link).thenAccept(previa -> previa.ifPresent(p -> mandarPrevia(sala, p)));
+        }
+    }
+
+    private void mandarPrevia(String sala, PreviasDeLinks.Previa previa) {
+        ObjectNode mensagem = json.createObjectNode().put("tipo", "previa").put("url", previa.url()).put("site", previa.site());
+        if (previa.titulo() != null) {
+            mensagem.put("titulo", previa.titulo());
+        }
+        if (previa.autor() != null) {
+            mensagem.put("autor", previa.autor());
+        }
+        if (previa.miniatura() != null) {
+            mensagem.put("miniatura", previa.miniatura());
+        }
         for (WebSocketSession pessoa : salas.todos(sala)) {
             enviar(pessoa, mensagem);
         }
