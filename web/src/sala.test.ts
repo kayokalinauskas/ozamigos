@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { codigoDe, codigoValido, grupoDe, grupoDoCaminho, grupoValido, linkDaSala, linkDoApp, linkDoGrupo, nomeDeGrupo, novoCodigo } from './conexao/codigoDaSala';
+import { codigoDe, codigoValido, grupoDe, grupoDoCaminho, grupoReservado, grupoValido, linkDaSala, linkDoApp, linkDoGrupo, nomeDeGrupo, novoCodigo } from './conexao/codigoDaSala';
 
 describe('código da sala', () => {
   it('aceita de 6 a 20 letras e números, e nada além disso', () => {
@@ -47,6 +47,8 @@ describe('grupo criado na hora', () => {
     expect(grupoValido('ab')).toBe(false);
     expect(grupoValido('-amigos')).toBe(false);
     expect(grupoValido('ozamigos')).toBe(false);
+    expect(grupoReservado('ozamigos')).toBe(true); // a tela diz que é reservado, e não que o formato está errado
+    expect(grupoReservado('servidordokayo')).toBe(false);
     expect(grupoValido('sinal')).toBe(false);
   });
 

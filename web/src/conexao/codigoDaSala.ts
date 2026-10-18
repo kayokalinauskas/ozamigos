@@ -52,6 +52,11 @@ export function ehASalaFixa(caminho: string): boolean {
 /** Os mesmos de Grupos.RESERVADOS no servidor: o grupo fixo e os caminhos do site. */
 const GRUPOS_RESERVADOS = new Set(['ozamigos', 'sinal', 'actuator', 'assets', 'api', 'index', 'error', 'privacidade', 'privacy', 'sala', 'salas', 'grupo', 'grupos', 'admin', 'login', 'app', 'site', 'www', 'en']);
 
+/** O grupo fixo e os caminhos do site: têm o formato certo, mas não podem ser grupos. */
+export function grupoReservado(nome: string): boolean {
+  return GRUPOS_RESERVADOS.has(nome);
+}
+
 /** Letras minúsculas, números e hífen, de 3 a 32, sem hífen nas pontas (Grupos.NOME_VALIDO). */
 export function grupoValido(nome: string): boolean {
   return /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(nome) && !GRUPOS_RESERVADOS.has(nome);

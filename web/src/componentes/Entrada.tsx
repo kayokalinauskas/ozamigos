@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { AppWindow, Download, Eye, EyeOff, LoaderCircle, Plus, RefreshCw, Server } from 'lucide-react';
 import { cliente } from '../cliente';
-import { codigoDe, codigoValido, grupoDe, grupoValido, linkDoApp, nomeDeGrupo, novoCodigo } from '../conexao/codigoDaSala';
+import { codigoDe, codigoValido, grupoDe, grupoReservado, grupoValido, linkDoApp, nomeDeGrupo, novoCodigo } from '../conexao/codigoDaSala';
 import { lembrado, lembrar } from '../armazenamento';
 import { ponte } from '../ponte';
 import { useCliente } from '../useCliente';
@@ -204,7 +204,11 @@ function CriarGrupo({ aoVoltar }: { aoVoltar: () => void }) {
           required
         />
         <small id="ajuda-grupo" className={textoDoGrupo === '' || grupoOk ? 'ajuda' : 'ajuda ajuda-erro'}>
-          {textoDoGrupo === '' || !grupoOk ? 'De 3 a 32 letras, números e hífen.' : `O link: ${location.host}/${grupo}`}
+          {grupoReservado(grupo)
+            ? 'Esse nome é reservado. Escolha outro.'
+            : textoDoGrupo === '' || !grupoOk
+              ? 'De 3 a 32 letras, números e hífen.'
+              : `O link: ${location.host}/${grupo}`}
         </small>
       </label>
 
