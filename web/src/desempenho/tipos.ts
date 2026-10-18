@@ -4,11 +4,11 @@
 import type { InfoDoPc } from '../ponte';
 import type { Qualidade } from '../qualidade';
 
-export const FORMATO = 'ozamigos-desempenho/2';
+export const FORMATO = 'ozamigos-desempenho/3';
 
 /** Os primeiros segundos de cada trecho ficam fora das médias: o WebRTC começa com pouca banda e vai subindo. */
 export const SEGUNDOS_DESCARTADOS = 8;
-export const FORMATO_DA_SALA = 'ozamigos-sala/1';
+export const FORMATO_DA_SALA = 'ozamigos-sala/2';
 
 /**
  * simulado: espectadores criados no próprio PC, num roteiro automático (Ctrl+Shift+X).
@@ -50,8 +50,32 @@ export type AmostraEnvio = {
   codificadorDaPlaca: boolean | null; // powerEfficientEncoder
 };
 
-/** A imagem que o Windows entrega ao navegador (media-source), uma por segundo. */
-export type AmostraCaptura = { t: number; fps: number | null; largura: number | null; altura: number | null };
+/**
+ * A imagem que entra no WebRTC (media-source), uma por segundo. origem: a captura do app (1.2.18) ou a do Chromium;
+ * app: as medidas da captura do app, do auxiliar e da página (opcionais: versões antigas não mandam).
+ */
+export type AmostraCaptura = {
+  t: number;
+  fps: number | null;
+  largura: number | null;
+  altura: number | null;
+  origem?: 'app' | 'navegador' | null;
+  app?: MedidasDaCapturaDoApp | null;
+};
+
+/**
+ * novos: quadros com imagem nova que o auxiliar pegou do Windows; repetidos: o último de novo, com a imagem parada
+ * (a cada 100 ms); msAuxiliar: o tempo dele por quadro novo (reduzir, converter e ler da placa); quadrosNaPagina e
+ * puladosNaPagina: o que chegou à página e o que ela jogou fora por estar travada; msAtePagina: da captura até a página.
+ */
+export type MedidasDaCapturaDoApp = {
+  novos: number | null;
+  repetidos: number | null;
+  msAuxiliar: number | null;
+  quadrosNaPagina: number | null;
+  puladosNaPagina: number | null;
+  msAtePagina: number | null;
+};
 
 /** Resumo de um segundo dos intervalos entre quadros mostrados na tela (requestVideoFrameCallback). */
 export type Ritmo = {

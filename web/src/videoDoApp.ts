@@ -19,6 +19,10 @@ declare class MediaStreamTrackGenerator extends MediaStreamTrack {
 }
 
 let trilha: MediaStreamTrackGenerator | null = null;
+// Para a gravação das estatísticas: o que chegou à página desde a última leitura (medidasDaPagina).
+let chegaram = 0;
+let pulados = 0;
+let somaDoAtraso = 0;
 let escritor: WritableStreamDefaultWriter<VideoFrame> | null = null;
 // A captura do app parou sozinha nesta sessão: até recarregar a página, vai a do Chromium.
 let falhou = false;
@@ -66,9 +70,14 @@ export function ehVideoDoApp(video: MediaStreamTrack | undefined): boolean {
 
 function escrever(dados: Uint8Array) {
   if (!escritor) return;
-  // A página ficou para trás (uma trava da thread principal): pula o quadro em vez de acumular atraso.
-  if ((escritor.desiredSize ?? 1) <= 0) return;
   const cabecalho = new DataView(dados.buffer, dados.byteOffset, 24);
+  chegaram++;
+  somaDoAtraso += performance.timeOrigin + performance.now() - cabecalho.getFloat64(16, true);
+  // A página ficou para trás (uma trava da thread principal): pula o quadro em vez de acumular atraso.
+  if ((escritor.desiredSize ?? 1) <= 0) {
+    pulados++;
+    return;
+  }
   const quadro = new VideoFrame(dados.subarray(24), {
     format: 'NV12',
     codedWidth: cabecalho.getUint16(4, true),
@@ -78,6 +87,16 @@ function escrever(dados: Uint8Array) {
     colorSpace: { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false },
   });
   escritor.write(quadro).catch(() => quadro.close());
+}
+
+/**
+ * Desde a última leitura: quantos quadros chegaram à página, quantos ela pulou (estava travada) e quanto, em média,
+ * cada um levou da captura até chegar aqui. null sem quadros.
+ */
+export function medidasDaPagina(): { quadros: number; pulados: number; msAtePagina: number } | null {
+  const medidas = chegaram > 0 ? { quadros: chegaram, pulados, msAtePagina: Math.round((somaDoAtraso / chegaram) * 10) / 10 } : null;
+  chegaram = pulados = somaDoAtraso = 0;
+  return medidas;
 }
 
 /** Desliga a captura do app e a trilha (parou de transmitir, ou trocou para a captura do Chromium). */

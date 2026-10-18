@@ -14,6 +14,9 @@ export type EscolhaDeFonte = { id: string; audio: boolean; captura?: TamanhoDaCa
 
 export type TamanhoDaCaptura = { largura: number; altura: number; fps: number };
 
+/** Um segundo do auxiliar de captura: quadros novos e repetidos (imagem parada) e o tempo dele por quadro novo. */
+export type MedidasDoAuxiliarDeCaptura = { novos: number; repetidos: number; msConversao: number; largura: number; altura: number };
+
 /**
  * somDoApp: o som do PC vem do auxiliar do app (sem o Discord e sem o Ozamigos), não do navegador. videoDoApp: o vídeo
  * vem da captura do app (1.2.18 em diante) e o getDisplayMedia foi recusado de propósito; tipo e fonte dizem de onde.
@@ -37,6 +40,8 @@ export type PonteOzamigos = {
     /** Parou sozinha: a janela fechou, ou a captura falhou (a página troca para a do Chromium, pela fonte). */
     aoParar(ouvinte: (aviso: { motivo: 'fechou' | 'falhou'; fonte: string }) => void): void;
     parar(): void;
+    /** O último segundo do auxiliar (para a gravação das estatísticas). */
+    medidas?(): Promise<MedidasDoAuxiliarDeCaptura | null>;
   };
   /** Volta para a tela de escolher o servidor. */
   trocarServidor(): void;

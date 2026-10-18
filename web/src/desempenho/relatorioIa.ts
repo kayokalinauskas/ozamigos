@@ -137,7 +137,7 @@ function trechos(p: Empurrar, g: Gravacao, a: Analise, titulo: string, c: Contex
         t.trecho.qualidade,
         t.trecho.espectadores,
         t.segundos,
-        fmt(t.captura.fps),
+        `${fmt(t.captura.fps)}${t.captura.origem === 'app' ? ' (app)' : t.captura.origem === 'navegador' ? ' (navegador)' : ''}`,
         fmt(t.envio.fpsCodificados),
         fmt(t.recepcao.fpsDecodificados),
         fmt(t.recepcao.fpsExibidos),
@@ -387,7 +387,10 @@ function glossario(p: Empurrar, titulo: string) {
         ['placa3d_total / placa_video_total', 'motor 3D / motor de vídeo da placa, todos os processos (%)', 'GPU Engine Utilization Percentage', '< 90%'],
         ['placa3d_app / placa_video_app', 'o mesmo, só os processos do Ozamigos', 'idem, por pid', '—'],
         ['tarefas_longas / ms_tarefa_maior', 'travadas da página de quem transmite (> 50 ms)', 'PerformanceObserver longtask', '0'],
-        ['captura_fps', 'quadros que o Windows entrega ao navegador', 'media-source framesPerSecond', '= fps da qualidade'],
+        ['captura_fps', 'quadros que entram no WebRTC por segundo; na tabela dos trechos, "(app)" é a captura do app (1.2.18) e "(navegador)" a do Chromium', 'media-source framesPerSecond', '= fps da qualidade'],
+        ['aux_novos / aux_repetidos', 'captura do app: quadros com imagem nova que o Windows entregou ao auxiliar / o último repetido com a imagem parada (a cada 100 ms)', 'OzamigosCaptura.exe, saída de erro', 'novos = fps do jogo, até o da qualidade'],
+        ['aux_ms', 'captura do app: tempo do auxiliar por quadro novo (reduzir, converter para NV12 e ler da placa)', 'OzamigosCaptura.exe', '< metade do intervalo de um quadro'],
+        ['ms_ate_pagina / pulados_pagina', 'captura do app: da captura até chegar à página / quadros que a página jogou fora por estar travada', 'videoDoApp.ts (cabeçalho do quadro)', '< 15 ms / 0'],
       ],
     ),
     '',
@@ -559,7 +562,16 @@ function series(p: Empurrar, g: Gravacao, titulo: string, c: Contexto) {
   );
   const porSegundo = new Map<number, Record<string, unknown>>();
   const linha = (t: number) => porSegundo.get(t) ?? porSegundo.set(t, { t }).get(t)!;
-  for (const c of g.captura) Object.assign(linha(c.t), { capturaFps: c.fps, capturaAltura: c.altura });
+  for (const c of g.captura)
+    Object.assign(linha(c.t), {
+      capturaFps: c.fps,
+      capturaAltura: c.altura,
+      auxNovos: c.app?.novos ?? null,
+      auxRepetidos: c.app?.repetidos ?? null,
+      auxMs: c.app?.msAuxiliar ?? null,
+      msAtePagina: c.app?.msAtePagina ?? null,
+      puladosPagina: c.app?.puladosNaPagina ?? null,
+    });
   for (const q of g.pcAmostras)
     Object.assign(linha(q.t), {
       cpuApp: q.cpuApp,
@@ -584,12 +596,17 @@ function series(p: Empurrar, g: Gravacao, titulo: string, c: Contexto) {
     `**PC de quem transmite, captura e interface** (${pcLinhas.passo === 1 ? 'por segundo' : `a cada ${pcLinhas.passo} s, médias`}):`,
     '',
     csv(
-      ['t', 'trecho', 'captura_fps', 'captura_altura', 'cpu_app', 'cpu_pc', 'placa3d_total', 'placa_video_total', 'placa3d_app', 'placa_video_app', 'placa3d_outros', 'mem_placa_mb', 'mem_app_mb', 'tarefas_longas', 'ms_tarefa_maior', 'tela_visivel'],
+      ['t', 'trecho', 'captura_fps', 'captura_altura', 'aux_novos', 'aux_repetidos', 'aux_ms', 'ms_ate_pagina', 'pulados_pagina', 'cpu_app', 'cpu_pc', 'placa3d_total', 'placa_video_total', 'placa3d_app', 'placa_video_app', 'placa3d_outros', 'mem_placa_mb', 'mem_app_mb', 'tarefas_longas', 'ms_tarefa_maior', 'tela_visivel'],
       pcLinhas.linhas.map((l) => [
         l.t,
         trechoDe(l.t) + 1,
         l.capturaFps,
         l.capturaAltura,
+        l.auxNovos,
+        l.auxRepetidos,
+        l.auxMs,
+        l.msAtePagina,
+        l.puladosPagina,
         l.cpuApp,
         l.cpuPc,
         l.placa3d,

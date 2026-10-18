@@ -1,7 +1,9 @@
 // Quem mede o quê, uma vez por segundo. Cada amostrador guarda a leitura anterior do getStats e devolve
 // a diferença: os contadores do WebRTC são totais desde o começo da conexão.
 
+import { cliente } from '../cliente';
 import { ponte } from '../ponte';
+import { medidasDaPagina } from '../videoDoApp';
 import { FAIXAS, type AmostraCaptura, type AmostraEnvio, type AmostraPc, type AmostraRecepcao, type Ritmo } from './tipos';
 
 type Relatorio = Map<string, any>;
@@ -360,4 +362,27 @@ export const contadoresDoPc = new ContadoresDoPc();
 export function videoDoStream(stream: MediaStream | undefined | null): HTMLVideoElement | null {
   if (!stream) return null;
   return [...document.querySelectorAll('video')].find((video) => video.srcObject === stream) ?? null;
+}
+
+/**
+ * Uma vez por segundo, na amostra da captura: de onde ela vem e, sendo a do app, o que o auxiliar e a página mediram.
+ * (Uma vez só: as medidas da página zeram a cada leitura.)
+ */
+export async function completarCaptura(captura: AmostraCaptura): Promise<AmostraCaptura> {
+  const origem = cliente.origemDaCaptura();
+  const pagina = medidasDaPagina();
+  if (origem !== 'app') return { ...captura, origem };
+  const auxiliar = (await ponte?.video?.medidas?.().catch(() => null)) ?? null;
+  return {
+    ...captura,
+    origem,
+    app: {
+      novos: auxiliar?.novos ?? null,
+      repetidos: auxiliar?.repetidos ?? null,
+      msAuxiliar: auxiliar?.msConversao ?? null,
+      quadrosNaPagina: pagina?.quadros ?? 0,
+      puladosNaPagina: pagina?.pulados ?? 0,
+      msAtePagina: pagina?.msAtePagina ?? null,
+    },
+  };
 }

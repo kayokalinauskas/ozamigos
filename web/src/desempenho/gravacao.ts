@@ -6,7 +6,7 @@
 import { AJUSTES_DA_TRANSMISSAO, cliente } from '../cliente';
 import { noApp, ponte } from '../ponte';
 import { QUALIDADES, type Qualidade } from '../qualidade';
-import { AmostradorEnvio, AmostradorRecepcao, contadoresDoPc, medidorDaPagina, videoDoStream } from './amostradores';
+import { AmostradorEnvio, AmostradorRecepcao, completarCaptura, contadoresDoPc, medidorDaPagina, videoDoStream } from './amostradores';
 import { resumirTrecho, type ResumoDoTrecho } from './analise';
 import {
   FORMATO,
@@ -299,6 +299,7 @@ class Teste {
         captura ??= resultado.captura;
       }
       g.envio.push(...envios);
+      if (captura) captura = await completarCaptura(captura);
       if (captura) g.captura.push(captura);
 
       const recepcoes = (await Promise.all(this.simulados.map((s) => s.amostradorRecepcao.amostrar(t, pagina)))).filter(

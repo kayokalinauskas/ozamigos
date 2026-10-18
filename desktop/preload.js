@@ -46,6 +46,8 @@ contextBridge.exposeInMainWorld('ozamigos', {
     parar() {
       ipcRenderer.send('video-parar');
     },
+    /** O último segundo do auxiliar (gravação das estatísticas): { novos, repetidos, msConversao, largura, altura }. */
+    medidas: () => ipcRenderer.invoke('video-medidas'),
   },
   /** O som do PC chega em pedaços de float32 estéreo, 48 kHz. */
   aoReceberSom(ouvinte) {

@@ -13,7 +13,17 @@ export type ResumoDoTrecho = {
   segundos: number; // analisados (sem os descartados)
   alvoFps: number;
   conteudoFps: number; // o que dá para mostrar: o menor entre o alvo e a captura
-  captura: { fps: number | null; altura: number | null };
+  captura: {
+    fps: number | null;
+    altura: number | null;
+    /** A captura do app (1.2.18) ou a do Chromium; null nas gravações de antes. */
+    origem: 'app' | 'navegador' | null;
+    /** Só na captura do app: quadros novos que o Windows entregou ao auxiliar, o tempo dele, o atraso até a página e os pulados nela. */
+    novos: number | null;
+    msAuxiliar: number | null;
+    msAtePagina: number | null;
+    puladosNaPagina: number | null;
+  };
   envio: {
     fpsCodificados: number | null;
     mbps: number | null; // por espectador
@@ -233,7 +243,15 @@ export function resumirTrecho(g: Gravacao, trecho: Trecho): ResumoDoTrecho {
     segundos,
     alvoFps,
     conteudoFps: arred(conteudoFps),
-    captura: { fps: media(captura.map((c) => c.fps)), altura: maisComum(captura.map((c) => c.altura)) },
+    captura: {
+      fps: media(captura.map((c) => c.fps)),
+      altura: maisComum(captura.map((c) => c.altura)),
+      origem: maisComum(captura.map((c) => c.origem ?? null)),
+      novos: media(captura.map((c) => c.app?.novos ?? null)),
+      msAuxiliar: media(captura.map((c) => c.app?.msAuxiliar ?? null), 2),
+      msAtePagina: media(captura.map((c) => c.app?.msAtePagina ?? null)),
+      puladosNaPagina: media(captura.map((c) => c.app?.puladosNaPagina ?? null)),
+    },
     envio: {
       fpsCodificados: media(envio.map((e) => e.fpsCodificados)),
       mbps: media(envio.map((e) => e.mbps), 2),
@@ -319,7 +337,7 @@ export function classificar(r: ResumoDoTrecho): Resultado {
 
 const CODIGO = {
   qualidades: 'web/src/qualidade.ts (QUALIDADES: bitrate, fps, altura e degradationPreference de cada opção)',
-  captura: 'web/src/conexao/captura.ts (tamanhoDaCaptura, FPS_MINIMO_DA_CAPTURA), web/src/cliente.ts (usarTela) e desktop/main.js (desktopCapturer, setDisplayMediaRequestHandler, appendSwitch)',
+  captura: 'desktop/captura (o auxiliar da captura do app: Wgc.cs, Conversor.cs, Programa.cs), web/src/videoDoApp.ts, web/src/conexao/captura.ts (tamanhoDaCaptura, FPS_MINIMO_DA_CAPTURA), web/src/cliente.ts (capturar, usarTela) e desktop/main.js (ligarCapturaDeVideo, desktopCapturer, setDisplayMediaRequestHandler)',
   codificador: 'web/src/conexao/captura.ts (montarEnvio, codificacao), web/src/conexao/webrtc.ts (preferirCodecs), web/src/cliente.ts (aplicarQualidade) e desktop/main.js (force-fieldtrials WebRTC-FrameDropper/Disabled)',
   buffer: 'web/src/folga.ts (FolgaAdaptativa: o jitterBufferTarget de quem assiste) e web/src/cliente.ts (ajustarFolga)',
   rede: 'web/src/conexao/webrtc.ts (SERVIDORES_ICE: só STUN, sem TURN) e web/src/cliente.ts (refazerVideo)',
@@ -347,7 +365,37 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
   const capturaBaixa = validos.filter((t) => t.captura.fps != null && t.captura.fps < t.alvoFps * 0.85);
   if (capturaBaixa.length) {
     const pior = capturaBaixa.reduce((a, b) => ((a.captura.fps ?? 99) < (b.captura.fps ?? 99) ? a : b));
-    lista.push({
+    if (pior.captura.origem === 'app') {
+      // A captura do app (1.2.18): ela só manda quadro quando a imagem muda, e o auxiliar mede em que ponto ficou.
+      const { novos, msAuxiliar, msAtePagina, puladosNaPagina } = pior.captura;
+      const auxiliarLento = msAuxiliar != null && msAuxiliar > 1000 / pior.alvoFps / 2;
+      const paginaPulou = (puladosNaPagina ?? 0) >= 1;
+      lista.push({
+        gravidade: 'alta',
+        codigo: 'captura-lenta',
+        titulo: `A captura do app entrega só ${fmt(pior.captura.fps, ' fps', 0)} (a qualidade pede ${pior.alvoFps})`,
+        detalhe:
+          'A captura do app pega do Windows só os quadros com imagem nova (com a imagem parada, repete o último a cada 100 ms). ' +
+          (auxiliarLento
+            ? `O auxiliar levou ${fmt(msAuxiliar, ' ms', 1)} por quadro (reduzir, converter e ler da placa), mais da metade do intervalo de um quadro: ele é o gargalo. `
+            : paginaPulou
+              ? `A página pulou ${fmt(puladosNaPagina, '', 1)} quadros por segundo por estar travada: o gargalo é a página de quem transmite (veja as tarefas longas). `
+              : `O Windows entregou ${fmt(novos, '', 1)} quadros novos por segundo ao auxiliar, que levou ${fmt(msAuxiliar, ' ms', 1)} por quadro: o limite veio antes dele, do jogo (apresentou menos quadros) ou da montagem da tela com a placa cheia. `) +
+          `Da captura até a página, ${fmt(msAtePagina, ' ms', 1)} em média.`,
+        evidencias: capturaBaixa.map(
+          (t) =>
+            `${t.trecho.nome} (${t.trecho.espectadores} esp.): captura ${fmt(t.captura.fps, ' fps')} de ${t.alvoFps}, novos ${fmt(t.captura.novos, '/s')}, auxiliar ${fmt(t.captura.msAuxiliar, ' ms', 1)}, até a página ${fmt(t.captura.msAtePagina, ' ms')}, pulados ${fmt(t.captura.puladosNaPagina, '/s', 1)}, placa 3D ${fmt(t.pc.placa3dTotal, '%')} (máx. ${fmt(t.pc.placa3dTotalMax, '%')})`,
+        ),
+        paraVoce:
+          'Se o jogo roda abaixo do fps pedido, a captura acompanha o jogo. Com a placa cheia, limite o fps do jogo (ou ligue o VSync) e prefira transmitir a janela do jogo em vez da tela inteira.',
+        paraOApp: auxiliarLento
+          ? 'Tirar a leitura da placa do caminho (ler o NV12 de forma assíncrona, com duas texturas de leitura em rodízio) em desktop/captura/Conversor.cs.'
+          : paginaPulou
+            ? 'Tirar trabalho da thread principal da página de quem transmite enquanto transmite.'
+            : 'Comparar com a captura antiga (Ctrl+Shift+N) no mesmo jogo, e a janela contra a tela inteira: se as duas ficam iguais, o limite é o jogo ou a placa.',
+        ondeNoCodigo: [CODIGO.captura],
+      });
+    } else lista.push({
       gravidade: 'alta',
       codigo: 'captura-lenta',
       titulo: `A captura do jogo entrega só ${fmt(pior.captura.fps, ' fps', 0)} (a qualidade pede ${pior.alvoFps})`,
@@ -362,7 +410,7 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
       ),
       paraVoce: 'Limite o fps do jogo a 60 (ou ligue o VSync). Num teste com o Path of Exile, a captura foi de 21 para 29 fps só com isso.',
       paraOApp:
-        'Tirar a cópia do caminho. A captura em textura do Chromium (WebRtcAllowWgcUsingTexture + ZeroCopyDesktopCapture) resolve na bancada, mas derrubou a página ao codificar no Electron 44.7.2: refazer o teste a cada Electron novo (AGENTS.md). Outra saída: uma captura própria pelo auxiliar C#.',
+        'Tirar a cópia do caminho. A captura em textura do Chromium (WebRtcAllowWgcUsingTexture + ZeroCopyDesktopCapture) resolve na bancada, mas derrubou a página ao codificar no Electron 44.7.2. A saída é a captura do app (1.2.18, a padrão no app; Ctrl+Shift+N alterna): esta transmissão estava na captura do navegador.',
       ondeNoCodigo: [CODIGO.captura],
     });
   } else {

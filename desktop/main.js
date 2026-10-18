@@ -406,6 +406,13 @@ function configurarSessao() {
     if (vindoDaPagina(evento)) desligarCapturaDeVideo();
   });
 
+  /** O último segundo do auxiliar de captura: { novos, repetidos, msConversao, largura, altura }, ou null. */
+  ipcMain.handle('video-medidas', (evento) => {
+    if (!vindoDaPagina(evento) || !capturaDeVideo?.medidas) return null;
+    const { novos, repetidos, msConversao, largura, altura } = capturaDeVideo.medidas;
+    return { novos, repetidos, msConversao, largura, altura };
+  });
+
   ipcMain.on('som-parar', (evento) => {
     if (origemDe(evento.senderFrame?.url) === origemDoServidor()) desligarAuxiliarDeSom();
   });
@@ -554,7 +561,7 @@ function ligarCapturaDeVideo(fonte, { largura, altura, fps }) {
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-    const atual = { processo, fonte: fonte.id, fechou: false, ultimoQuadro: 0, vigia: null };
+    const atual = { processo, fonte: fonte.id, fechou: false, ultimoQuadro: 0, vigia: null, medidas: null };
     capturaDeVideo = atual;
     let resolvido = false;
     let erro = '';
@@ -574,7 +581,14 @@ function ligarCapturaDeVideo(fonte, { largura, altura, fps }) {
       for (const linha of texto.split(/\r?\n/).filter(Boolean)) {
         if (linha === 'fechou') atual.fechou = true;
         else if (linha.startsWith('erro:')) erro = linha;
-        else if (!linha.startsWith('{')) console.log('[captura]', linha); // as medidas de cada segundo ficam de fora
+        else if (linha.startsWith('{')) {
+          // As medidas do último segundo, para a gravação das estatísticas (video-medidas).
+          try {
+            atual.medidas = JSON.parse(linha);
+          } catch {
+            // linha cortada: a próxima chega em 1 s
+          }
+        } else console.log('[captura]', linha);
       }
     });
 

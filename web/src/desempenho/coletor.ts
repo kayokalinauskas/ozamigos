@@ -5,7 +5,7 @@
 
 import { cliente } from '../cliente';
 import { noApp, ponte } from '../ponte';
-import { AmostradorEnvio, AmostradorRecepcao, contadoresDoPc, medidorDaPagina, videoDoStream } from './amostradores';
+import { AmostradorEnvio, AmostradorRecepcao, completarCaptura, contadoresDoPc, medidorDaPagina, videoDoStream } from './amostradores';
 import type { AmbienteDoEspectador, AmostraCaptura, AmostraEnvio, Pacote } from './tipos';
 
 // O ambiente (PC, tela, versão) vai no primeiro pacote e de novo a cada tanto: quem grava pode ter começado depois.
@@ -104,12 +104,20 @@ export class Coletor {
         envio.push(resultado.envio);
         captura ??= resultado.captura;
       }
+      if (captura) captura = await completarCaptura(captura);
+      if (!this.relogio) return;
       const { minhaTela, qualidade } = cliente.ler();
       const [video] = minhaTela?.getVideoTracks() ?? [];
       const ajustes = video?.getSettings();
       const pacote: Pacote = {
         transmissao: minhaTela
-          ? { qualidade, fonte: `${cliente.descreverFonte()} · "${video?.label ?? '?'}" · captura ${ajustes?.width ?? '?'}x${ajustes?.height ?? '?'} @${ajustes?.frameRate ?? '?'}` }
+          ? {
+              qualidade,
+              fonte:
+                cliente.origemDaCaptura() === 'app'
+                  ? `${cliente.descreverFonte()} · captura do app`
+                  : `${cliente.descreverFonte()} · "${video?.label ?? '?'}" · captura do navegador ${ajustes?.width ?? '?'}x${ajustes?.height ?? '?'} @${ajustes?.frameRate ?? '?'}`,
+            }
           : null,
         envio,
         captura,

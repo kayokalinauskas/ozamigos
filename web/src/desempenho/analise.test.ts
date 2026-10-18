@@ -56,6 +56,17 @@ describe('análise', () => {
     expect(a.trechos[0].conteudoFps).toBe(21); // um jogo a 21 fps não é cobrado por 30
   });
 
+  it('na captura do app, diz onde a captura ficou: no Windows (poucos quadros novos) ou no auxiliar (lento demais)', () => {
+    const comApp = (novos: number, msAuxiliar: number) => {
+      const parte = trecho(0, 0, 1, 4, 47.6, 21);
+      parte.captura = parte.captura.map((c) => ({ ...c, origem: 'app' as const, app: { novos, repetidos: 0, msAuxiliar, quadrosNaPagina: 21, puladosNaPagina: 0, msAtePagina: 7 } }));
+      return analisar(gravacao(parte)).diagnosticos.find((d) => d.codigo === 'captura-lenta')!;
+    };
+    expect(comApp(21, 2).detalhe).toContain('O Windows entregou 21 quadros novos');
+    expect(comApp(30, 25).detalhe).toContain('ele é o gargalo');
+    expect(comApp(21, 2).titulo).toContain('captura do app');
+  });
+
   it('aponta a imagem esperando além da folga e outro programa usando o codificador da placa', () => {
     const parte = trecho(0, 0, 1, 4, 33.3);
     for (const r of parte.recepcao) Object.assign(r, { msBuffer: 600, msBufferSom: 590, folgaMs: 250 });
