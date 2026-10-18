@@ -8,6 +8,9 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+### Corrigido
+- **A sala caía transmitindo em 1080p** (principalmente a tela inteira, com Alt+Tab): o codificador H.265 da placa se perdia ao se ajustar no meio da transmissão, e a página do Ozamigos fechava. Em 1080p, a transmissão vai agora em H.264; em 720p, continua o H.265.
+
 ## [1.2.19] - 2026-10-17
 
 ### Corrigido

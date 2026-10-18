@@ -5,7 +5,7 @@
 //   medidor.ts      as estatísticas de cada segundo               relatorio.ts  o relatório da sessão
 
 import { lembrado, lembrar } from './armazenamento';
-import { QUALIDADE, QUALIDADES, type Qualidade } from './qualidade';
+import { QUALIDADE, QUALIDADES, aceitaHevc, type Qualidade } from './qualidade';
 import { qualidadeEscolhida } from './escolhaDeQualidade';
 import { notificacaoLigada, type TipoDeNotificacao } from './notificacoes';
 import { tocar } from './sons';
@@ -931,12 +931,16 @@ class Cliente {
     const qualidade = qualidadeEscolhida();
     const tela = await this.capturar(fonte, qualidade);
     if (!tela) return;
+    // O codec fica o negociado na conexão: passando de 720p para 1080p (ou o contrário), as conexões de envio são refeitas
+    // para irem no codec certo (em 1080p, nunca H.265: aceitaHevc).
+    const refazerConexoes = Boolean(this.estado.minhaTela) && aceitaHevc(qualidade) !== aceitaHevc(this.estado.qualidade);
     if (qualidade !== this.estado.qualidade) {
       this.registrar(`qualidade: ${QUALIDADES[qualidade].rotulo}`);
       this.mudar({ qualidade });
     }
     if (this.estado.minhaTela) {
       await this.trocarFonte(tela);
+      if (refazerConexoes) for (const { id } of this.conexoesDeEnvio()) if (id) void this.enviarOferta(id); // os simulados (sem id) ficam
     } else {
       this.usarTela(tela);
       await this.aplicarQualidade();

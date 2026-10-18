@@ -1,3 +1,4 @@
+import { aceitaHevc } from '../qualidade';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ESPERAS_PARA_RECONECTAR, Sinalizacao } from './sinalizacao';
@@ -116,6 +117,13 @@ describe('codec da transmissão', () => {
     expect(escolhidos[1][0]).toBe('video/H264');
     expect(escolhidos[1]).not.toContain('video/H265');
     vi.unstubAllGlobals();
+  });
+
+  it('em 1080p, nunca H.265 (o codificador da placa falhava e derrubava a página); até 720p, sim', () => {
+    expect(aceitaHevc('leve')).toBe(true);
+    expect(aceitaHevc('leve60')).toBe(true);
+    expect(aceitaHevc('nitida')).toBe(false);
+    expect(aceitaHevc('nitida60')).toBe(false);
   });
 });
 

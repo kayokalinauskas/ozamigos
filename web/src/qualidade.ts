@@ -36,6 +36,19 @@ export type Qualidade = keyof typeof QUALIDADES;
 export const QUALIDADE: Qualidade = 'leve';
 
 /**
+ * A qualidade pode ir em H.265? Só até 720p. Em 1080p a 60 fps, reconfigurar o codificador H.265 da AMD no meio da
+ * transmissão (a subida do bitrate aos 6 s, BITRATE_INICIAL; a janela mudando de tamanho; os ajustes da rede) faz ele
+ * devolver um quadro que o WebRTC não sabe de onde veio ("Frame with no encode started time recordings"), e logo depois
+ * a página cai (uma verificação fatal do Chromium na thread "Media", 0xC000001D). Medido em 17/10/2026, 30 Alt+Tabs com
+ * a tela inteira e o jogo aberto: 1080p · 60 em H.265 caiu três vezes em três (uma antes do primeiro Alt+Tab, logo
+ * depois da subida do bitrate); sem a subida, não caiu; 720p · 30 e 720p · 60 em H.265, e 1080p · 60 em H.264, nunca.
+ * No 1.2.18 e 1.2.19, transmitindo em 1080p para um celular ou outro app, a sala caía (relato do dono).
+ */
+export function aceitaHevc(qualidade: Qualidade): boolean {
+  return QUALIDADES[qualidade].altura <= 720;
+}
+
+/**
  * Os fps que a captura está entregando, quando ficam abaixo do que a qualidade pede (com folga de 15%),
  * ou null se está tudo certo ou ainda não há medição (a captura só é medida com alguém assistindo).
  * Nada a ver com a internet: é o PC de quem transmite copiando a imagem do jogo mais devagar.

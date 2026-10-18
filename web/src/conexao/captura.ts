@@ -1,6 +1,6 @@
 // A captura da tela de quem transmite e o que se pede ao codificador, conforme a qualidade escolhida.
 
-import { QUALIDADES, type Qualidade } from '../qualidade';
+import { QUALIDADES, aceitaHevc, type Qualidade } from '../qualidade';
 import { preferirCodecs } from './webrtc';
 
 export type Fonte = 'aplicativo' | 'tela' | 'escolher';
@@ -94,7 +94,7 @@ export function descreverFonte(tela: MediaStream): string {
 
 /**
  * Vídeo e som da tela numa conexão de envio, com a qualidade de agora (e uma fração do bitrate, se pedida).
- * semHevc: o codificador H.265 desta placa falhou; a conexão vai em H.264.
+ * semHevc: o codificador H.265 desta placa falhou; a conexão vai em H.264. Em 1080p, vai sempre em H.264 (aceitaHevc).
  */
 export function montarEnvio(tela: MediaStream, qualidade: Qualidade, pc: RTCPeerConnection, fracaoDoBitrate = 1, semHevc = false) {
   const [video] = tela.getVideoTracks();
@@ -103,7 +103,7 @@ export function montarEnvio(tela: MediaStream, qualidade: Qualidade, pc: RTCPeer
     streams: [tela],
     sendEncodings: [codificacao(qualidade, fracaoDoBitrate)],
   });
-  preferirCodecs(transceptor, semHevc);
+  preferirCodecs(transceptor, semHevc || !aceitaHevc(qualidade));
   // Sempre cria o canal de áudio, mesmo sem áudio agora: assim a troca de fonte não precisa renegociar.
   // O som vai sem MediaStream (outro que o do vídeo) de propósito: na mesma, quem assiste sincroniza os dois, e a imagem
   // esperava o som. No celular, com a saída de áudio lenta do Android, isso deixava a imagem ~0,6 s atrasada (relatório
