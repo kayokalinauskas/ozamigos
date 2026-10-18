@@ -10,6 +10,10 @@ const versao = process.argv.find((arg) => arg.startsWith('--ozamigos-versao='))?
 ipcRenderer.on('video-porta', (evento) => {
   window.postMessage('ozamigos-porta-do-video', window.location.origin, evento.ports);
 });
+// O mesmo para o som do PC (1.2.20): a página entrega a porta ao AudioWorklet.
+ipcRenderer.on('som-porta', (evento) => {
+  window.postMessage('ozamigos-porta-do-som', window.location.origin, evento.ports);
+});
 
 // Em tela cheia o Windows esconde os botões da janela: a página deixa de reservar espaço para eles.
 ipcRenderer.on('tela-cheia', (_evento, cheia) => {
@@ -64,6 +68,10 @@ contextBridge.exposeInMainWorld('ozamigos', {
   },
   pararSom() {
     ipcRenderer.send('som-parar');
+  },
+  /** Pede o canal direto do som do PC até o AudioWorklet (1.2.20 em diante): a porta chega à página por postMessage. */
+  canalDoSom() {
+    ipcRenderer.send('som-canal');
   },
   /** Um convite (link ozamigos://sala/CODIGO) chegou com o app aberto (app 1.2.16 em diante). */
   aoAbrirSala(ouvinte) {

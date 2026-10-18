@@ -34,6 +34,7 @@ let pedidoDeFonte = null; // { responder, fontes } enquanto o seletor está aber
 let auxiliarDeSom = null; // o OzamigosSom.exe, enquanto alguém transmite com som
 let capturaDeVideo = null; // o OzamigosCaptura.exe, enquanto alguém transmite pela captura do app
 let portaDoVideo = null; // o canal direto dos quadros até o worker da página (1.2.19), até a página trocar
+let portaDoSom = null; // o canal direto do som do PC até o AudioWorklet da página (1.2.20), até a página trocar
 let ligandoAuxiliar = null; // Promise enquanto o auxiliar está abrindo
 let avisoDeAtualizacao = null; // a janelinha "Baixando a versão nova", enquanto baixa
 let bandeja = null; // o ícone perto do relógio
@@ -421,6 +422,16 @@ function configurarSessao() {
     return { novos, repetidos, msConversao, msSaida, largura, altura, deixados };
   });
 
+  // O canal direto do som do PC (1.2.20): a página pede ao abrir o AudioWorklet, e a porta vai a ela por postMessage
+  // (o preload a repassa), e dela ao AudioWorklet. Um pedido novo troca o canal.
+  ipcMain.on('som-canal', (evento) => {
+    if (!vindoDaPagina(evento) || !janela || janela.isDestroyed()) return;
+    portaDoSom?.close();
+    const { port1, port2 } = new MessageChannelMain();
+    portaDoSom = port1;
+    janela.webContents.postMessage('som-porta', null, [port2]);
+  });
+
   ipcMain.on('som-parar', (evento) => {
     if (origemDe(evento.senderFrame?.url) === origemDoServidor()) desligarAuxiliarDeSom();
   });
@@ -496,7 +507,11 @@ function abrirAuxiliarDeSom() {
       const tudo = sobra.length ? Buffer.concat([sobra, dados]) : dados;
       const inteiros = tudo.length - (tudo.length % 8);
       sobra = Buffer.from(tudo.subarray(inteiros));
-      if (inteiros > 0) janela.webContents.send('som', tudo.subarray(0, inteiros));
+      if (inteiros === 0) return;
+      // Pelo canal direto, o som não passa pela thread da página (que, ocupada com o vídeo, o atrasava); a página de
+      // antes recebe pelo ipcRenderer.
+      if (portaDoSom) portaDoSom.postMessage(tudo.buffer.slice(tudo.byteOffset, tudo.byteOffset + inteiros));
+      else janela.webContents.send('som', tudo.subarray(0, inteiros));
     });
     processo.on('error', (erro) => console.error('Auxiliar de som não abriu', erro));
     processo.on('exit', (codigo) => {
@@ -569,6 +584,8 @@ function abrirPortaDoVideo() {
 function fecharPortaDoVideo() {
   portaDoVideo?.close();
   portaDoVideo = null;
+  portaDoSom?.close(); // o mesmo vale para o canal do som: a página nova pede o dela
+  portaDoSom = null;
 }
 
 /**

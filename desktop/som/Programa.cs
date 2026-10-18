@@ -24,6 +24,7 @@ static class Programa
             if (argumentos[i] == "--excluir-nome") nomesExcluidos.UnionWith(argumentos[i + 1].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
         }
 
+        Relogio.MarcarEsteProcesso(); // sem janela, o Windows 11 tirava o relógio fino: o misturador acordava a cada 15,6 ms
         Com.IniciarThread();
         // Teste rápido: o Windows sabe capturar por processo? (Windows 10 2004+ e Windows 11)
         var teste = Ativacao.Ativar((uint)Environment.ProcessId, incluir: false, out int erro);

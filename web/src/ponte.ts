@@ -32,6 +32,8 @@ export type PonteOzamigos = {
   /** Pedaços do som do PC: float32 estéreo intercalado, 48 kHz. */
   aoReceberSom(ouvinte: (dados: Uint8Array) => void): void;
   pararSom(): void;
+  /** Pede o canal direto do som do PC até o AudioWorklet (app 1.2.20 em diante); a porta chega por postMessage. */
+  canalDoSom?(): void;
   /**
    * A captura de vídeo do app (1.2.18 em diante). Cada quadro: um cabeçalho de 24 bytes ("OZQ1", largura e altura em
    * u16, o número em u32, 4 de reserva e o momento da captura em ms desde 1970, f64) e a imagem em NV12.

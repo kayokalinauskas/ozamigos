@@ -54,7 +54,7 @@ sealed class Misturador
                 }
                 enviados += QuadrosPorBloco;
             }
-            Thread.Sleep(2);
+            Thread.Sleep(1);
         }
     }
 }

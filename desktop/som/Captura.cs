@@ -147,15 +147,17 @@ sealed unsafe class Captura
 
 /// <summary>
 /// Fila circular de amostras de uma captura. Quem captura escreve no ritmo do Windows;
-/// o misturador lê no ritmo dele. Uma pequena reserva (20 ms) evita picotar, e o excesso
-/// (mais de 100 ms) é descartado para o atraso não crescer.
+/// o misturador lê no ritmo dele. Uma pequena reserva (10 ms) evita picotar, e o excesso
+/// (mais de 40 ms) é descartado, voltando aos 20, para o atraso não crescer. Até a 1.2.19, o corte era
+/// só acima de 100 ms (voltando a 40): a fila ficava entre 40 e 100 ms, e o som da transmissão saía
+/// ~130 ms depois do bipe, contra ~15 ms da imagem (medido em 17/10/2026).
 /// </summary>
 sealed class Anel
 {
     const int Capacidade = 48000 * 2;
-    const int Reserva = 960 * 2;
-    const int Maximo = 4800 * 2;
-    const int Alvo = 1920 * 2;
+    const int Reserva = 480 * 2;
+    const int Maximo = 1920 * 2;
+    const int Alvo = 960 * 2;
 
     readonly float[] dados = new float[Capacidade];
     readonly Lock trava = new();

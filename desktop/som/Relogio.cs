@@ -36,6 +36,25 @@ static class Relogio
     [DllImport("kernel32.dll")]
     static extern bool CloseHandle(IntPtr h);
 
+    [DllImport("kernel32.dll")]
+    static extern IntPtr GetCurrentProcess();
+
+    /// <summary>
+    /// A mesma marca, neste processo: sem janela, ele é "invisível" para o Windows 11, que ignora o timeBeginPeriod
+    /// (o Sleep(1) do misturador virava o tique de 15,6 ms) e pode mandá-lo para os núcleos de economia.
+    /// </summary>
+    public static void MarcarEsteProcesso()
+    {
+        const uint VELOCIDADE = 0x1; // PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+        var estado = new EstadoDeEconomia
+        {
+            Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+            ControlMask = PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION | VELOCIDADE,
+            StateMask = 0,
+        };
+        SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, ref estado, (uint)Marshal.SizeOf<EstadoDeEconomia>());
+    }
+
     public static int Rodar(string[] argumentos)
     {
         int i = Array.IndexOf(argumentos, "--relogio");

@@ -8,6 +8,11 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.2.20] - 2026-10-18
+
+### Mudado
+- **O som da transmissão mais perto da imagem:** o som do PC saía da sua máquina ~0,1 s depois da imagem. O caminho dele ficou mais curto (o auxiliar de som guarda menos e não perde o ritmo quando o Windows o considera em segundo plano, e o som vai direto ao processador de áudio, sem passar pela interface). Medido em 720p a 60 fps: o som chegava 0,11 s depois da imagem, agora 0,06 s.
+
 ### Corrigido
 - **A sala caía transmitindo em 1080p** (principalmente a tela inteira, com Alt+Tab): o codificador H.265 da placa se perdia ao se ajustar no meio da transmissão, e a página do Ozamigos fechava. Em 1080p, a transmissão vai agora em H.264; em 720p, continua o H.265.
 
@@ -291,7 +296,8 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
-[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.19...HEAD
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.20...HEAD
+[1.2.20]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.19...v1.2.20
 [1.2.19]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.18...v1.2.19
 [1.2.18]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.17...v1.2.18
 [1.2.17]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.16...v1.2.17
