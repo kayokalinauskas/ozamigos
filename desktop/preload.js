@@ -5,6 +5,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const versao = process.argv.find((arg) => arg.startsWith('--ozamigos-versao='))?.split('=')[1] ?? '';
 
+// O canal direto da captura do app (1.2.19): a porta vem do processo principal e vai para a página, que a entrega a um
+// worker. Um MessagePort só passa do preload para a página por um postMessage da janela.
+ipcRenderer.on('video-porta', (evento) => {
+  window.postMessage('ozamigos-porta-do-video', window.location.origin, evento.ports);
+});
+
 // Em tela cheia o Windows esconde os botões da janela: a página deixa de reservar espaço para eles.
 ipcRenderer.on('tela-cheia', (_evento, cheia) => {
   document.documentElement.classList.toggle('janela-em-tela-cheia', Boolean(cheia));
@@ -26,7 +32,7 @@ contextBridge.exposeInMainWorld('ozamigos', {
     return ipcRenderer.invoke('fonte-escolhida', {
       id: String(escolha.id),
       audio: Boolean(escolha.audio),
-      captura: captura ? { largura: Number(captura.largura), altura: Number(captura.altura), fps: Number(captura.fps) } : null,
+      captura: captura ? { largura: Number(captura.largura), altura: Number(captura.altura), fps: Number(captura.fps), canal: captura.canal === true } : null,
     });
   },
   /**
@@ -34,6 +40,8 @@ contextBridge.exposeInMainWorld('ozamigos', {
    * u16, o número em u32, 4 de reserva e o momento da captura em ms, f64) e a imagem em NV12.
    */
   video: {
+    /** Os quadros vêm pelo canal direto (a porta chega à página por postMessage), com controle de fluxo (1.2.19 em diante). */
+    canalDireto: true,
     aoReceberQuadro(ouvinte) {
       ipcRenderer.removeAllListeners('quadro');
       ipcRenderer.on('quadro', (_evento, dados) => ouvinte(dados));

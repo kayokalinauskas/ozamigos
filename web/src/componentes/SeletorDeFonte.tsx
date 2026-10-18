@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppWindow, Monitor } from 'lucide-react';
 import { lembrado, lembrar } from '../armazenamento';
 import { aoCarregarSeletor, ponte, responderFonte, type FonteDeCaptura } from '../ponte';
-import { qualidadeEscolhida } from '../qualidade';
+import { qualidadeEscolhida } from '../escolhaDeQualidade';
 import { prepararVideoDoApp, usarCapturaDoApp } from '../videoDoApp';
 
 type Fase = 'fechado' | 'carregando' | 'escolhendo';

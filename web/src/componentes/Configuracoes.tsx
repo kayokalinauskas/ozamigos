@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, Server, X } from 'lucide-react';
 import { TIPOS_DE_NOTIFICACAO, ligarNotificacao, notificacaoLigada } from '../notificacoes';
 import { ponte } from '../ponte';
-import { QUALIDADE, QUALIDADES, escolherQualidade, qualidadeEscolhida, type Qualidade } from '../qualidade';
+import { QUALIDADE, QUALIDADES, type Qualidade } from '../qualidade';
+import { escolherQualidade, qualidadeEscolhida, qualidadesAltas } from '../escolhaDeQualidade';
 import { ligarSons, sonsLigados } from '../sons';
 import { useVoz } from '../useCliente';
 import type { Supressao } from '../voz/ajustes';
@@ -279,7 +280,7 @@ function AbaGeral() {
           </label>
         </section>
       )}
-      {ponte && <SecaoDaQualidade />}
+      {qualidadesAltas() && <SecaoDaQualidade />}
       <section className="configuracoes-secao" aria-labelledby="titulo-versao">
         <h3 id="titulo-versao">Versão</h3>
         <p className="ajuda">

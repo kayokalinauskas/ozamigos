@@ -383,6 +383,7 @@ export async function completarCaptura(captura: AmostraCaptura): Promise<Amostra
       quadrosNaPagina: pagina?.quadros ?? 0,
       puladosNaPagina: pagina?.pulados ?? 0,
       msAtePagina: pagina?.msAtePagina ?? null,
+      deixadosNoApp: auxiliar?.deixados ?? null,
     },
   };
 }

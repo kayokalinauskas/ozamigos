@@ -22,7 +22,8 @@ sealed unsafe class Wgc : IDisposable
     static readonly Guid IidFechavel = new("30d5a829-7fa4-4026-83bb-d75bae4ea99e"); // IClosable
     static readonly Guid IidTextura = new("6f15aaf2-d208-4e89-9ab4-489535d34f9c"); // ID3D11Texture2D
     const int BGRA8 = 87; // DirectXPixelFormat.B8G8R8A8UIntNormalized
-    const int BUFFERS = 2;
+    // Três: um com o programa (esperando a vez de ser enviado), e dois para o Windows escrever os seguintes.
+    const int BUFFERS = 3;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct Tamanho { public int Largura, Altura; }
@@ -97,6 +98,7 @@ sealed unsafe class Wgc : IDisposable
     /// <summary>
     /// O quadro mais novo que chegou desde a última vez (os anteriores são descartados), ou null. O chamador precisa
     /// chamar <see cref="Fechar"/> no quadro. conteudo: o tamanho da imagem dentro da textura.
+    /// (O SystemRelativeTime do quadro não serve de hora da captura: fica uns ms no futuro, é quando a tela vai mostrá-lo.)
     /// </summary>
     public IntPtr MaisNovo(out ID3D11Texture2D? textura, out Tamanho conteudo)
     {

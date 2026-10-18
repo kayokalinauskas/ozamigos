@@ -5,7 +5,8 @@
 //   medidor.ts      as estatísticas de cada segundo               relatorio.ts  o relatório da sessão
 
 import { lembrado, lembrar } from './armazenamento';
-import { QUALIDADE, QUALIDADES, qualidadeEscolhida, type Qualidade } from './qualidade';
+import { QUALIDADE, QUALIDADES, type Qualidade } from './qualidade';
+import { qualidadeEscolhida } from './escolhaDeQualidade';
 import { notificacaoLigada, type TipoDeNotificacao } from './notificacoes';
 import { tocar } from './sons';
 import { esquecerEscolha, noApp, ponte, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';

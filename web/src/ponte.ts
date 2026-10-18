@@ -12,10 +12,11 @@ export type FonteDeCaptura = {
 /** captura: o tamanho e o fps pedidos à captura de vídeo do app (1.2.18 em diante); sem ela, vai a do Chromium. */
 export type EscolhaDeFonte = { id: string; audio: boolean; captura?: TamanhoDaCaptura | null };
 
-export type TamanhoDaCaptura = { largura: number; altura: number; fps: number };
+/** canal: a página recebe os quadros pelo canal direto (um MessagePort num worker), app 1.2.19 em diante. */
+export type TamanhoDaCaptura = { largura: number; altura: number; fps: number; canal?: boolean };
 
 /** Um segundo do auxiliar de captura: quadros novos e repetidos (imagem parada) e o tempo dele por quadro novo. */
-export type MedidasDoAuxiliarDeCaptura = { novos: number; repetidos: number; msConversao: number; largura: number; altura: number };
+export type MedidasDoAuxiliarDeCaptura = { novos: number; repetidos: number; msConversao: number; largura: number; altura: number; msSaida?: number; deixados?: number };
 
 /**
  * somDoApp: o som do PC vem do auxiliar do app (sem o Discord e sem o Ozamigos), não do navegador. videoDoApp: o vídeo
@@ -36,6 +37,8 @@ export type PonteOzamigos = {
    * u16, o número em u32, 4 de reserva e o momento da captura em ms desde 1970, f64) e a imagem em NV12.
    */
   video?: {
+    /** O app manda os quadros por um canal direto, com controle de fluxo (1.2.19 em diante): a porta chega por postMessage. */
+    canalDireto?: boolean;
     aoReceberQuadro(ouvinte: (dados: Uint8Array) => void): void;
     /** Parou sozinha: a janela fechou, ou a captura falhou (a página troca para a do Chromium, pela fonte). */
     aoParar(ouvinte: (aviso: { motivo: 'fechou' | 'falhou'; fonte: string }) => void): void;

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { lembrado, lembradoNumero, lembrar } from './armazenamento';
-import { QUALIDADE, QUALIDADES, capturaAbaixo, escolherQualidade, qualidadeEscolhida } from './qualidade';
+import { QUALIDADE, QUALIDADES, capturaAbaixo } from './qualidade';
+import { escolherQualidade, qualidadeEscolhida } from './escolhaDeQualidade';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -39,9 +40,10 @@ describe('qualidade', () => {
     expect(Object.values(QUALIDADES).every((q) => q.preferencia === 'maintain-resolution')).toBe(true);
   });
 
-  it('a escolhida na engrenagem vale para as próximas transmissões, e voltar ao padrão apaga a escolha', () => {
+  it('a escolha da engrenagem fica guardada, mas sem o canal direto do app (navegador, app 1.2.18) vale o padrão', () => {
     escolherQualidade('nitida60');
-    expect(qualidadeEscolhida()).toBe('nitida60');
+    expect(localStorage.getItem('ozamigos-resolucao')).toBe('nitida60');
+    expect(qualidadeEscolhida()).toBe(QUALIDADE); // aqui não há app: em 1080p a 60, a página de lá não dava conta
     escolherQualidade(QUALIDADE);
     expect(localStorage.getItem('ozamigos-resolucao')).toBeNull();
     localStorage.setItem('ozamigos-resolucao', 'qualquer'); // de uma versão que não existe mais: vale o padrão

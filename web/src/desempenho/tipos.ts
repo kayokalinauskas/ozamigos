@@ -66,7 +66,8 @@ export type AmostraCaptura = {
 /**
  * novos: quadros com imagem nova que o auxiliar pegou do Windows; repetidos: o último de novo, com a imagem parada
  * (a cada 100 ms); msAuxiliar: o tempo dele por quadro novo (reduzir, converter e ler da placa); quadrosNaPagina e
- * puladosNaPagina: o que chegou à página e o que ela jogou fora por estar travada; msAtePagina: da captura até a página.
+ * puladosNaPagina: o que chegou à página e o que ela jogou fora por estar travada; msAtePagina: da captura até a página;
+ * deixadosNoApp: os que o app nem mandou, com a página atrasada (o controle de fluxo do canal direto, 1.2.19).
  */
 export type MedidasDaCapturaDoApp = {
   novos: number | null;
@@ -75,6 +76,7 @@ export type MedidasDaCapturaDoApp = {
   quadrosNaPagina: number | null;
   puladosNaPagina: number | null;
   msAtePagina: number | null;
+  deixadosNoApp?: number | null;
 };
 
 /** Resumo de um segundo dos intervalos entre quadros mostrados na tela (requestVideoFrameCallback). */

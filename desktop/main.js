@@ -3,7 +3,7 @@
 // navegador, o som do PC sem o Discord e sem o próprio app, notificações do Windows, e não ser freado quando fica
 // atrás do jogo.
 
-const { app, BrowserWindow, Menu, Notification, Tray, desktopCapturer, ipcMain, nativeImage, nativeTheme, net, screen, session, shell } = require('electron');
+const { app, BrowserWindow, MessageChannelMain, Menu, Notification, Tray, desktopCapturer, ipcMain, nativeImage, nativeTheme, net, screen, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -33,6 +33,7 @@ let janela = null;
 let pedidoDeFonte = null; // { responder, fontes } enquanto o seletor está aberto
 let auxiliarDeSom = null; // o OzamigosSom.exe, enquanto alguém transmite com som
 let capturaDeVideo = null; // o OzamigosCaptura.exe, enquanto alguém transmite pela captura do app
+let portaDoVideo = null; // o canal direto dos quadros até o worker da página (1.2.19), até a página trocar
 let ligandoAuxiliar = null; // Promise enquanto o auxiliar está abrindo
 let avisoDeAtualizacao = null; // a janelinha "Baixando a versão nova", enquanto baixa
 let bandeja = null; // o ícone perto do relógio
@@ -274,6 +275,7 @@ function criarJanela(atualizando) {
     desligarContadores();
     desligarAuxiliarDeSom();
     desligarCapturaDeVideo();
+    fecharPortaDoVideo();
     desligarAtalhos(); // a página nova manda os atalhos de novo ao abrir
   });
   // A página travou ou caiu (falta de memória, falha da placa de vídeo): sem isto, a janela ficava vazia até a pessoa
@@ -285,6 +287,7 @@ function criarJanela(atualizando) {
     desligarContadores();
     desligarAuxiliarDeSom();
     desligarCapturaDeVideo();
+    fecharPortaDoVideo();
     desligarAtalhos();
     if (reason === 'clean-exit' || janela.isDestroyed()) return;
     const seguida = Date.now() - ultimaQueda < 30_000;
@@ -406,11 +409,16 @@ function configurarSessao() {
     if (vindoDaPagina(evento)) desligarCapturaDeVideo();
   });
 
-  /** O último segundo do auxiliar de captura: { novos, repetidos, msConversao, largura, altura }, ou null. */
+  /**
+   * O último segundo do auxiliar de captura ({ novos, repetidos, msConversao, msSaida, largura, altura }) e quantos
+   * quadros o app deixou de fora desde a última pergunta (a página atrasada), ou null.
+   */
   ipcMain.handle('video-medidas', (evento) => {
     if (!vindoDaPagina(evento) || !capturaDeVideo?.medidas) return null;
-    const { novos, repetidos, msConversao, largura, altura } = capturaDeVideo.medidas;
-    return { novos, repetidos, msConversao, largura, altura };
+    const { novos, repetidos, msConversao, msSaida, largura, altura } = capturaDeVideo.medidas;
+    const deixados = capturaDeVideo.deixados;
+    capturaDeVideo.deixados = 0;
+    return { novos, repetidos, msConversao, msSaida, largura, altura, deixados };
   });
 
   ipcMain.on('som-parar', (evento) => {
@@ -515,6 +523,10 @@ function desligarAuxiliarDeSom() {
 // do Chromium; se parar no meio, a página troca para a do Chromium sozinha (video-parou).
 
 const ESPERA_DO_PRIMEIRO_QUADRO = 4_000;
+// Controle de fluxo do canal direto: no máximo 3 quadros a caminho da página (o worker confirma cada um). Com a página
+// atrasada, o quadro novo fica de fora em vez de esperar numa fila: sem isto (no 1.2.18), em 1080p a 60 o atraso até a
+// página crescia sem parar, de 13 ms para 2,7 s em 30 s, e a memória do app junto.
+const QUADROS_A_CAMINHO = 3;
 const SEM_QUADROS_POR = 3_000; // ele repete o último a cada 100 ms com a imagem parada: 3 s sem nada é defeito
 
 function caminhoDaCaptura() {
@@ -523,14 +535,40 @@ function caminhoDaCaptura() {
     : path.join(__dirname, 'captura', 'publicado', 'OzamigosCaptura.exe');
 }
 
-/** { largura, altura, fps } pedidos pela página, conferidos; null se a página não pediu a captura do app. */
+/**
+ * { largura, altura, fps, canal } pedidos pela página, conferidos; null se a página não pediu a captura do app.
+ * canal: a página recebe os quadros pelo canal direto (a página de antes os recebia pelo ipcRenderer, "quadro").
+ */
 function tamanhoDaCaptura(pedido) {
   if (!pedido || typeof pedido !== 'object') return null;
   const inteiro = (valor, minimo, maximo) => (Number.isInteger(valor) && valor >= minimo && valor <= maximo ? valor : null);
   const largura = inteiro(pedido.largura, 160, 3840);
   const altura = inteiro(pedido.altura, 90, 2160);
   const fps = inteiro(pedido.fps, 5, 120);
-  return largura && altura && fps ? { largura, altura, fps } : null;
+  return largura && altura && fps ? { largura, altura, fps, canal: pedido.canal === true } : null;
+}
+
+/**
+ * O canal direto dos quadros: um MessagePort entregue à página (o preload o repassa a ela, e ela a um worker), que
+ * monta os VideoFrame fora da thread da página e confirma cada quadro de volta. Um por página: trocar de página o fecha.
+ */
+function abrirPortaDoVideo() {
+  if (portaDoVideo) return portaDoVideo;
+  const { port1, port2 } = new MessageChannelMain();
+  port1.on('message', () => {
+    if (!capturaDeVideo) return;
+    capturaDeVideo.aCaminho = Math.max(0, capturaDeVideo.aCaminho - 1);
+    capturaDeVideo.ultimaConfirmacao = Date.now();
+  });
+  port1.start();
+  janela.webContents.postMessage('video-porta', null, [port2]);
+  portaDoVideo = port1;
+  return port1;
+}
+
+function fecharPortaDoVideo() {
+  portaDoVideo?.close();
+  portaDoVideo = null;
 }
 
 /**
@@ -551,8 +589,9 @@ function argumentosDaFonte(fonte) {
  * Liga a captura do app para a fonte, no lugar da que estiver ligada. Resolve null quando o primeiro quadro chega
  * (já indo para a página), ou o motivo de não ter dado certo (a página fica com a captura do Chromium).
  */
-function ligarCapturaDeVideo(fonte, { largura, altura, fps }) {
+function ligarCapturaDeVideo(fonte, { largura, altura, fps, canal }) {
   desligarCapturaDeVideo();
+  const porta = canal ? abrirPortaDoVideo() : null;
   const argumentos = argumentosDaFonte(fonte);
   if (!argumentos) return Promise.resolve('fonte desconhecida');
   if (!fs.existsSync(caminhoDaCaptura())) return Promise.resolve('sem o auxiliar de captura');
@@ -561,7 +600,8 @@ function ligarCapturaDeVideo(fonte, { largura, altura, fps }) {
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-    const atual = { processo, fonte: fonte.id, fechou: false, ultimoQuadro: 0, vigia: null, medidas: null };
+    // aCaminho: quadros mandados pelo canal direto e ainda não confirmados; deixados: os que ficaram de fora por isso.
+    const atual = { processo, fonte: fonte.id, fechou: false, ultimoQuadro: 0, vigia: null, medidas: null, aCaminho: 0, ultimaConfirmacao: Date.now(), deixados: 0 };
     capturaDeVideo = atual;
     let resolvido = false;
     let erro = '';
@@ -592,36 +632,58 @@ function ligarCapturaDeVideo(fonte, { largura, altura, fps }) {
       }
     });
 
-    // Cada quadro: 24 bytes de cabeçalho ("OZQ1", largura e altura em u16…) e o NV12, largura × altura × 1,5 bytes.
-    // Junta os pedaços só quando o quadro inteiro chegou (~1,4 MB por quadro em 720p, em pedaços de 64 KB).
-    let pedacos = [];
-    let acumulado = 0;
+    // Cada quadro: 24 bytes de cabeçalho ("OZQ1", largura e altura em u16…) e o NV12, largura × altura × 1,5 bytes
+    // (1,4 MB em 720p, 3,1 MB em 1080p), em pedaços de 64 KB. Os pedaços vão direto para um buffer do tamanho do quadro,
+    // reaproveitado (mandar copia na hora, então ele fica livre para o próximo); um quadro que vai ficar de fora (a página
+    // atrasada) nem é copiado. Antes, juntar os pedaços e copiar de novo para mandar eram duas cópias a mais por quadro
+    // nesta thread, que é a da janela.
+    const cabecalho = Buffer.alloc(24);
+    let noCabecalho = 0; // bytes do cabeçalho já lidos
+    let quadro = null; // o buffer do quadro de agora (null: lendo o cabeçalho)
+    let pular = false; // este quadro fica de fora: os bytes só passam
+    let preenchido = 0;
     let esperado = 0;
+    const paginaAberta = () => capturaDeVideo === atual && janela && !janela.isDestroyed() && origemDe(janela.webContents.getURL()) === origemDoServidor();
     processo.stdout.on('data', (dados) => {
-      pedacos.push(dados);
-      acumulado += dados.length;
-      while (true) {
-        if (!esperado) {
-          if (acumulado < 24) return;
-          const cabecalho = pedacos[0].length >= 24 ? pedacos[0] : Buffer.concat(pedacos, acumulado);
+      let i = 0;
+      while (i < dados.length) {
+        if (esperado === 0) {
+          const n = Math.min(24 - noCabecalho, dados.length - i);
+          dados.copy(cabecalho, noCabecalho, i, i + n);
+          noCabecalho += n;
+          i += n;
+          if (noCabecalho < 24) return;
+          noCabecalho = 0;
           if (cabecalho.toString('latin1', 0, 4) !== 'OZQ1') {
             erro = 'quadro estragado';
             processo.kill();
             return;
           }
           esperado = 24 + (cabecalho.readUInt16LE(4) * cabecalho.readUInt16LE(6) * 3) / 2;
+          pular = porta !== null && atual.aCaminho >= QUADROS_A_CAMINHO;
+          if (!pular && quadro?.length !== esperado) quadro = new Uint8Array(esperado); // a janela mudou de tamanho
+          if (!pular) quadro.set(cabecalho, 0);
+          preenchido = 24;
+          continue;
         }
-        if (acumulado < esperado) return;
-        const tudo = pedacos.length === 1 ? pedacos[0] : Buffer.concat(pedacos, acumulado);
-        if (capturaDeVideo === atual && janela && !janela.isDestroyed() && origemDe(janela.webContents.getURL()) === origemDoServidor()) {
-          janela.webContents.send('quadro', tudo.subarray(0, esperado));
-          atual.ultimoQuadro = Date.now();
+        const n = Math.min(esperado - preenchido, dados.length - i);
+        if (!pular) quadro.set(dados.subarray(i, i + n), preenchido);
+        preenchido += n;
+        i += n;
+        if (preenchido < esperado) continue;
+        esperado = 0;
+        atual.ultimoQuadro = Date.now();
+        if (pular) {
+          atual.deixados++; // a página está atrasada: este ficou de fora
+        } else if (paginaAberta()) {
+          if (porta) {
+            porta.postMessage(quadro.buffer); // copiado aqui mesmo: o buffer serve para o próximo
+            atual.aCaminho++;
+          } else {
+            janela.webContents.send('quadro', quadro); // a página de antes do canal direto
+          }
           terminar(null);
         }
-        const resto = tudo.subarray(esperado);
-        pedacos = resto.length ? [resto] : [];
-        acumulado = resto.length;
-        esperado = 0;
       }
     });
     // Travou sem cair (não manda mais nada): é desligado, e a página troca para a captura do Chromium.
@@ -629,6 +691,11 @@ function ligarCapturaDeVideo(fonte, { largura, altura, fps }) {
       if (atual.ultimoQuadro && Date.now() - atual.ultimoQuadro > SEM_QUADROS_POR) {
         erro ||= 'parou de mandar quadros';
         processo.kill();
+      }
+      // Uma confirmação que se perdeu (o worker foi refeito) não pode travar o canal: 1 s sem nenhuma, recomeça a conta.
+      if (atual.aCaminho >= QUADROS_A_CAMINHO && Date.now() - atual.ultimaConfirmacao > 1_000) {
+        atual.aCaminho = 0;
+        atual.ultimaConfirmacao = Date.now();
       }
     }, 1_000);
     processo.on('error', (e) => {

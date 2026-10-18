@@ -7,6 +7,7 @@
 // os amigos; a escolha fica no localStorage.
 
 import { lembrado, lembrar } from './armazenamento';
+import type { Mensagem } from './videoDoApp.worker';
 import { ponte, type TamanhoDaCaptura } from './ponte';
 import { QUALIDADES, type Qualidade } from './qualidade';
 
@@ -19,6 +20,8 @@ declare class MediaStreamTrackGenerator extends MediaStreamTrack {
 }
 
 let trilha: MediaStreamTrackGenerator | null = null;
+let trabalhador: Worker | null = null;
+let portaEsperando: MessagePort | null = null;
 // Para a gravação das estatísticas: o que chegou à página desde a última leitura (medidasDaPagina).
 let chegaram = 0;
 let pulados = 0;
@@ -26,6 +29,26 @@ let somaDoAtraso = 0;
 let escritor: WritableStreamDefaultWriter<VideoFrame> | null = null;
 // A captura do app parou sozinha nesta sessão: até recarregar a página, vai a do Chromium.
 let falhou = false;
+
+/**
+ * O app (1.2.19 em diante) manda os quadros por um canal direto a um worker, com controle de fluxo. No 1.2.18, eles
+ * chegam pela thread da página, que não aguenta 720p a 60 nem 1080p (o atraso crescia sem parar): só o 720p · 30.
+ */
+export function canalDireto(): boolean {
+  return Boolean(ponte?.video?.canalDireto) && capturaDoAppExiste();
+}
+
+// A porta do canal direto chega do preload por um postMessage da própria janela (é assim que um MessagePort passa do
+// preload para a página no Electron). Só vale a mensagem da própria janela e da mesma origem.
+if (ponte?.video?.canalDireto) {
+  addEventListener('message', (evento) => {
+    if (evento.source !== window || evento.origin !== location.origin || evento.data !== 'ozamigos-porta-do-video') return;
+    const [porta] = evento.ports;
+    if (!porta) return;
+    if (trabalhador) trabalhador.postMessage(null, [porta]);
+    else portaEsperando = porta;
+  });
+}
 
 /** O app sabe capturar e a página sabe montar a trilha. */
 export function capturaDoAppExiste(): boolean {
@@ -53,10 +76,19 @@ export function prepararVideoDoApp(qualidade: Qualidade): TamanhoDaCaptura {
   if (!trilha) {
     trilha = new MediaStreamTrackGenerator({ kind: 'video' });
     escritor = trilha.writable.getWriter();
-    ponte?.video?.aoReceberQuadro(escrever);
+    if (canalDireto()) {
+      if (!trabalhador) {
+        trabalhador = new Worker(new URL('./videoDoApp.worker.ts', import.meta.url), { type: 'module' });
+        trabalhador.onmessage = ({ data }: MessageEvent<Mensagem>) => entregar(data.quadro, data.capturado, data.chegou);
+        if (portaEsperando) trabalhador.postMessage(null, [portaEsperando]);
+        portaEsperando = null;
+      }
+    } else {
+      ponte?.video?.aoReceberQuadro(escrever);
+    }
   }
   const { altura, fps } = QUALIDADES[qualidade];
-  return { largura: Math.round((altura * 16) / 9), altura, fps };
+  return { largura: Math.round((altura * 16) / 9), altura, fps, canal: canalDireto() };
 }
 
 /** A trilha com os quadros do app; a mesma ao trocar de fonte (como o som do PC). */
@@ -68,16 +100,28 @@ export function ehVideoDoApp(video: MediaStreamTrack | undefined): boolean {
   return video !== undefined && video === trilha;
 }
 
-function escrever(dados: Uint8Array) {
-  if (!escritor) return;
-  const cabecalho = new DataView(dados.buffer, dados.byteOffset, 24);
+/** Um quadro pronto (do worker ou do caminho antigo) vai para a trilha, se a página não estiver atrasada. */
+function entregar(quadro: VideoFrame, capturado: number, chegou: number) {
+  if (!escritor) {
+    quadro.close(); // parou de transmitir: os que estavam no caminho não servem mais
+    return;
+  }
   chegaram++;
-  somaDoAtraso += performance.timeOrigin + performance.now() - cabecalho.getFloat64(16, true);
+  somaDoAtraso += chegou - capturado;
   // A página ficou para trás (uma trava da thread principal): pula o quadro em vez de acumular atraso.
   if ((escritor.desiredSize ?? 1) <= 0) {
     pulados++;
+    quadro.close();
     return;
   }
+  escritor.write(quadro).catch(() => quadro.close());
+}
+
+/** O caminho do app 1.2.18: o quadro chega pela thread da página (ipcRenderer). */
+function escrever(dados: Uint8Array) {
+  if (!escritor) return;
+  const cabecalho = new DataView(dados.buffer, dados.byteOffset, 24);
+  const chegou = performance.timeOrigin + performance.now();
   const quadro = new VideoFrame(dados.subarray(24), {
     format: 'NV12',
     codedWidth: cabecalho.getUint16(4, true),
@@ -86,7 +130,7 @@ function escrever(dados: Uint8Array) {
     // O app converte para BT.709 de faixa limitada (Conversor.cs).
     colorSpace: { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false },
   });
-  escritor.write(quadro).catch(() => quadro.close());
+  entregar(quadro, cabecalho.getFloat64(16, true), chegou);
 }
 
 /**

@@ -8,6 +8,14 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.2.19] - 2026-10-17
+
+### Corrigido
+- **1080p e 60 fps sem atraso crescendo:** na 1.2.18, nessas qualidades, a imagem chegava ao app mais depressa do que a página dava conta, e o atraso da transmissão crescia sem parar (até segundos). Agora os quadros vão por um caminho próprio, fora da interface, e quando o PC aperta o app deixa um quadro de fora em vez de atrasar todos. Medido com o jogo aberto: 1080p a 60 fps com ~20 ms até a transmissão. As qualidades acima de 720p a 30 só aparecem a partir desta versão.
+
+### Mudado
+- **Captura mais firme com o jogo pesado:** a captura do app não espera mais a placa de vídeo nem a escrita de cada quadro, pega cada imagem assim que o Windows a entrega (sem pular quadros de um jogo a 60 fps), não perde o ritmo quando o Windows a considera "em segundo plano", e troca sozinha para a captura antiga se o driver da placa reiniciar.
+
 ## [1.2.18] - 2026-10-17
 
 ### Adicionado
@@ -277,7 +285,8 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
-[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.18...HEAD
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.19...HEAD
+[1.2.19]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.18...v1.2.19
 [1.2.18]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.17...v1.2.18
 [1.2.17]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.16...v1.2.17
 [1.2.16]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.15...v1.2.16

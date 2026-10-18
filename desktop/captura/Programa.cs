@@ -30,6 +30,24 @@ static class Programa
     [DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint periodo);
     [DllImport("user32.dll")] static extern bool IsWindow(IntPtr janela);
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr contexto);
+    [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+    [DllImport("kernel32.dll")] static extern bool SetProcessInformation(IntPtr processo, int classe, ref EstadoDeEconomia info, uint tamanho);
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct EstadoDeEconomia { public uint Version, ControlMask, StateMask; }
+
+    /// <summary>
+    /// Este processo não tem janela: para o Windows 11, ele é "invisível" e perde o relógio fino (o Sleep(1) vira o
+    /// tique de 15,6 ms) e pode ir para os núcleos de economia. Os dois atrasariam cada quadro. A mesma marca que o app
+    /// recebe do auxiliar de som (Relogio.cs), aqui no próprio processo; no Windows 10, não faz nada.
+    /// </summary>
+    static void SemEconomiaDeEnergia()
+    {
+        const uint IGNORAR_RELOGIO = 0x4, VELOCIDADE = 0x1; // PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION, _EXECUTION_SPEED
+        // No ControlMask e fora do StateMask: "esta regra de economia, não aplique".
+        var estado = new EstadoDeEconomia { Version = 1, ControlMask = IGNORAR_RELOGIO | VELOCIDADE, StateMask = 0 };
+        SetProcessInformation(GetCurrentProcess(), 4 /* ProcessPowerThrottling */, ref estado, (uint)Marshal.SizeOf<EstadoDeEconomia>());
+    }
 
     static volatile bool fim;
 
@@ -57,6 +75,7 @@ static class Programa
         // A tela vem como um ponto em pixels de verdade (o app converte de DIP): sem isto, o Windows trocaria os
         // números para um processo que não conhece a escala de cada tela.
         SetProcessDpiAwarenessContext((IntPtr)(-4)); // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+        SemEconomiaDeEnergia();
         timeBeginPeriod(1);
 
         if (segundos == 0)
@@ -78,106 +97,159 @@ static class Programa
         // O pool da captura usa o dispositivo na thread dele.
         using (var multithread = dispositivo.QueryInterface<ID3D11Multithread>()) multithread.SetMultithreadProtected(true);
 
+        // O jogo não pode atrasar a captura: o processo e o laço vão acima do normal, e o trabalho dele na placa (pouco:
+        // reduzir, converter e copiar um quadro) passa na frente na fila dela, quando o Windows deixa.
+        try { Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.AboveNormal; } catch { }
+        Thread.CurrentThread.Priority = ThreadPriority.Highest;
+        string prioridadeNaPlaca;
+        using (var dxgi = dispositivo.QueryInterface<IDXGIDevice>()) prioridadeNaPlaca = dxgi.SetGPUThreadPriority(7).Success ? "alta" : "normal";
+
         using var captura = new Wgc(dispositivo, janela, int.Parse(ponto[0]), int.Parse(ponto[1]));
         using var conversor = new Conversor(dispositivo, contexto, larguraMaxima, alturaMaxima, fps);
         Console.Error.WriteLine("pronto");
-        Console.Error.WriteLine($"placa: {placa.Description1.Description}; borda {(captura.BordaTirada ? "tirada" : "do Windows")}");
+        Console.Error.WriteLine($"placa: {placa.Description1.Description}; borda {(captura.BordaTirada ? "tirada" : "do Windows")}; prioridade na placa {prioridadeNaPlaca}");
 
-        using var saida = Console.OpenStandardOutput();
-        byte[] quadro = [];
-        int tamanhoDoQuadro = 0;
+        using var saida = new Saida();
+        byte[] quadro = []; // o último quadro (o que se repete com a imagem parada)
         long relogioBase = Stopwatch.GetTimestamp();
         double epocaBase = (DateTime.UtcNow - DateTime.UnixEpoch).TotalMilliseconds;
+        double EmMs(long momento) => epocaBase + (momento - relogioBase) * 1000.0 / Stopwatch.Frequency;
 
+        // O laço olha o Windows a cada ~1 ms e manda cada quadro assim que ele chega, sem passar do fps pedido: cada
+        // envio marca a vez do próximo um intervalo depois (contado da vez marcada, não da hora em que chegou), e um
+        // quadro pode ir até 10% do intervalo adiantado. Assim, um jogo a 60 com a captura a 60, fora de fase, não perde
+        // quadros, e a média fica no fps pedido. Antes, num ritmo fixo de 1/fps, o quadro esperava até o próximo tique
+        // (meio intervalo, em média) e, fora de fase, um saía pulado e o seguinte repetido.
         var relogio = Stopwatch.StartNew();
-        long intervalo = Stopwatch.Frequency / fps;
-        long proximo = Stopwatch.GetTimestamp(), ultimaEscrita = 0;
+        long intervalo = Stopwatch.Frequency / fps, folga = intervalo / 10;
+        long proximaVez = 0, ultimaEscrita = 0;
+        IntPtr guardado = IntPtr.Zero; // o quadro mais novo do Windows, esperando a vez de ir para a placa
+        ID3D11Texture2D? texturaGuardada = null;
+        Wgc.Tamanho conteudoGuardado = default;
+        long capturadoGuardado = 0;
         uint numero = 0;
-        long novos = 0, repetidos = 0, somaDaConversao = 0;
-        long ultimoSegundo = 0, novosAnt = 0, repetidosAnt = 0, conversaoAnt = 0;
-        while (!fim && (segundos == 0 || relogio.Elapsed.TotalSeconds < segundos))
+        long novos = 0, repetidos = 0, somaDoAuxiliar = 0, pulados = 0, atrasados = 0, voltas = 0;
+        long ultimoSegundo = 0, novosAnt = 0, repetidosAnt = 0, auxiliarAnt = 0, puladosAnt = 0, atrasadosAnt = 0, voltasAnt = 0;
+        (long ticks, long escritos, long descartados) saidaAnt = (0, 0, 0);
+        try
         {
-            long agora = Stopwatch.GetTimestamp();
-            if (agora < proximo)
+            while (!fim && !saida.Fechada && (segundos == 0 || relogio.Elapsed.TotalSeconds < segundos))
             {
-                int ms = (int)((proximo - agora) * 1000 / Stopwatch.Frequency);
-                if (ms > 1) Thread.Sleep(ms - 1); else Thread.SpinWait(200);
-                continue;
-            }
-            proximo = Math.Max(proximo + intervalo, agora - intervalo); // atrasou muito (o PC travou): não tenta compensar
-            long inicio = Stopwatch.GetTimestamp();
-
-            bool escrever = false;
-            IntPtr novo = captura.MaisNovo(out ID3D11Texture2D? textura, out Wgc.Tamanho conteudo);
-            if (novo != IntPtr.Zero)
-            {
-                try
+                bool escreveu = false;
+                voltas++;
+                // 1. O que a placa já terminou vai para a saída, na ordem.
+                if (quadro.Length != conversor.TamanhoDoQuadro && conversor.Largura > 0) quadro = new byte[conversor.TamanhoDoQuadro];
+                while (conversor.TentarLer(quadro, out long capturado, out long enviado))
                 {
-                    var descricao = textura!.Description;
-                    int largura = Math.Min(conteudo.Largura, (int)descricao.Width), altura = Math.Min(conteudo.Altura, (int)descricao.Height);
-                    if (largura >= 2 && altura >= 2)
+                    long lido = Stopwatch.GetTimestamp();
+                    "OZQ1"u8.CopyTo(quadro);
+                    BitConverter.TryWriteBytes(quadro.AsSpan(4), (ushort)conversor.Largura);
+                    BitConverter.TryWriteBytes(quadro.AsSpan(6), (ushort)conversor.Altura);
+                    BitConverter.TryWriteBytes(quadro.AsSpan(8), numero++);
+                    BitConverter.TryWriteBytes(quadro.AsSpan(16), EmMs(capturado));
+                    saida.Mandar(quadro);
+                    somaDoAuxiliar += lido - enviado;
+                    ultimaEscrita = lido;
+                    novos++;
+                    escreveu = true;
+                }
+
+                // 2. Um quadro novo do Windows fica guardado (o anterior, se ainda não foi, sai pulado: o fps passou do pedido).
+                IntPtr novo = captura.MaisNovo(out ID3D11Texture2D? textura, out Wgc.Tamanho conteudo);
+                if (novo != IntPtr.Zero)
+                {
+                    if (guardado != IntPtr.Zero)
                     {
-                        var (saidaL, saidaA) = Conversor.TamanhoDeSaida(largura, altura, larguraMaxima, alturaMaxima);
-                        int tamanho = 24 + saidaL * saidaA * 3 / 2;
-                        if (tamanho != tamanhoDoQuadro)
+                        texturaGuardada?.Dispose();
+                        Wgc.Fechar(guardado);
+                        pulados++;
+                    }
+                    guardado = novo;
+                    texturaGuardada = textura;
+                    conteudoGuardado = conteudo;
+                    capturadoGuardado = Stopwatch.GetTimestamp(); // o momento em que o Windows o entregou (o laço olha a cada ~1 ms)
+                }
+
+                // 3. Chegou a vez: o guardado vai para a placa (reduzir, converter e copiar para leitura).
+                long inicio = Stopwatch.GetTimestamp();
+                if (guardado != IntPtr.Zero && inicio >= proximaVez - folga)
+                {
+                    try
+                    {
+                        var descricao = texturaGuardada!.Description;
+                        int largura = Math.Min(conteudoGuardado.Largura, (int)descricao.Width), altura = Math.Min(conteudoGuardado.Altura, (int)descricao.Height);
+                        if (largura >= 2 && altura >= 2)
                         {
-                            quadro = new byte[tamanho];
-                            tamanhoDoQuadro = tamanho;
+                            // Parado por um tempo (imagem sem mudar), a vez recomeça de agora: sem rajada para "compensar".
+                            if (conversor.Enviar(texturaGuardada, largura, altura, capturadoGuardado, inicio)) proximaVez = Math.Max(proximaVez, inicio - folga) + intervalo;
+                            else atrasados++; // as três leituras ainda na fila da placa: este fica de fora
                         }
-                        conversor.Converter(textura, largura, altura, quadro.AsSpan(24));
-                        BitConverter.TryWriteBytes(quadro.AsSpan(4), (ushort)conversor.Largura);
-                        BitConverter.TryWriteBytes(quadro.AsSpan(6), (ushort)conversor.Altura);
-                        "OZQ1"u8.CopyTo(quadro);
-                        somaDaConversao += Stopwatch.GetTimestamp() - inicio;
-                        novos++;
-                        escrever = true;
+                    }
+                    finally
+                    {
+                        texturaGuardada?.Dispose();
+                        Wgc.Fechar(guardado);
+                        guardado = IntPtr.Zero;
+                        texturaGuardada = null;
                     }
                 }
-                finally
-                {
-                    textura?.Dispose();
-                    Wgc.Fechar(novo);
-                }
-            }
-            else if (tamanhoDoQuadro > 0 && (inicio - ultimaEscrita) * 1000.0 / Stopwatch.Frequency >= REPETIR_DEPOIS_MS)
-            {
-                repetidos++;
-                escrever = true;
-            }
 
-            if (escrever)
-            {
-                BitConverter.TryWriteBytes(quadro.AsSpan(8), numero++);
-                BitConverter.TryWriteBytes(quadro.AsSpan(16), epocaBase + (inicio - relogioBase) * 1000.0 / Stopwatch.Frequency);
-                try
+                // 4. A imagem parada: o último quadro de novo a cada 100 ms (com a mesma imagem, sem passar pela placa).
+                if (!escreveu && ultimaEscrita != 0 && conversor.Pendentes == 0 && guardado == IntPtr.Zero
+                    && (inicio - ultimaEscrita) * 1000.0 / Stopwatch.Frequency >= REPETIR_DEPOIS_MS)
                 {
-                    saida.Write(quadro);
-                    saida.Flush();
+                    BitConverter.TryWriteBytes(quadro.AsSpan(8), numero++);
+                    BitConverter.TryWriteBytes(quadro.AsSpan(16), EmMs(inicio));
+                    saida.Mandar(quadro);
+                    ultimaEscrita = inicio;
+                    repetidos++;
                 }
-                catch (IOException)
-                {
-                    break; // o app fechou a saída
-                }
-                ultimaEscrita = inicio;
-            }
 
-            long segundo = (long)relogio.Elapsed.TotalSeconds;
-            if (segundo != ultimoSegundo)
-            {
-                ultimoSegundo = segundo;
-                if (janela != IntPtr.Zero && !IsWindow(janela))
+                // 5. Uma vez por segundo: as medidas, a janela que fechou e a placa que reiniciou.
+                long segundo = (long)relogio.Elapsed.TotalSeconds;
+                if (segundo != ultimoSegundo)
                 {
-                    Console.Error.WriteLine("fechou");
-                    return 3;
+                    ultimoSegundo = segundo;
+                    if (janela != IntPtr.Zero && !IsWindow(janela))
+                    {
+                        Console.Error.WriteLine("fechou");
+                        return 3;
+                    }
+                    // O driver da placa reiniciou (ou ela foi desligada): o dispositivo não serve mais, e o Windows não
+                    // manda quadros. Sem isto, a página ficaria repetindo a última imagem; saindo, o app troca para a
+                    // captura do Chromium.
+                    if (dispositivo.DeviceRemovedReason.Failure)
+                    {
+                        Console.Error.WriteLine($"erro: a placa de vídeo reiniciou ({dispositivo.DeviceRemovedReason})");
+                        return 4;
+                    }
+                    long n = novos - novosAnt;
+                    // msConversao: da ida para a placa até o NV12 lido (a placa e a espera pela volta seguinte do laço);
+                    // msSaida: escrever um quadro para o app, na thread da saída (o cano só esvazia quando o app lê);
+                    // descartados: os que não couberam na fila da saída (o app atrasou).
+                    double msAuxiliar = n > 0 ? (somaDoAuxiliar - auxiliarAnt) * 1000.0 / Stopwatch.Frequency / n : 0;
+                    var medidasDaSaida = saida.Medidas;
+                    long escritos = medidasDaSaida.escritos - saidaAnt.escritos;
+                    double msSaida = escritos > 0 ? (medidasDaSaida.ticks - saidaAnt.ticks) * 1000.0 / Stopwatch.Frequency / escritos : 0;
+                    long descartados = medidasDaSaida.descartados - saidaAnt.descartados;
+                    saidaAnt = medidasDaSaida;
+                    Console.Error.WriteLine(FormattableString.Invariant(
+                        $"{{\"s\":{segundo},\"novos\":{n},\"repetidos\":{repetidos - repetidosAnt},\"pulados\":{pulados - puladosAnt},\"atrasados\":{atrasados - atrasadosAnt},\"msConversao\":{msAuxiliar:0.00},\"msSaida\":{msSaida:0.00},\"descartados\":{descartados},\"voltas\":{voltas - voltasAnt},\"largura\":{conversor.Largura},\"altura\":{conversor.Altura},\"processadorMs\":{Process.GetCurrentProcess().TotalProcessorTime.TotalMilliseconds:0}}}"));
+                    novosAnt = novos;
+                    repetidosAnt = repetidos;
+                    auxiliarAnt = somaDoAuxiliar;
+                    voltasAnt = voltas;
+                    puladosAnt = pulados;
+                    atrasadosAnt = atrasados;
                 }
-                long n = novos - novosAnt;
-                double msConversao = n > 0 ? (somaDaConversao - conversaoAnt) * 1000.0 / Stopwatch.Frequency / n : 0;
-                Console.Error.WriteLine(FormattableString.Invariant(
-                    $"{{\"s\":{segundo},\"novos\":{n},\"repetidos\":{repetidos - repetidosAnt},\"msConversao\":{msConversao:0.00},\"largura\":{conversor.Largura},\"altura\":{conversor.Altura},\"processadorMs\":{Process.GetCurrentProcess().TotalProcessorTime.TotalMilliseconds:0}}}"));
-                novosAnt = novos;
-                repetidosAnt = repetidos;
-                conversaoAnt = somaDaConversao;
+
+                Thread.Sleep(1); // com o timeBeginPeriod(1), ~1 ms
             }
+        }
+        finally
+        {
+            texturaGuardada?.Dispose();
+            if (guardado != IntPtr.Zero) Wgc.Fechar(guardado);
         }
         return 0;
     }

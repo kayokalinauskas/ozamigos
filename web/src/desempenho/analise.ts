@@ -23,6 +23,7 @@ export type ResumoDoTrecho = {
     msAuxiliar: number | null;
     msAtePagina: number | null;
     puladosNaPagina: number | null;
+    deixadosNoApp: number | null;
   };
   envio: {
     fpsCodificados: number | null;
@@ -251,6 +252,7 @@ export function resumirTrecho(g: Gravacao, trecho: Trecho): ResumoDoTrecho {
       msAuxiliar: media(captura.map((c) => c.app?.msAuxiliar ?? null), 2),
       msAtePagina: media(captura.map((c) => c.app?.msAtePagina ?? null)),
       puladosNaPagina: media(captura.map((c) => c.app?.puladosNaPagina ?? null)),
+      deixadosNoApp: media(captura.map((c) => c.app?.deixadosNoApp ?? null)),
     },
     envio: {
       fpsCodificados: media(envio.map((e) => e.fpsCodificados)),
@@ -369,7 +371,7 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
       // A captura do app (1.2.18): ela só manda quadro quando a imagem muda, e o auxiliar mede em que ponto ficou.
       const { novos, msAuxiliar, msAtePagina, puladosNaPagina } = pior.captura;
       const auxiliarLento = msAuxiliar != null && msAuxiliar > 1000 / pior.alvoFps / 2;
-      const paginaPulou = (puladosNaPagina ?? 0) >= 1;
+      const paginaPulou = (puladosNaPagina ?? 0) + (pior.captura.deixadosNoApp ?? 0) >= 1;
       lista.push({
         gravidade: 'alta',
         codigo: 'captura-lenta',
@@ -379,12 +381,12 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
           (auxiliarLento
             ? `O auxiliar levou ${fmt(msAuxiliar, ' ms', 1)} por quadro (reduzir, converter e ler da placa), mais da metade do intervalo de um quadro: ele é o gargalo. `
             : paginaPulou
-              ? `A página pulou ${fmt(puladosNaPagina, '', 1)} quadros por segundo por estar travada: o gargalo é a página de quem transmite (veja as tarefas longas). `
+              ? `A página não deu conta de ${fmt((puladosNaPagina ?? 0) + (pior.captura.deixadosNoApp ?? 0), '', 1)} quadros por segundo (pulados por ela ou deixados de fora pelo app com ela atrasada): o gargalo é a página de quem transmite (veja as tarefas longas). `
               : `O Windows entregou ${fmt(novos, '', 1)} quadros novos por segundo ao auxiliar, que levou ${fmt(msAuxiliar, ' ms', 1)} por quadro: o limite veio antes dele, do jogo (apresentou menos quadros) ou da montagem da tela com a placa cheia. `) +
           `Da captura até a página, ${fmt(msAtePagina, ' ms', 1)} em média.`,
         evidencias: capturaBaixa.map(
           (t) =>
-            `${t.trecho.nome} (${t.trecho.espectadores} esp.): captura ${fmt(t.captura.fps, ' fps')} de ${t.alvoFps}, novos ${fmt(t.captura.novos, '/s')}, auxiliar ${fmt(t.captura.msAuxiliar, ' ms', 1)}, até a página ${fmt(t.captura.msAtePagina, ' ms')}, pulados ${fmt(t.captura.puladosNaPagina, '/s', 1)}, placa 3D ${fmt(t.pc.placa3dTotal, '%')} (máx. ${fmt(t.pc.placa3dTotalMax, '%')})`,
+            `${t.trecho.nome} (${t.trecho.espectadores} esp.): captura ${fmt(t.captura.fps, ' fps')} de ${t.alvoFps}, novos ${fmt(t.captura.novos, '/s')}, auxiliar ${fmt(t.captura.msAuxiliar, ' ms', 1)}, até a página ${fmt(t.captura.msAtePagina, ' ms')}, pulados ${fmt(t.captura.puladosNaPagina, '/s', 1)}, deixados ${fmt(t.captura.deixadosNoApp, '/s', 1)}, placa 3D ${fmt(t.pc.placa3dTotal, '%')} (máx. ${fmt(t.pc.placa3dTotalMax, '%')})`,
         ),
         paraVoce:
           'Se o jogo roda abaixo do fps pedido, a captura acompanha o jogo. Com a placa cheia, limite o fps do jogo (ou ligue o VSync) e prefira transmitir a janela do jogo em vez da tela inteira.',

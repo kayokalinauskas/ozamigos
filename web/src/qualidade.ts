@@ -1,5 +1,3 @@
-import { lembrado, lembrar } from './armazenamento';
-
 // A qualidade da transmissão: 720p a 30 fps, a não ser que a pessoa escolha outra na engrenagem do app (aba Geral).
 // Muda ao vivo só o que o próprio WebRTC ajusta.
 // "detalhe" é o que sai de verdade: o codificador da placa passa uns 25% do bitrate pedido (medido numa AMD).
@@ -36,18 +34,6 @@ export const QUALIDADES = {
 export type Qualidade = keyof typeof QUALIDADES;
 
 export const QUALIDADE: Qualidade = 'leve';
-
-const CHAVE = 'ozamigos-resolucao'; // o id da qualidade escolhida na engrenagem (a chave antiga, ozamigos-qualidade, é apagada)
-
-/** A qualidade das próximas transmissões: a escolhida na engrenagem, ou o padrão (720p · 30). */
-export function qualidadeEscolhida(): Qualidade {
-  const guardada = lembrado(CHAVE);
-  return Object.hasOwn(QUALIDADES, guardada) ? (guardada as Qualidade) : QUALIDADE;
-}
-
-export function escolherQualidade(qualidade: Qualidade) {
-  lembrar(CHAVE, qualidade === QUALIDADE ? '' : qualidade);
-}
 
 /**
  * Os fps que a captura está entregando, quando ficam abaixo do que a qualidade pede (com folga de 15%),
