@@ -11,6 +11,8 @@ const NOTAS = {
   desmudo: [440, 587],
   surdo: [494, 330],
   dessurdo: [330, 494],
+  // Alguém chamou a sua atenção: duas batidas, mais longo que os outros, para ser ouvido.
+  chamado: [784, 988, 784, 988, 1175],
 } as const;
 
 export type Som = keyof typeof NOTAS;
@@ -25,8 +27,12 @@ export function ligarSons(ligar: boolean): void {
   lembrar('ozamigos-sons', ligar ? '' : 'nao');
 }
 
-export function tocar(som: Som): void {
-  if (!sonsLigados()) return;
+/**
+ * `sempre`: toca mesmo com os sons de aviso desligados. Só o chamado usa: é o jeito de um amigo chamar quem está com o
+ * som do Ozamigos desligado (que não passa por aqui: ele é o volume da voz e das transmissões).
+ */
+export function tocar(som: Som, sempre = false): void {
+  if (!sempre && !sonsLigados()) return;
   try {
     contexto ??= new AudioContext();
     const agora = contexto.currentTime;
@@ -37,7 +43,7 @@ export function tocar(som: Som): void {
       oscilador.frequency.value = frequencia;
       const inicio = agora + i * 0.09;
       ganho.gain.setValueAtTime(0, inicio);
-      ganho.gain.linearRampToValueAtTime(0.08, inicio + 0.01);
+      ganho.gain.linearRampToValueAtTime(som === 'chamado' ? 0.14 : 0.08, inicio + 0.01);
       ganho.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.16);
       oscilador.connect(ganho).connect(contexto!.destination);
       oscilador.start(inicio);

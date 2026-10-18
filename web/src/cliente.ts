@@ -144,6 +144,9 @@ const SUBIR_BITRATE_DEPOIS = 6_000;
 // Quanto depois da oferta conferir se o codificador H.265 está soltando quadros (preferirCodecs, em webrtc.ts).
 const CONFERIR_HEVC_DEPOIS = 10_000;
 
+// Chamar a atenção de alguém: de novo, só depois disso (a mesma regra do servidor, CHAMAR_DE_NOVO_MS).
+export const CHAMAR_DE_NOVO = 60_000;
+
 // Recusas do servidor que mandam a pessoa de volta para a tela de entrada, com o motivo.
 const RECUSAS: Partial<Record<MotivoDoErro, string>> = {
   'senha-errada': 'Senha errada. Confira com quem mandou o link.',
@@ -205,6 +208,8 @@ class Cliente {
   private avisoDoChat: { de: string; aviso: number } | null = null; // o aviso da última mensagem, enquanto na tela
   private envioDoChat: number[] = []; // quando mandei as últimas mensagens (o freio)
   private avisoDoFreio: number | null = null;
+  // Nome de quem chamei -> quando. Pelo nome: quem reconecta ganha outro id, e o freio do servidor é por conexão.
+  private readonly chamadas = new Map<string, number>();
   private readonly tentativasDeVideo = new Map<string, number>(); // id -> conexões de vídeo refeitas seguidas
   private readonly folgas = new Map<string, FolgaAdaptativa>(); // quem eu assisto -> folga de rede (folga.ts)
   private readonly relatorioDaSessao = new Relatorio();
@@ -654,9 +659,16 @@ class Cliente {
       case 'previa':
         this.receberPrevia(msg);
         break;
+      case 'chamado':
+        this.receberChamado(msg.de);
+        break;
       case 'erro':
         if (msg.motivo === 'chat-rapido-demais') {
           this.avisarFreioDoChat(); // raro: o freio daqui já segura antes, mas o relógio dos dois lados difere um pouco
+          break;
+        }
+        if (msg.motivo === 'chamar-cedo-demais') {
+          this.avisar('Espere um pouco para chamar de novo.', 'erro');
           break;
         }
         if (msg.motivo === 'sala-ja-gravando') {
@@ -705,6 +717,50 @@ class Cliente {
       recusa: motivo,
       ...(voltarAoFixo ? { grupo: null, sala: this.salaDoGrupoFixo, salaFixa: ehASalaFixa(location.pathname) } : {}),
     });
+  }
+
+  // ===== Chamar a atenção =====
+
+  /** Quanto falta para poder chamar essa pessoa de novo (0: já pode). */
+  chamarDeNovoEm(id: string): number {
+    const ultima = this.chamadas.get(this.nomeDe(id));
+    return ultima === undefined ? 0 : Math.max(0, ultima + CHAMAR_DE_NOVO - Date.now());
+  }
+
+  /**
+   * "Voltei, volta aí também": um som e um aviso só para essa pessoa, mesmo com o som do Ozamigos e as notificações
+   * desligados. Uma vez por minuto para cada pessoa (o servidor confere).
+   */
+  chamar(id: string) {
+    if (this.chamarDeNovoEm(id) > 0 || !this.estado.pessoas.some((p) => p.id === id)) return;
+    const nome = this.nomeDe(id);
+    this.chamadas.set(nome, Date.now());
+    this.enviar({ tipo: 'chamar', para: id });
+    this.registrar(`chamei a atenção de ${nome}`);
+    this.mostrarAviso(`Você chamou ${nome}.`);
+    this.mudar({}); // o botão passa a contar o tempo para chamar de novo
+  }
+
+  /**
+   * Alguém chamou a minha atenção: o som toca mesmo com os sons de aviso desligados, e a notificação do Windows aparece
+   * mesmo com as notificações desligadas (é para isso que existe). Quem eu silenciei para mim não me chama.
+   */
+  private receberChamado(de: string) {
+    if (voz.silenciadoParaMim(de)) return;
+    const nome = this.nomeDe(de);
+    this.registrar(`${nome} chamou a minha atenção`);
+    tocar('chamado', true);
+    // Com o som do Ozamigos desligado, o aviso já traz o botão para ligar (e o aviso fica mais tempo na tela).
+    const ligarOSom = voz.ler().surdo ? { rotulo: 'Ligar o som', executar: () => voz.alternarSurdo() } : undefined;
+    this.mostrarAviso(`${nome} está chamando você.`, 'info', ligarOSom);
+    ponte?.chamarAtencao?.();
+    if (document.hasFocus() || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    try {
+      const aviso = new Notification('Ozamigos', { body: `${nome} está chamando você.`, silent: true });
+      aviso.onclick = () => focus();
+    } catch {
+      // sem notificações: o som e o aviso na tela continuam
+    }
   }
 
   // ===== Chat da sala =====

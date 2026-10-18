@@ -2832,6 +2832,11 @@ button.chat-imagem-quadro:focus-visible {
   color: var(--ruim);
 }
 
+/* Chamar a atenção do amigo: do tamanho do texto, não da largura do menu. */
+.menu-da-voz-chamar {
+  align-self: flex-start;
+}
+
 .menu-da-voz-conexao {
   display: flex;
   align-items: center;

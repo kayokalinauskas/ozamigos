@@ -1102,6 +1102,13 @@ ipcMain.on('nao-lidas', (evento, quantas) => {
   mensagensNaoLidas = n;
 });
 
+// Alguém da sala chamou a atenção desta pessoa (o "chamado" da página): pisca o ícone até a janela ganhar o foco (o
+// 'focus' da janela para de piscar). A página já toca o som e mostra a notificação.
+ipcMain.on('chamar-atencao', (evento) => {
+  if (!vindoDaPagina(evento) || !janela || janela.isDestroyed() || janela.isFocused()) return;
+  janela.flashFrame(true);
+});
+
 // ===== Menu (sem barra de título, ele não aparece: fica pelos atalhos de teclado) =====
 
 function configurarMenu() {

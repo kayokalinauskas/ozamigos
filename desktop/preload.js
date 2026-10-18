@@ -100,6 +100,10 @@ contextBridge.exposeInMainWorld('ozamigos', {
   naoLidas(quantas) {
     ipcRenderer.send('nao-lidas', Number(quantas) || 0);
   },
+  /** Alguém chamou a sua atenção: o ícone pisca na barra de tarefas até a janela ganhar o foco (app 1.2.21 em diante). */
+  chamarAtencao() {
+    ipcRenderer.send('chamar-atencao');
+  },
   /** Fechar a janela deixa o app na bandeja, perto do relógio (app 1.2.13 em diante). */
   bandeja: {
     ler: () => ipcRenderer.invoke('bandeja-ler'),

@@ -30,6 +30,8 @@ export type MensagemParaOServidor =
   | { tipo: 'medidas'; pacote: Pacote }
   // O chat da sala: o servidor só repassa para todos da sala (quem mandou também) e não guarda nada.
   | { tipo: 'chat'; texto: string }
+  // Chamar a atenção de alguém da sala: um som e um aviso só para essa pessoa, uma vez por minuto (o servidor confere).
+  | { tipo: 'chamar'; para: string }
   | { tipo: 'ping' };
 
 /** Os sinais da conversa por voz (voz/voz.ts), que passam pelo mesmo servidor. */
@@ -54,6 +56,7 @@ export type MotivoDoErro =
   | 'sala-ja-gravando'
   | 'mensagem-invalida'
   | 'chat-rapido-demais'
+  | 'chamar-cedo-demais'
   | 'tipo-desconhecido';
 
 export type MensagemDoServidor =
@@ -85,6 +88,7 @@ export type MensagemDoServidor =
   | { tipo: 'chat'; de: string; texto: string }
   // A prévia de um link de vídeo do chat, buscada pelo servidor (PreviasDeLinks): chega logo depois da mensagem.
   | { tipo: 'previa'; url: string; site: string; titulo?: string; autor?: string; miniatura?: string; aoVivo?: boolean }
+  | { tipo: 'chamado'; de: string }
   | { tipo: 'erro'; motivo: MotivoDoErro }
   | { tipo: 'pong' };
 

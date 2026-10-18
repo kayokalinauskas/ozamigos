@@ -246,6 +246,24 @@ class SinalizacaoTest {
     }
 
     @Test
+    void chamarAAtencaoChegaSoAQuemFoiChamadoEUmaVezPorMinuto() throws Exception {
+        Cliente ana = entrar(sala, "Ana");
+        Cliente beto = entrar(sala, "Beto");
+        Cliente caio = entrar(sala, "Caio");
+
+        ana.enviar("{\"tipo\":\"chamar\",\"para\":\"" + beto.id + "\",\"de\":\"forjado\"}");
+        assertThat(beto.esperar("chamado").path("de").asString()).isEqualTo(ana.id);
+        assertThat(caio.recebeu("chamado")).isFalse();
+
+        ana.enviar("{\"tipo\":\"chamar\",\"para\":\"" + beto.id + "\"}");
+        assertThat(ana.esperar("erro").path("motivo").asString()).isEqualTo("chamar-cedo-demais");
+        assertThat(beto.recebeu("chamado")).isFalse();
+        // O freio é por pessoa chamada: o Caio ainda pode ser chamado.
+        ana.enviar("{\"tipo\":\"chamar\",\"para\":\"" + caio.id + "\"}");
+        caio.esperar("chamado");
+    }
+
+    @Test
     void umGrupoCriadoNaHoraTemASenhaDeleESoVeQuemEstaNele() throws Exception {
         String grupo = "g-" + sala.toLowerCase();
         Cliente semGrupo = conectar();

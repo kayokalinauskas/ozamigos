@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Check, Eye, EyeOff, HeadphoneOff, Headphones, Link, LogOut, Mic, MicOff, Settings, SignalLow, SignalMedium, SignalZero, VolumeX } from 'lucide-react';
+import { BellRing, Check, Eye, EyeOff, HeadphoneOff, Headphones, Link, LogOut, Mic, MicOff, Settings, SignalLow, SignalMedium, SignalZero, VolumeX } from 'lucide-react';
 import { cliente } from '../cliente';
 import { LIMITE_POR_SALA } from '../conexao/codigoDaSala';
 import { useCliente, useVoz } from '../useCliente';
@@ -284,11 +284,41 @@ function MenuDaVoz({ id, nome, aoFechar }: { id: string; nome: string; aoFechar:
         <input type="checkbox" role="switch" checked={silenciado} onChange={(e) => voz.silenciarParaMim(id, e.target.checked)} />
         <span>Silenciar para mim</span>
       </label>
+      <BotaoDeChamar id={id} nome={nome} />
       {q && (
         <p className={`menu-da-voz-conexao sinal-${q.nivel}`}>
           <span className="ponto" aria-hidden="true" /> Conexão {descrever(q)}
         </p>
       )}
     </li>
+  );
+}
+
+/**
+ * Chamar a atenção do amigo (por exemplo, ele com o som desligado e você de volta ao PC): ele ouve um som e vê um
+ * aviso, mesmo com o som do Ozamigos e as notificações desligados. Uma vez por minuto; o botão conta o tempo.
+ */
+function BotaoDeChamar({ id, nome }: { id: string; nome: string }) {
+  const [, redesenhar] = useState(0);
+  const falta = cliente.chamarDeNovoEm(id);
+  useEffect(() => {
+    if (falta <= 0) return;
+    const relogio = setTimeout(() => redesenhar((n) => n + 1), Math.min(falta, 1000));
+    return () => clearTimeout(relogio);
+  });
+  return (
+    <button
+      type="button"
+      className="botao botao-secundario botao-pequeno menu-da-voz-chamar"
+      disabled={falta > 0}
+      title={`Toca um som para ${nome} e mostra um aviso, mesmo com o som dele desligado. Uma vez por minuto.`}
+      onClick={() => {
+        cliente.chamar(id);
+        redesenhar((n) => n + 1);
+      }}
+    >
+      <BellRing size={14} />
+      {falta > 0 ? `Chamar de novo em ${Math.ceil(falta / 1000)} s` : `Chamar ${nome}`}
+    </button>
   );
 }

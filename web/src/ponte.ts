@@ -63,6 +63,8 @@ export type PonteOzamigos = {
   };
   /** Mensagens do chat ainda não vistas: o ponto na barra de tarefas e a dica da bandeja (app 1.2.13 em diante). */
   naoLidas?(quantas: number): void;
+  /** Alguém chamou a sua atenção: o ícone pisca na barra de tarefas (app 1.2.21 em diante). */
+  chamarAtencao?(): void;
   /** Fechar a janela deixa o app na bandeja, perto do relógio (app 1.2.13 em diante). */
   bandeja?: {
     ler(): Promise<boolean | null>;

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,6 +41,8 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     static final int CHAT_MAXIMO = 500;
     static final int CHAT_RAJADA = 5;
     static final long CHAT_JANELA_MS = 3_000;
+    /** Chamar a atenção de alguém: uma vez a cada tanto, para cada pessoa chamada (a mesma regra está no cliente). */
+    static final long CHAMAR_DE_NOVO_MS = 60_000;
 
     private final Salas salas;
     private final SenhaDoGrupo senhaDoGrupo;
@@ -100,6 +103,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             case "gravar-sala" -> gravarSala(sessao, id, sala, msg.path("ligada").asBoolean(false));
             case "medidas" -> repassarMedidas(id, sala, (ObjectNode) msg);
             case "chat" -> chat(sessao, id, sala, msg.path("texto").asString(""));
+            case "chamar" -> chamar(sessao, id, sala, msg.path("para").asString(""));
             // Mantém a conexão viva; a resposta mostra ao cliente que o servidor ainda está ouvindo.
             case "ping" -> enviar(segura(sessao), json.createObjectNode().put("tipo", "pong"));
             default -> erro(sessao, "tipo-desconhecido");
@@ -351,6 +355,31 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         for (WebSocketSession pessoa : salas.todos(sala)) {
             enviar(pessoa, mensagem);
         }
+    }
+
+    /**
+     * Chamar a atenção de alguém da sala (quem voltou para o PC chamando quem está com o som desligado): vai só para
+     * essa pessoa, que ouve um som mesmo com o som do Ozamigos desligado. Por isso o freio é aqui, e não só no cliente:
+     * uma vez a cada CHAMAR_DE_NOVO_MS para cada pessoa chamada.
+     */
+    private void chamar(WebSocketSession sessao, String id, String sala, String para) throws IOException {
+        WebSocketSession destino = para.equals(id) ? null : salas.sessao(sala, para);
+        if (destino == null) {
+            erro(sessao, "destinatario-nao-esta-na-sala");
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Long> chamadas = (Map<String, Long>) sessao.getAttributes().computeIfAbsent("chamadas", c -> new HashMap<String, Long>());
+        long agora = System.nanoTime();
+        synchronized (chamadas) {
+            Long ultima = chamadas.get(para);
+            if (ultima != null && agora - ultima < CHAMAR_DE_NOVO_MS * 1_000_000) {
+                erro(sessao, "chamar-cedo-demais");
+                return;
+            }
+            chamadas.put(para, agora);
+        }
+        enviar(destino, json.createObjectNode().put("tipo", "chamado").put("de", id));
     }
 
     /** Mais uma mensagem cabe na rajada desta pessoa? Guarda a hora das últimas na própria sessão. */

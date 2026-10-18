@@ -221,6 +221,36 @@ test('/ozamigos é o grupo fixo, sempre na mesma sala, com a senha do servidor',
   for (const pagina of [ana, beto]) await pagina.context().close();
 });
 
+test('chamar a atenção toca para o amigo mesmo com o som e os sons de aviso desligados, uma vez por minuto', async ({ browser }) => {
+  const sala = novaSala();
+  const ana = await entrarNaSala(browser, sala, 'Ana');
+  const beto = await entrarNaSala(browser, sala, 'Beto');
+  await expect(ana.getByLabel('Sala e pessoas')).toContainText('Beto');
+
+  // O Beto desligou o som do Ozamigos e os sons de aviso; anota as notas que tocam na página dele.
+  await beto.getByRole('button', { name: 'Desligar o som e o microfone' }).click();
+  await beto.evaluate(() => {
+    localStorage.setItem('ozamigos-sons', 'nao');
+    const notas: number[] = [];
+    (window as unknown as { __notas: number[] }).__notas = notas;
+    const comecar = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function (this: OscillatorNode, ...argumentos: [number?]) {
+      notas.push(this.frequency.value);
+      return comecar.apply(this, argumentos);
+    };
+  });
+
+  await ana.getByRole('button', { name: 'Beto: volume da voz e silenciar' }).click();
+  await ana.getByRole('button', { name: 'Chamar Beto' }).click();
+  await expect(beto.getByText('Ana está chamando você.')).toBeVisible();
+  await expect.poll(() => beto.evaluate(() => (window as unknown as { __notas: number[] }).__notas)).toContain(1175);
+  await beto.getByRole('button', { name: 'Ligar o som' }).click(); // o aviso já traz o botão
+  await expect(beto.getByRole('button', { name: 'Desligar o som e o microfone' })).toBeVisible();
+  // Para chamar de novo, só depois de um minuto: o botão conta o tempo.
+  await expect(ana.getByRole('button', { name: /Chamar de novo em \d+ s/ })).toBeDisabled();
+  for (const pagina of [ana, beto]) await pagina.context().close();
+});
+
 test('a transmissão de uma pessoa chega em movimento para quem assiste', async ({ browser }) => {
   const sala = novaSala();
   const ana = await entrarNaSala(browser, sala, 'Ana');

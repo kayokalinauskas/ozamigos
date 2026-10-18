@@ -9,6 +9,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ## [Não lançado]
 
 ### Novo
+- **Chamar a atenção de um amigo:** clicando no nome dele, "Chamar" toca um som e mostra um aviso para ele, mesmo com o som do Ozamigos e as notificações desligados ("Voltei, volta aí também"). O aviso traz o botão para ligar o som. Uma vez por minuto para cada amigo. No app para Windows, a partir da próxima versão, o ícone também pisca na barra de tarefas.
 - **Grupos com nome e senha seus:** na entrada, "Criar um grupo com outra senha" cria um grupo no endereço `.../nome-do-grupo`, com a senha que você escolher. Mande o link e a senha para os amigos. O grupo fica até o Ozamigos ser atualizado ou reiniciado, e quem abrir o link depois cria de novo, com a mesma senha, em um clique. O grupo de sempre continua na entrada, e ganhou o endereço fixo `.../ozamigos`, sempre na mesma sala.
 
 ### Corrigido
