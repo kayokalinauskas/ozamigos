@@ -13,6 +13,10 @@ test.afterAll(() => {
   if (process.platform === 'win32' && !atalhoJaExistia) fs.rmSync(ATALHO, { force: true });
 });
 
+// O app pergunta ao servidor antes de abrir a página; sem resposta em 1,5 s, mostra "Conectando…" (inicio.html, com outro
+// h1) e só depois abre a página. No CI, o servidor de teste às vezes demora isso no primeiro pedido.
+const PAGINA_DO_SERVIDOR = 20_000;
+
 async function abrirApp(servidor, configuracao = {}) {
   const dados = fs.mkdtempSync(path.join(os.tmpdir(), 'ozamigos-teste-'));
   // Sem o aviso "o Ozamigos continua aberto" do Windows a cada teste que fecha a janela.
@@ -40,7 +44,7 @@ test('abre a interface do servidor, com a ponte do app e sem acesso ao Node', as
   const endereco = `http://localhost:${servidor.address().port}`;
   const aberto = await abrirApp(endereco);
   try {
-    await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');
+    await expect(aberto.janela.getByRole('heading', { name: 'servidor de teste' })).toBeVisible({ timeout: PAGINA_DO_SERVIDOR });
     expect(aberto.janela.url()).toBe(`${endereco}/`);
     const ponte = await aberto.janela.evaluate(() => ({
       ponte: Object.keys(window.ozamigos ?? {}).sort(),
@@ -87,7 +91,7 @@ test('com o servidor dormindo, explica e conta o tempo, e abre a sala sozinho qu
     await expect(aberto.janela.locator('#acordando')).toContainText('Conectando');
     expect(await aberto.janela.locator('#formulario').isVisible()).toBe(false);
     await expect.poll(() => aberto.janela.url(), { timeout: 10_000 }).toBe(`${endereco}/`);
-    await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');
+    await expect(aberto.janela.getByRole('heading', { name: 'servidor de teste' })).toBeVisible({ timeout: PAGINA_DO_SERVIDOR });
   } finally {
     await fechar(aberto);
     servidor.close();
@@ -108,7 +112,7 @@ test('os atalhos de voz chegam à página pelo auxiliar do app, que lê as tecla
   const { servidor, endereco } = await servidorDeTeste();
   const aberto = await abrirApp(endereco);
   try {
-    await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');
+    await expect(aberto.janela.getByRole('heading', { name: 'servidor de teste' })).toBeVisible({ timeout: PAGINA_DO_SERVIDOR });
     // F24 (0x87): uma tecla que existe para o Windows mas em nenhum teclado, então não mexe em nada do PC de quem roda.
     const globais = await aberto.janela.evaluate(async () => {
       window.__atalhos = [];
@@ -145,7 +149,7 @@ test('a captura do app manda à página os quadros prontos da janela escolhida, 
   const { servidor, endereco } = await servidorDeTeste();
   const aberto = await abrirApp(endereco);
   try {
-    await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');
+    await expect(aberto.janela.getByRole('heading', { name: 'servidor de teste' })).toBeVisible({ timeout: PAGINA_DO_SERVIDOR });
     // A página faz o que a interface faz: pede a tela (num clique), e responde ao seletor do app pedindo a captura dele.
     await aberto.janela.evaluate((titulo) => {
       window.__quadros = [];
@@ -195,7 +199,7 @@ test('fechar a janela deixa o app na bandeja, e a página tem a bandeja, o aviso
   const { servidor, endereco } = await servidorDeTeste();
   const aberto = await abrirApp(endereco);
   try {
-    await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');
+    await expect(aberto.janela.getByRole('heading', { name: 'servidor de teste' })).toBeVisible({ timeout: PAGINA_DO_SERVIDOR });
     const pagina = await aberto.janela.evaluate(async () => {
       window.ozamigos.naoLidas(2); // o ponto na barra de tarefas: não pode dar erro
       let telaAcordada;
@@ -267,7 +271,7 @@ test('a página que cai abre de novo sozinha', async () => {
   const { servidor, endereco } = await servidorDeTeste();
   const aberto = await abrirApp(endereco);
   try {
-    await expect(aberto.janela.locator('h1')).toHaveText('servidor de teste');
+    await expect(aberto.janela.getByRole('heading', { name: 'servidor de teste' })).toBeVisible({ timeout: PAGINA_DO_SERVIDOR });
     // O Playwright perde a página junto com o processo que caiu: quem confere é o processo principal do app.
     await aberto.app.evaluate(({ BrowserWindow }) => {
       const conteudo = BrowserWindow.getAllWindows()[0].webContents;
@@ -302,7 +306,7 @@ test('um convite ozamigos:// abre o app na sala, e com o app aberto chega à pá
   const app = await electron.launch({ args: [embrulho, 'ozamigos://sala/Convite01/'], env });
   try {
     const janela = await app.firstWindow();
-    await expect(janela.locator('h1')).toHaveText('servidor de teste');
+    await expect(janela.getByRole('heading', { name: 'servidor de teste' })).toBeVisible({ timeout: PAGINA_DO_SERVIDOR });
     expect(janela.url()).toBe(`${endereco}/?sala=Convite01`);
 
     // Com o app aberto, o Windows abre outro processo com o link: ele passa o convite ao primeiro e fecha.
