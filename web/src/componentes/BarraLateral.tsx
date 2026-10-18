@@ -12,7 +12,7 @@ import { Logo } from './Logo';
 import { Versao } from './Versao';
 
 export function BarraLateral() {
-  const { sala, grupo, pessoas, meuId, meuNome, transmitindo, plateias, assistindo } = useCliente();
+  const { sala, grupo, salaFixa, pessoas, meuId, meuNome, transmitindo, plateias, assistindo } = useCliente();
   const { falando, remotos, conexao } = useVoz();
   const [copiado, setCopiado] = useState(false);
   const [menuDe, setMenuDe] = useState<string | null>(null); // o amigo com o menu de voz aberto
@@ -48,7 +48,7 @@ export function BarraLateral() {
 
       <section className="cartao-sala">
         <div>
-          <span className="rotulo">{grupo ? 'Grupo' : 'Sala'}</span>
+          <span className="rotulo">{grupo || salaFixa ? 'Grupo' : 'Sala'}</span>
           <code className="codigo-sala" title={sala}>
             {sala}
           </code>

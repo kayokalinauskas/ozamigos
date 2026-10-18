@@ -15,7 +15,7 @@ const NO_WINDOWS = /Windows/.test(navigator.userAgent);
 const SENHA_MINIMA = 4;
 
 export function Entrada() {
-  const { sala, grupo } = useCliente();
+  const { sala, grupo, salaFixa } = useCliente();
   const [criando, setCriando] = useState(false);
 
   // No navegador do Windows, o link de uma sala pergunta antes se a pessoa quer abrir no app (Convite.tsx).
@@ -40,6 +40,8 @@ export function Entrada() {
         <CriarGrupo aoVoltar={() => setCriando(false)} />
       ) : grupo ? (
         <EntrarNoGrupo grupo={grupo} key={grupo} />
+      ) : salaFixa ? (
+        <EntrarNoGrupo grupo={sala} fixo />
       ) : (
         <EntrarNaSala aoCriarGrupo={() => setCriando(true)} />
       )}
@@ -118,11 +120,14 @@ function EntrarNaSala({ aoCriarGrupo }: { aoCriarGrupo: () => void }) {
   );
 }
 
-/** O endereço de um grupo criado na hora (/nome): o nome da pessoa e a senha do grupo. */
-function EntrarNoGrupo({ grupo }: { grupo: string }) {
+/**
+ * O endereço de um grupo criado na hora (/nome), ou o do grupo fixo (/ozamigos, `fixo`: a senha do servidor e sempre
+ * a mesma sala): o nome da pessoa e a senha do grupo.
+ */
+function EntrarNoGrupo({ grupo, fixo = false }: { grupo: string; fixo?: boolean }) {
   const { fase, erro, recusa, meuNome } = useCliente();
   const [nome, setNome] = useState(meuNome);
-  const [senha, setSenha] = useState(() => lembrado(cliente.chaveDaSenha(grupo)));
+  const [senha, setSenha] = useState(() => lembrado(cliente.chaveDaSenha(fixo ? null : grupo)));
   const entrando = fase === 'entrando';
 
   function enviar(evento: FormEvent) {

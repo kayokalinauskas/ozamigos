@@ -32,9 +32,7 @@ class OzamigosShareApplicationTests {
     @Test
     void oEnderecoDeUmGrupoAbreAInterfaceSemTomarOsCaminhosDoServidor() throws Exception {
         assertThat(new PaginaDoGrupo().grupo("amigos-do-kayo")).isEqualTo("forward:/index.html");
-        HttpResponse<String> fixo = get("/ozamigos");
-        assertThat(fixo.statusCode()).isEqualTo(302);
-        assertThat(fixo.headers().firstValue("Location").orElse("")).endsWith("/");
+        assertThat(new PaginaDoGrupo().grupo("ozamigos")).isEqualTo("forward:/index.html"); // o grupo fixo, sala única
         assertThat(get("/privacidade").statusCode()).isEqualTo(404);
         // O WebSocket continua sendo do WebSocket (sem o pedido de upgrade, ele recusa), não da página do grupo.
         assertThat(get("/sinal").statusCode()).isEqualTo(400);

@@ -16,10 +16,8 @@ public class PaginaDoGrupo {
 
     @GetMapping("/{nome:(?!(?:sinal|actuator|assets)$)[a-z0-9][a-z0-9-]{1,30}[a-z0-9]}")
     public String grupo(@PathVariable String nome) {
-        if (nome.equals("ozamigos")) {
-            return "redirect:/"; // o grupo fixo é a raiz
-        }
-        if (!Grupos.nomeValido(nome)) {
+        // /ozamigos é o grupo fixo (a senha OZAMIGOS_SENHA), com uma sala só: a de código "ozamigos". A interface sabe.
+        if (!nome.equals("ozamigos") && !Grupos.nomeValido(nome)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         return "forward:/index.html";

@@ -203,6 +203,24 @@ test('quem cria um grupo com nome e senha próprios manda o link, e o amigo só 
   for (const pagina of [ana, beto, caio]) await pagina.context().close();
 });
 
+test('/ozamigos é o grupo fixo, sempre na mesma sala, com a senha do servidor', async ({ browser }) => {
+  const ana = await (await browser.newContext()).newPage();
+  await ana.addInitScript(prepararPagina);
+  await ana.goto('/ozamigos');
+  await expect(ana.getByText('Grupo ozamigos')).toBeVisible();
+  await expect(ana.getByLabel('Sala', { exact: true })).toHaveCount(0); // sem código de sala para escolher
+  await ana.getByLabel('Seu nome').fill('Ana');
+  await ana.getByLabel('Senha do grupo').fill('teste');
+  await ana.getByRole('button', { name: 'Entrar no grupo' }).click();
+  await expect(ana.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+  await expect(ana).toHaveURL(/\/ozamigos$/); // nada de sala sorteada no endereço
+
+  // Quem entra pela sala de código "ozamigos" (o app antigo, por exemplo) está na mesma sala.
+  const beto = await entrarNaSala(browser, 'ozamigos', 'Beto');
+  await expect(beto.getByRole('complementary', { name: 'Sala e pessoas' })).toContainText('Ana');
+  for (const pagina of [ana, beto]) await pagina.context().close();
+});
+
 test('a transmissão de uma pessoa chega em movimento para quem assiste', async ({ browser }) => {
   const sala = novaSala();
   const ana = await entrarNaSala(browser, sala, 'Ana');

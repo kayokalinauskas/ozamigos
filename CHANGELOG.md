@@ -9,7 +9,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ## [Não lançado]
 
 ### Novo
-- **Grupos com nome e senha seus:** na entrada, "Criar um grupo com outra senha" cria um grupo no endereço `.../nome-do-grupo`, com a senha que você escolher. Mande o link e a senha para os amigos. O grupo existe enquanto é usado: some depois de um tempo sem ninguém, e quem abrir o link depois cria de novo, com a mesma senha, em um clique. O grupo de sempre continua na entrada.
+- **Grupos com nome e senha seus:** na entrada, "Criar um grupo com outra senha" cria um grupo no endereço `.../nome-do-grupo`, com a senha que você escolher. Mande o link e a senha para os amigos. O grupo existe enquanto é usado: some depois de um tempo sem ninguém, e quem abrir o link depois cria de novo, com a mesma senha, em um clique. O grupo de sempre continua na entrada, e ganhou o endereço fixo `.../ozamigos`, sempre na mesma sala.
 
 ### Corrigido
 - **O botão de tela cheia da transmissão agora também sai dela:** antes ele só entrava, e era preciso apertar Esc.

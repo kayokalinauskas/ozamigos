@@ -37,6 +37,16 @@ export function linkDaSala(codigo: string): string {
   return `${location.origin}${location.pathname}?sala=${codigo}`;
 }
 
+/**
+ * O endereço /ozamigos é o grupo fixo (a senha do servidor) com uma sala só, sempre a mesma: a de código "ozamigos".
+ * Quem entra por /?sala=ozamigos (o app antigo, por exemplo) cai na mesma sala.
+ */
+export const SALA_FIXA = 'ozamigos';
+
+export function ehASalaFixa(caminho: string): boolean {
+  return caminho.replace(/^\/+|\/+$/g, '') === SALA_FIXA;
+}
+
 // ===== Grupos criados na hora (Grupos.java): o endereço é /nome, e o grupo tem uma sala só =====
 
 /** Os mesmos de Grupos.RESERVADOS no servidor: o grupo fixo e os caminhos do site. */

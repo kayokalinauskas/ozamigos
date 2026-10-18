@@ -17,7 +17,7 @@ import { trocaDeImagens } from './imagens/troca';
 import { novoIdDeImagem, type Chegada } from './imagens/protocolo';
 import type { ImagemComprimida } from './imagens/compressor';
 import { FOLGA, FolgaAdaptativa } from './folga';
-import { LIMITE_POR_SALA, codigoValido, grupoDoCaminho, linkDaSala, linkDoGrupo, novoCodigo } from './conexao/codigoDaSala';
+import { LIMITE_POR_SALA, SALA_FIXA, codigoValido, ehASalaFixa, grupoDoCaminho, linkDaSala, linkDoGrupo, novoCodigo } from './conexao/codigoDaSala';
 import {
   FPS_MINIMO_DA_CAPTURA,
   capturarDoNavegador,
@@ -55,6 +55,7 @@ export type Estado = {
   recusa: MotivoDoErro | null; // o motivo do erro da entrada (o "Criar de novo" de um grupo que sumiu depende dele)
   sala: string; // o código da sala, ou o nome do grupo criado na hora
   grupo: string | null; // o grupo criado na hora (Grupos.java), ou null no grupo fixo
+  salaFixa: boolean; // o endereço /ozamigos: o grupo fixo, sempre na mesma sala (SALA_FIXA)
   meuId: string | null;
   meuNome: string;
   pessoas: Pessoa[]; // as outras pessoas, na ordem em que entraram
@@ -221,17 +222,19 @@ class Cliente {
 
   constructor() {
     const grupo = grupoDoCaminho(location.pathname);
+    const salaFixa = ehASalaFixa(location.pathname);
     const daUrl = new URLSearchParams(location.search).get('sala');
     // O convite para o app (Convite.tsx) é só das salas do grupo fixo: o app ainda não abre um grupo pelo link.
-    this.veioDeUmLink = !grupo && Boolean(daUrl && codigoValido(daUrl));
+    this.veioDeUmLink = !grupo && !salaFixa && Boolean(daUrl && codigoValido(daUrl));
     const sala = daUrl && codigoValido(daUrl) ? daUrl : novoCodigo();
     lembrar('ozamigos-qualidade', ''); // a escolha de qualidade saiu (14/10/2026): o que estava guardado não serve mais
     this.estado = {
       fase: 'entrada',
       erro: '',
       recusa: null,
-      sala: grupo ?? sala,
+      sala: grupo ?? (salaFixa ? SALA_FIXA : sala),
       grupo,
+      salaFixa,
       meuId: null,
       meuNome: lembrado('ozamigos-nome'),
       pessoas: [],
@@ -249,7 +252,7 @@ class Cliente {
       conexaoPerdida: false,
       gravacaoDaSala: null,
     };
-    if (!grupo) this.trocarSala(sala);
+    if (!grupo && !salaFixa) this.trocarSala(sala);
     aoPararVideoDoApp((aviso) => void this.videoDoAppParou(aviso));
     // Um "estou aqui" a cada 30 s: sem isso, proxies e hospedagens gratuitas fecham a conexão parada.
     setInterval(() => {
@@ -367,13 +370,14 @@ class Cliente {
   // ===== Entrada =====
 
   trocarSala(codigo: string) {
-    if (!codigoValido(codigo) || this.estado.grupo) return;
+    if (!codigoValido(codigo) || this.estado.grupo || this.estado.salaFixa) return;
     history.replaceState(null, '', `?sala=${codigo}`);
     this.mudar({ sala: codigo });
   }
 
   /** O link que se manda aos amigos: o do grupo, ou o da sala. */
   linkDeConvite(): string {
+    if (this.estado.salaFixa) return linkDoGrupo(SALA_FIXA);
     return this.estado.grupo ? linkDoGrupo(this.estado.grupo) : linkDaSala(this.estado.sala);
   }
 
@@ -407,7 +411,7 @@ class Cliente {
   criarGrupo(grupo: string, nome: string, senha: string) {
     if (this.estado.fase !== 'entrada') return;
     if (!this.estado.grupo) this.salaDoGrupoFixo = this.estado.sala;
-    this.mudar({ grupo, sala: grupo });
+    this.mudar({ grupo, sala: grupo, salaFixa: false });
     this.entrar(nome, senha, true);
   }
 
@@ -501,8 +505,8 @@ class Cliente {
    */
   abrirConvite(codigo: string) {
     if (!codigoValido(codigo)) return;
-    const { fase, sala, grupo } = this.estado;
-    if (fase === 'entrada' && grupo) {
+    const { fase, sala, grupo, salaFixa } = this.estado;
+    if (fase === 'entrada' && (grupo || salaFixa)) {
       location.assign(`/?sala=${codigo}`); // a sala do convite é do grupo fixo
     } else if (fase === 'entrada') {
       this.trocarSala(codigo);
@@ -695,7 +699,12 @@ class Cliente {
     }
     // Criar um grupo pela entrada do grupo fixo deu errado: a entrada volta a ser a do grupo fixo.
     const voltarAoFixo = this.estado.grupo !== null && !grupoDoCaminho(location.pathname);
-    this.mudar({ fase: 'entrada', erro: recusa, recusa: motivo, ...(voltarAoFixo ? { grupo: null, sala: this.salaDoGrupoFixo } : {}) });
+    this.mudar({
+      fase: 'entrada',
+      erro: recusa,
+      recusa: motivo,
+      ...(voltarAoFixo ? { grupo: null, sala: this.salaDoGrupoFixo, salaFixa: ehASalaFixa(location.pathname) } : {}),
+    });
   }
 
   // ===== Chat da sala =====
