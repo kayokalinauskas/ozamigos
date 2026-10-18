@@ -7,7 +7,8 @@ namespace Ozamigos.Captura;
 /// <summary>
 /// A captura do Windows (Windows Graphics Capture) de uma janela ou de uma tela, sem a projeção WinRT do .NET (que
 /// pesaria ~20 MB no .exe): as interfaces são chamadas pelo índice da vtable, como os outros COM do app. 0–2 são as do
-/// IUnknown e 3–5 as do IInspectable; os métodos de cada interface vêm depois, na ordem do windows.graphics.capture.idl.
+/// IUnknown e 3–5 as do IInspectable; os métodos de cada interface vêm depois, na ordem do windows.graphics.capture.idl
+/// (conferidos, com os IIDs, no C:\Windows\System32\WinMetadata\Windows.Graphics.winmd em 17/10/2026).
 /// Ao acrescentar uma chamada, confira o índice no .idl.
 /// </summary>
 sealed unsafe class Wgc : IDisposable
@@ -17,6 +18,7 @@ sealed unsafe class Wgc : IDisposable
     static readonly Guid IidEstaticosDoPool2 = new("589b103f-6bbc-5df5-a991-02e28b3b66d5"); // IDirect3D11CaptureFramePoolStatics2
     static readonly Guid IidSessao2 = new("2c39ae40-7d2e-5044-804e-8b6799d4cf9e"); // IGraphicsCaptureSession2 (o cursor)
     static readonly Guid IidSessao3 = new("f2cdd966-22ae-5ea1-9596-3a289344c3be"); // IGraphicsCaptureSession3 (a borda amarela)
+    static readonly Guid IidSessao5 = new("67c0ea62-1f85-5061-925a-239be0ac09cb"); // IGraphicsCaptureSession5 (o intervalo mínimo)
     static readonly Guid IidDispositivoWinRt = new("a37624ab-8d5f-4650-9d3e-9eae3d9bc670"); // IDirect3DDevice
     static readonly Guid IidAcessoDxgi = new("a9b3d012-3df2-4ee3-b8d1-8695f457d3c1"); // IDirect3DDxgiInterfaceAccess
     static readonly Guid IidFechavel = new("30d5a829-7fa4-4026-83bb-d75bae4ea99e"); // IClosable
@@ -41,8 +43,11 @@ sealed unsafe class Wgc : IDisposable
     IntPtr item, pool, sessao, dispositivoWinRt;
     Tamanho tamanhoDoPool;
 
-    /// <summary>janela: o HWND; ou, sem janela, a tela que contém o ponto (em pixels de verdade, não em DIP).</summary>
-    public Wgc(ID3D11Device dispositivo, IntPtr janela, int x, int y)
+    /// <summary>
+    /// janela: o HWND; ou, sem janela, a tela que contém o ponto (em pixels de verdade, não em DIP). fps: o pedido, para
+    /// o intervalo mínimo entre quadros do Windows.
+    /// </summary>
+    public Wgc(ID3D11Device dispositivo, IntPtr janela, int x, int y, int fps)
     {
         RoInitialize(1); // multithread; já iniciado responde S_FALSE
         IntPtr interop = Fabrica("Windows.Graphics.Capture.GraphicsCaptureItem", IidInteropDoItem);
@@ -90,10 +95,29 @@ sealed unsafe class Wgc : IDisposable
         // Windows deixa (11 em diante): quem joga a veria o tempo todo. Um Windows que recusa só fica com a borda.
         Ajustar(IidSessao2, 7, 1); // put_IsCursorCaptureEnabled
         BordaTirada = Ajustar(IidSessao3, 7, 0) == 0; // put_IsBorderRequired
+        // O Windows entrega no máximo um quadro a cada 1/60 s, arredondado para os quadros da tela: num monitor de 155 Hz,
+        // um a cada três, 52 por segundo (medido: uma janela a 156 fps chegava a 52, e a captura a 60 fps também). Com
+        // metade do intervalo pedido, sobra folga para o laço escolher sem copiar cada quadro da tela à toa. O Windows
+        // 11 24H2 em diante; antes, fica o padrão (put_MinUpdateInterval, um TimeSpan em unidades de 100 ns).
+        IntervaloMinimo = AjustarIntervalo(10_000_000L / fps / 2) == 0;
         Conferir(((delegate* unmanaged[Stdcall]<IntPtr, int>)Vtable(sessao, 6))(sessao), "StartCapture");
     }
 
     public bool BordaTirada { get; }
+    public bool IntervaloMinimo { get; }
+
+    int AjustarIntervalo(long cemNanossegundos)
+    {
+        if (Marshal.QueryInterface(sessao, in IidSessao5, out IntPtr versao) != 0) return -1;
+        try
+        {
+            return ((delegate* unmanaged[Stdcall]<IntPtr, long, int>)Vtable(versao, 7))(versao, cemNanossegundos);
+        }
+        finally
+        {
+            Marshal.Release(versao);
+        }
+    }
 
     /// <summary>
     /// O quadro mais novo que chegou desde a última vez (os anteriores são descartados), ou null. O chamador precisa

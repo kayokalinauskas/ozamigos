@@ -148,6 +148,9 @@ export function pararVideoDoApp() {
   ponte?.video?.parar();
   if (!trilha) return;
   ponte?.video?.aoReceberQuadro(() => undefined);
+  // Fechar a escrita encerra a trilha com o evento "ended", que é o "parar de transmitir" de quem a usa (usarTela). Na
+  // troca da captura do app para a do Chromium, isso encerrava a transmissão inteira: o aviso sai antes.
+  trilha.onended = null;
   escritor?.close().catch(() => undefined);
   trilha.stop();
   trilha = null;

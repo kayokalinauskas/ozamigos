@@ -104,10 +104,10 @@ static class Programa
         string prioridadeNaPlaca;
         using (var dxgi = dispositivo.QueryInterface<IDXGIDevice>()) prioridadeNaPlaca = dxgi.SetGPUThreadPriority(7).Success ? "alta" : "normal";
 
-        using var captura = new Wgc(dispositivo, janela, int.Parse(ponto[0]), int.Parse(ponto[1]));
+        using var captura = new Wgc(dispositivo, janela, int.Parse(ponto[0]), int.Parse(ponto[1]), fps);
         using var conversor = new Conversor(dispositivo, contexto, larguraMaxima, alturaMaxima, fps);
         Console.Error.WriteLine("pronto");
-        Console.Error.WriteLine($"placa: {placa.Description1.Description}; borda {(captura.BordaTirada ? "tirada" : "do Windows")}; prioridade na placa {prioridadeNaPlaca}");
+        Console.Error.WriteLine($"placa: {placa.Description1.Description}; borda {(captura.BordaTirada ? "tirada" : "do Windows")}; prioridade na placa {prioridadeNaPlaca}; intervalo mínimo {(captura.IntervaloMinimo ? "ajustado" : "padrão")}");
 
         using var saida = new Saida();
         byte[] quadro = []; // o último quadro (o que se repete com a imagem parada)
@@ -180,8 +180,11 @@ static class Programa
                         int largura = Math.Min(conteudoGuardado.Largura, (int)descricao.Width), altura = Math.Min(conteudoGuardado.Altura, (int)descricao.Height);
                         if (largura >= 2 && altura >= 2)
                         {
-                            // Parado por um tempo (imagem sem mudar), a vez recomeça de agora: sem rajada para "compensar".
-                            if (conversor.Enviar(texturaGuardada, largura, altura, capturadoGuardado, inicio)) proximaVez = Math.Max(proximaVez, inicio - folga) + intervalo;
+                            // A vez seguinte conta da vez marcada, não da hora em que o quadro chegou: contada da chegada, cada
+                            // atraso (o quadro do jogo vem uns ms depois da vez) se somava, e a 60 fps saíam ~51 com o jogo a
+                            // 100. Parado mais de um intervalo (imagem sem mudar), recomeça de agora: sem rajada para "compensar".
+                            if (conversor.Enviar(texturaGuardada, largura, altura, capturadoGuardado, inicio))
+                                proximaVez = inicio - proximaVez > intervalo ? inicio + intervalo : proximaVez + intervalo;
                             else atrasados++; // as três leituras ainda na fila da placa: este fica de fora
                         }
                     }

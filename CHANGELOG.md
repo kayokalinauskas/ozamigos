@@ -13,6 +13,9 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ### Corrigido
 - **1080p e 60 fps sem atraso crescendo:** na 1.2.18, nessas qualidades, a imagem chegava ao app mais depressa do que a página dava conta, e o atraso da transmissão crescia sem parar (até segundos). Agora os quadros vão por um caminho próprio, fora da interface, e quando o PC aperta o app deixa um quadro de fora em vez de atrasar todos. Medido com o jogo aberto: 1080p a 60 fps com ~20 ms até a transmissão. As qualidades acima de 720p a 30 só aparecem a partir desta versão.
 
+- **60 fps de verdade:** a captura do Windows entregava no máximo ~52 quadros por segundo num monitor acima de 60 Hz. Agora a transmissão a 60 fps sai a 60 (medido no jogo, em 720p e em 1080p).
+- Trocar o que você transmite da captura nova para a antiga (Ctrl+Shift+N) no meio da transmissão encerrava a transmissão.
+
 ### Mudado
 - **Captura mais firme com o jogo pesado:** a captura do app não espera mais a placa de vídeo nem a escrita de cada quadro, pega cada imagem assim que o Windows a entrega (sem pular quadros de um jogo a 60 fps), não perde o ritmo quando o Windows a considera "em segundo plano", e troca sozinha para a captura antiga se o driver da placa reiniciar.
 
