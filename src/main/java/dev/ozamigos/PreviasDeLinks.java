@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
@@ -591,10 +592,17 @@ public class PreviasDeLinks {
             ImageReader leitor = leitores.next();
             try {
                 leitor.setInput(entrada, true, true);
+                int lado = Math.max(leitor.getWidth(0), leitor.getHeight(0));
                 if ((long) leitor.getWidth(0) * leitor.getHeight(0) > PIXELS_NO_MAXIMO) {
                     return null;
                 }
-                imagem = leitor.read(0);
+                // Lê já reduzida (pulando pixels), até o dobro do lado da miniatura, que a redução bicúbica de baixo
+                // acaba de afinar. Inteira, uma imagem de 40 MP ocupava ~160 MB na memória do servidor (com até 4 prévias
+                // ao mesmo tempo, num servidor de 512 MB); assim, cabe em ~1 MB.
+                ImageReadParam parametros = leitor.getDefaultReadParam();
+                int passo = Math.max(1, lado / (LADO_DA_MINIATURA * 2));
+                parametros.setSourceSubsampling(passo, passo, 0, 0);
+                imagem = leitor.read(0, parametros);
             } finally {
                 leitor.dispose();
             }

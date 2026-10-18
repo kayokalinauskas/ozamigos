@@ -88,6 +88,15 @@ class PreviasDeLinksTest {
     }
 
     @Test
+    void umaImagemGrandeViraAMiniaturaNaProporcaoCerta() throws Exception {
+        // Lida já reduzida (de 6 em 6 pixels): a miniatura sai igual, sem abrir a imagem inteira na memória.
+        String dados = PreviasDeLinks.reduzir(png(4800, 2700));
+        BufferedImage miniatura = ImageIO.read(new ByteArrayInputStream(Base64.getDecoder().decode(dados.substring(23))));
+        assertThat(miniatura.getWidth()).isEqualTo(400);
+        assertThat(miniatura.getHeight()).isEqualTo(225);
+    }
+
+    @Test
     void aPreviaDoYoutubeVemDoOembedComAMiniaturaReduzidaEFicaGuardada() throws Exception {
         String link = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
         InternetFalsa internet = new InternetFalsa(Map.of(
