@@ -208,6 +208,15 @@ test('a transmissão de uma pessoa chega em movimento para quem assiste', async 
   await beto.getByRole('figure', { name: 'Transmissão de Ana' }).hover();
   await beto.getByRole('button', { name: 'Mandar um print de Ana para o chat' }).click();
   await expect(beto.getByLabel('Imagens para mandar').getByRole('img', { name: 'Imagem para mandar' })).toBeVisible({ timeout: 15_000 });
+
+  // O mesmo botão entra e sai da tela cheia (o X é parar de assistir, não sair dela).
+  const emTelaCheia = () => beto.evaluate(() => document.fullscreenElement?.getAttribute('aria-label') ?? null);
+  await beto.getByRole('figure', { name: 'Transmissão de Ana' }).hover();
+  await beto.getByRole('button', { name: 'Tela cheia: Ana' }).click();
+  await expect.poll(emTelaCheia).toBe('Transmissão de Ana');
+  await beto.getByRole('button', { name: 'Sair da tela cheia: Ana' }).click();
+  await expect.poll(emTelaCheia).toBeNull();
+  await expect(beto.getByRole('button', { name: 'Tela cheia: Ana' })).toBeVisible();
 });
 
 test('a voz chega, o microfone desligado silencia e quem sai some da sala', async ({ browser }) => {

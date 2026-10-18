@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, LoaderCircle, Maximize, Maximize2, PictureInPicture2, Volume1, Volume2, VolumeX, X } from 'lucide-react';
+import { Camera, LoaderCircle, Maximize, Maximize2, Minimize, PictureInPicture2, Volume1, Volume2, VolumeX, X } from 'lucide-react';
 import { cliente } from '../cliente';
 import type { Metrica } from '../conexao/medidor';
 import { useCliente, useNumeroLembrado, useVoz } from '../useCliente';
@@ -101,9 +101,21 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
     if (document.fullscreenElement) cliente.avisar('O print está na bandeja do chat: saia da tela cheia (Esc) e aperte Enter para mandar.');
   }
 
+  // Tela cheia: o mesmo botão (e os dois cliques no vídeo) entra e sai. O Esc do navegador também sai, por isso o
+  // estado vem do fullscreenchange, não do clique.
+  const [emTelaCheia, setEmTelaCheia] = useState(false);
+  useEffect(() => {
+    const mudou = () => setEmTelaCheia(document.fullscreenElement !== null && document.fullscreenElement === bloco.current);
+    document.addEventListener('fullscreenchange', mudou);
+    return () => document.removeEventListener('fullscreenchange', mudou);
+  }, []);
+
   const IconeDeVolume = mudo || volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
   // Recusada (outra coisa já em tela cheia, ou sem gesto da pessoa): nada a fazer, o vídeo continua onde estava.
-  const telaCheia = () => void bloco.current?.requestFullscreen().catch(() => undefined);
+  const telaCheia = () => {
+    if (document.fullscreenElement === bloco.current) void document.exitFullscreen().catch(() => undefined);
+    else void bloco.current?.requestFullscreen().catch(() => undefined);
+  };
 
   return (
     <figure ref={bloco} className={principal ? 'transmissao transmissao-principal' : 'transmissao'} aria-label={`Transmissão de ${nome}`}>
@@ -179,8 +191,14 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
             <PictureInPicture2 size={18} />
           </button>
         )}
-        <button type="button" className="botao-icone" aria-label={`Tela cheia: ${nome}`} title="Tela cheia (ou dois cliques no vídeo)" onClick={telaCheia}>
-          <Maximize size={18} />
+        <button
+          type="button"
+          className="botao-icone"
+          aria-label={emTelaCheia ? `Sair da tela cheia: ${nome}` : `Tela cheia: ${nome}`}
+          title={emTelaCheia ? 'Sair da tela cheia (ou Esc, ou dois cliques no vídeo)' : 'Tela cheia (ou dois cliques no vídeo)'}
+          onClick={telaCheia}
+        >
+          {emTelaCheia ? <Minimize size={18} /> : <Maximize size={18} />}
         </button>
         <button type="button" className="botao-icone" aria-label={`Parar de assistir ${nome}`} title="Parar de assistir" onClick={() => cliente.deixarDeAssistir(id)}>
           <X size={18} />

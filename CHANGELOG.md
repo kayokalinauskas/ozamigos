@@ -8,6 +8,9 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+### Corrigido
+- **O botão de tela cheia da transmissão agora também sai dela:** antes ele só entrava, e era preciso apertar Esc.
+
 ## [1.2.20] - 2026-10-18
 
 ### Mudado
