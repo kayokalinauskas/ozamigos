@@ -58,19 +58,30 @@ class GruposTest {
     }
 
     @Test
-    void oGrupoSomeTrintaMinutosDepoisDeFicarVazioENaoEnquantoTemGente() {
+    void oGrupoVazioFicaAteOServidorReiniciar() {
         grupos.entrar("amigos", "segredo", true, "1.1.1.1");
         grupos.ocupado("amigos");
-        relogio.agora = relogio.agora.plus(Duration.ofHours(5));
-        assertThat(grupos.entrar("amigos", "segredo", false, "2.2.2.2")).isEqualTo(Grupos.Resultado.ENTRA);
-
         grupos.vazio("amigos");
-        relogio.agora = relogio.agora.plus(Grupos.VAZIO_POR).minusSeconds(1);
-        assertThat(grupos.quantos()).isEqualTo(1);
-        relogio.agora = relogio.agora.plusSeconds(1);
-        assertThat(grupos.entrar("amigos", "segredo", false, "2.2.2.2")).isEqualTo(Grupos.Resultado.NAO_EXISTE);
-        // Esquecido, o nome fica livre: até com outra senha.
-        assertThat(grupos.entrar("amigos", "outra", true, "2.2.2.2")).isEqualTo(Grupos.Resultado.CRIADO);
+        relogio.agora = relogio.agora.plus(Duration.ofDays(3));
+        assertThat(grupos.entrar("amigos", "segredo", false, "2.2.2.2")).isEqualTo(Grupos.Resultado.ENTRA);
+    }
+
+    @Test
+    void comOServidorCheioOVazioHaMaisTempoDaLugarEOsComGenteFicam() {
+        for (int i = 0; i < Grupos.MAXIMO; i++) {
+            relogio.agora = relogio.agora.plus(Grupos.JANELA_DE_CRIACAO); // cada um de um endereço, sem o freio
+            assertThat(grupos.entrar("grupo" + i, "segredo", true, "10.0.0." + i)).isEqualTo(Grupos.Resultado.CRIADO);
+            grupos.ocupado("grupo" + i);
+        }
+        assertThat(grupos.entrar("mais-um", "segredo", true, "9.9.9.9")).isEqualTo(Grupos.Resultado.GRUPOS_DEMAIS);
+
+        grupos.vazio("grupo7");
+        relogio.agora = relogio.agora.plusSeconds(60);
+        grupos.vazio("grupo3");
+        assertThat(grupos.entrar("mais-um", "segredo", true, "9.9.9.9")).isEqualTo(Grupos.Resultado.CRIADO);
+        assertThat(grupos.entrar("grupo7", "segredo", false, "9.9.9.9")).isEqualTo(Grupos.Resultado.NAO_EXISTE);
+        assertThat(grupos.entrar("grupo3", "segredo", false, "9.9.9.9")).isEqualTo(Grupos.Resultado.ENTRA);
+        assertThat(grupos.quantos()).isEqualTo(Grupos.MAXIMO);
     }
 
     @Test

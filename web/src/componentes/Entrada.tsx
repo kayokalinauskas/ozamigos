@@ -227,7 +227,7 @@ function CriarGrupo({ aoVoltar }: { aoVoltar: () => void }) {
         <small className={confirmacao === '' || confere ? 'ajuda' : 'ajuda ajuda-erro'}>
           {confirmacao !== '' && !confere
             ? 'As senhas não são iguais.'
-            : `Pelo menos ${SENHA_MINIMA} caracteres. O grupo some depois de um tempo sem ninguém: aí, é só criar de novo com a mesma senha.`}
+            : `Pelo menos ${SENHA_MINIMA} caracteres. O grupo não fica guardado para sempre: se ele sumir, é só criar de novo com a mesma senha.`}
         </small>
       </label>
 

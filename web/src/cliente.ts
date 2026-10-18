@@ -150,7 +150,7 @@ const RECUSAS: Partial<Record<MotivoDoErro, string>> = {
   'muitas-tentativas': 'Muitas senhas erradas seguidas deste endereço. Espere 5 minutos e tente de novo.',
   'sala-cheia': `A sala está cheia (máximo de ${LIMITE_POR_SALA} pessoas).`,
   'codigo-invalido': 'Código de sala inválido: use de 6 a 20 letras e números.',
-  'grupo-nao-existe': 'Esse grupo não existe mais: os grupos somem depois de um tempo sem ninguém. Dá para criar de novo, com a senha que vocês combinaram.',
+  'grupo-nao-existe': 'Esse grupo não existe mais: os grupos não ficam guardados para sempre. Dá para criar de novo, com a senha que vocês combinaram.',
   'grupo-em-uso': 'Já existe um grupo com esse nome agora. Escolha outro nome.',
   'grupo-invalido': 'Nome de grupo inválido: use de 3 a 32 letras minúsculas, números e hífen.',
   'senha-curta': 'A senha do grupo precisa de pelo menos 4 caracteres.',

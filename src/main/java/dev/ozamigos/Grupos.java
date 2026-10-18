@@ -21,9 +21,14 @@ import org.springframework.stereotype.Component;
 
 /**
  * Os grupos que qualquer pessoa cria na hora, com nome e senha próprios (o endereço é {@code /nome}). Ficam só na
- * memória, como as salas: somem quando o servidor reinicia (deploy, ou o Render dormindo) e {@code VAZIO_POR} depois
- * de ficarem sem ninguém. Quem volta com o link e a senha recria o grupo. Decisão do dono (18/10/2026): sem banco de
- * dados, e não importa que o grupo caia. O grupo fixo, o da senha OZAMIGOS_SENHA, continua em SenhaDoGrupo.
+ * memória, até o servidor reiniciar (deploy, ou o Render dormindo); quem volta com o link e a senha recria o grupo.
+ * Decisão do dono (18/10/2026): sem banco de dados, e não importa que o grupo caia. O grupo fixo, o da senha
+ * OZAMIGOS_SENHA, continua em SenhaDoGrupo.
+ *
+ * <p>Contra quem quisesse lotar o servidor: cada endereço cria até CRIACOES_POR_ENDERECO grupos a cada
+ * JANELA_DE_CRIACAO, e com MAXIMO grupos o que está vazio há mais tempo dá lugar ao novo. Um grupo com gente dentro
+ * nunca sai; só com todos ocupados a criação é recusada. Até 18/10/2026 (o mesmo dia), o grupo também sumia 30 minutos
+ * depois de ficar vazio: o dono preferiu que ele ficasse até o servidor reiniciar.
  *
  * <p>Cada grupo tem uma sala só, a de chave {@link #sala(String)}. Os códigos das salas do grupo fixo são só letras
  * e números, então as chaves nunca se confundem.
@@ -43,7 +48,6 @@ public class Grupos {
     static final int MAXIMO = 200;
     static final int CRIACOES_POR_ENDERECO = 3;
     static final Duration JANELA_DE_CRIACAO = Duration.ofMinutes(10);
-    static final Duration VAZIO_POR = Duration.ofMinutes(30);
     /** A senha é escolhida por quem cria (pode ser fraca): o resumo é lento de propósito, com sal. */
     private static final int ITERACOES = 20_000;
 
@@ -54,7 +58,10 @@ public class Grupos {
     private static final class Grupo {
         final byte[] sal;
         final byte[] resumo;
-        /** Desde quando está sem ninguém (null: tem gente). Um grupo recém-criado conta como vazio até alguém entrar. */
+        /**
+         * Desde quando está sem ninguém (null: tem gente), para escolher quem dá lugar com o servidor cheio. Um grupo
+         * recém-criado conta como vazio até alguém entrar.
+         */
         Instant vazioDesde;
 
         Grupo(byte[] sal, byte[] resumo, Instant agora) {
@@ -87,7 +94,8 @@ public class Grupos {
     }
 
     /**
-     * Confere a entrada num grupo. Com {@code criar}, cria o grupo se ele não existe (ou já não existe: foi esquecido);
+     * Confere a entrada num grupo. Com {@code criar}, cria o grupo se ele não existe (ou já não existe: o servidor
+     * reiniciou, ou ele deu lugar a outro);
      * existindo, a senha certa entra do mesmo jeito (amigos recriando juntos), e a errada dá EM_USO.
      */
     public synchronized Resultado entrar(String nome, String senha, boolean criar, String endereco) {
@@ -95,7 +103,7 @@ public class Grupos {
             return Resultado.NOME_INVALIDO;
         }
         Instant agora = relogio.instant();
-        esquecerVazios(agora);
+        criacoes.values().removeIf(r -> r.isEmpty() || !r.peekLast().isAfter(agora.minus(JANELA_DE_CRIACAO)));
         Grupo grupo = grupos.get(nome);
         if (grupo != null) {
             if (MessageDigest.isEqual(grupo.resumo, resumo(senha, grupo.sal))) {
@@ -109,15 +117,16 @@ public class Grupos {
         if (senha.length() < SENHA_MINIMA) {
             return Resultado.SENHA_CURTA;
         }
-        if (grupos.size() >= MAXIMO) {
-            return Resultado.GRUPOS_DEMAIS;
-        }
         Deque<Instant> recentes = criacoes.computeIfAbsent(endereco, e -> new ArrayDeque<>());
         while (!recentes.isEmpty() && !recentes.peekFirst().isAfter(agora.minus(JANELA_DE_CRIACAO))) {
             recentes.removeFirst();
         }
         if (recentes.size() >= CRIACOES_POR_ENDERECO) {
             return Resultado.CRIOU_DEMAIS;
+        }
+        // Cheio: sai o vazio há mais tempo. Depois do freio por endereço, para quem já foi barrado não tirar ninguém.
+        if (grupos.size() >= MAXIMO && !darLugar()) {
+            return Resultado.GRUPOS_DEMAIS;
         }
         recentes.addLast(agora);
         byte[] sal = new byte[16];
@@ -134,7 +143,7 @@ public class Grupos {
         }
     }
 
-    /** A sala do grupo ficou vazia: daqui a VAZIO_POR, ele é esquecido (se ninguém voltar antes). */
+    /** A sala do grupo ficou vazia: com o servidor cheio de grupos, é dos primeiros a dar lugar. */
     public synchronized void vazio(String nome) {
         Grupo grupo = grupos.get(nome);
         if (grupo != null && grupo.vazioDesde == null) {
@@ -143,14 +152,25 @@ public class Grupos {
     }
 
     public synchronized int quantos() {
-        esquecerVazios(relogio.instant());
         return grupos.size();
     }
 
-    private void esquecerVazios(Instant agora) {
-        Instant limite = agora.minus(VAZIO_POR);
-        grupos.values().removeIf(g -> g.vazioDesde != null && !g.vazioDesde.isAfter(limite));
-        criacoes.values().removeIf(r -> r.isEmpty() || !r.peekLast().isAfter(agora.minus(JANELA_DE_CRIACAO)));
+    /** Tira o grupo vazio há mais tempo. Devolve false se todos têm gente. */
+    private boolean darLugar() {
+        String maisAntigo = null;
+        Instant desde = null;
+        for (Map.Entry<String, Grupo> par : grupos.entrySet()) {
+            Instant vazio = par.getValue().vazioDesde;
+            if (vazio != null && (desde == null || vazio.isBefore(desde))) {
+                maisAntigo = par.getKey();
+                desde = vazio;
+            }
+        }
+        if (maisAntigo == null) {
+            return false;
+        }
+        grupos.remove(maisAntigo);
+        return true;
     }
 
     private static byte[] resumo(String senha, byte[] sal) {

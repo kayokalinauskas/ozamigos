@@ -125,7 +125,7 @@
           <ul>
             <li>Rooms, names and chat messages: only while the room is open, in the server's memory. None of it is recorded.</li>
             <li>IP address of someone who enters a wrong password: 5 minutes, in memory.</li>
-            <li>Created groups (the name and the password digest): in memory, until 30 minutes after they become empty, or until the server restarts. The IP address of someone who creates a group stays in memory for 10 minutes, to limit how many groups each person creates.</li>
+            <li>Created groups (the name and the password digest): in memory, until the server restarts (or earlier, if the server fills up with groups and an empty group makes room for another). The IP address of someone who creates a group stays in memory for 10 minutes, to limit how many groups each person creates.</li>
             <li>Video links and their previews: up to 1 hour, in memory, so the same link isn't fetched again.</li>
             <li>Technical logs: for a short period, as long as the hosting provider keeps them.</li>
             <li>Data on your device: until you delete it.</li>
