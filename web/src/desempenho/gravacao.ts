@@ -35,7 +35,7 @@ export function etapasDoRoteiro(roteiro: Roteiro, sua: Qualidade): Etapa[] {
       { nome: rotulo(sua), segundos: 25, qualidade: sua, espectadores: 7 },
     ];
   }
-  // Uma qualidade só (qualidade.ts): o roteiro completo passa por 1, 3 e 7 espectadores, mais tempo em cada.
+  // Na qualidade de agora (a escolhida na engrenagem): o roteiro completo passa por 1, 3 e 7 espectadores, mais tempo em cada.
   return [
     { nome: 'Aquecimento', segundos: 10, qualidade: sua, espectadores: 1, aquecimento: true },
     { nome: rotulo(sua), segundos: 35, qualidade: sua, espectadores: 1 },

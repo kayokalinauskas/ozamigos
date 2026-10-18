@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, Server, X } from 'lucide-react';
 import { TIPOS_DE_NOTIFICACAO, ligarNotificacao, notificacaoLigada } from '../notificacoes';
 import { ponte } from '../ponte';
+import { QUALIDADE, QUALIDADES, escolherQualidade, qualidadeEscolhida, type Qualidade } from '../qualidade';
 import { ligarSons, sonsLigados } from '../sons';
 import { useVoz } from '../useCliente';
 import type { Supressao } from '../voz/ajustes';
@@ -278,6 +279,7 @@ function AbaGeral() {
           </label>
         </section>
       )}
+      {ponte && <SecaoDaQualidade />}
       <section className="configuracoes-secao" aria-labelledby="titulo-versao">
         <h3 id="titulo-versao">Versão</h3>
         <p className="ajuda">
@@ -299,6 +301,50 @@ function AbaGeral() {
         )}
       </section>
     </>
+  );
+}
+
+/**
+ * A qualidade da transmissão (só no app): 720p · 30 por padrão; 1080p e 60 fps são opções, com o custo dito antes.
+ * Fica aqui, longe da tela principal, de propósito (pedido do dono): o 720p · 30 continua sendo o que todos usam.
+ */
+function SecaoDaQualidade() {
+  const [qualidade, setQualidade] = useState<Qualidade>(qualidadeEscolhida);
+  const { fps, altura } = QUALIDADES[qualidade];
+  return (
+    <section className="configuracoes-secao" aria-labelledby="titulo-qualidade">
+      <h3 id="titulo-qualidade">Qualidade da transmissão</h3>
+      <fieldset className="opcoes">
+        <legend className="visualmente-escondido">Qualidade da transmissão</legend>
+        {(Object.keys(QUALIDADES) as Qualidade[]).map((valor) => (
+          <label key={valor} className={qualidade === valor ? 'opcao escolhida' : 'opcao'}>
+            <input
+              type="radio"
+              name="qualidade"
+              checked={qualidade === valor}
+              onChange={() => {
+                escolherQualidade(valor);
+                setQualidade(valor);
+              }}
+            />
+            <span>
+              <strong>{QUALIDADES[valor].rotulo}</strong>
+              {valor === QUALIDADE && <small>Recomendado. A que todos usam.</small>}
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      {qualidade !== QUALIDADE && (
+        <p className="ajuda">
+          {altura > 720 && fps > 30
+            ? 'Usa quase o triplo da sua internet de envio para cada amigo assistindo, e bem mais da placa de vídeo.'
+            : 'Usa quase o dobro da sua internet de envio para cada amigo assistindo, e mais da placa de vídeo.'}{' '}
+          {fps > 30 && 'Em jogo pesado, a imagem pode não chegar a 60 fps (as estatísticas mostram quanto chega). '}
+          Com vários amigos assistindo ou uma internet mais fraca, a imagem pode perder nitidez ou travar: nesse caso, volte para o 720p · 30 fps.
+        </p>
+      )}
+      <p className="ajuda">Vale a partir da próxima vez que você escolher o que transmitir.</p>
+    </section>
   );
 }
 

@@ -472,7 +472,7 @@ Cada pessoa que assiste é mais um vídeo saindo do PC de quem transmite. O code
 
 A voz pesa pouco: Opus mono a 64 kbps para cada amigo da sala, e quase nada enquanto você não fala. Numa sala cheia (7 amigos), são no máximo ~450 kbps de upload.
 
-A transmissão sai sempre em **720p a 30 fps**, ~4 Mbps de upload para cada pessoa assistindo, como no Discord sem Nitro. Não há escolha de qualidade (até 14/10/2026 havia 1080p e 60 fps): em jogo pesado, a captura do navegador não passava de ~21–29 fps (a do app, desde a 1.2.18, dá 28–30), e o 1080p dobrava o custo de codificar e de enviar sem melhorar o que os amigos viam.
+A transmissão sai em **720p a 30 fps**, ~4 Mbps de upload para cada pessoa assistindo, como no Discord sem Nitro. No app (1.2.18 em diante), a engrenagem (aba **Geral**) tem também 720p a 60 fps (~6 Mbps), 1080p a 30 (~7 Mbps) e 1080p a 60 (~11 Mbps), por pessoa assistindo; vale a partir da próxima vez que você escolhe o que transmitir. Na tela principal não há escolha (até 14/10/2026 havia 1080p e 60 fps no navegador também): em jogo pesado, a captura do navegador não passava de ~21–29 fps (a do app, desde a 1.2.18, dá 28–30), e o 1080p dobrava o custo de codificar e de enviar sem melhorar o que os amigos viam.
 
 Quando falta processador ou internet, o próprio WebRTC baixa o fps e a nitidez em vez de travar, mas a imagem continua em 720p (como o Stoat faz com a tela). Como cada amigo tem a sua conexão, isso vale por pessoa: quem está num Wi-Fi ruim recebe uma imagem menos nítida, e quem está no cabo nem percebe. O selo da transmissão mostra o que chega (por exemplo, "720p · 24 fps").
 

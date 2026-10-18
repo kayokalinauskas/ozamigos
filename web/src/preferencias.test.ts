@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { lembrado, lembradoNumero, lembrar } from './armazenamento';
-import { QUALIDADE, QUALIDADES, capturaAbaixo } from './qualidade';
+import { QUALIDADE, QUALIDADES, capturaAbaixo, escolherQualidade, qualidadeEscolhida } from './qualidade';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -33,9 +33,19 @@ describe('preferências guardadas', () => {
 });
 
 describe('qualidade', () => {
-  it('é uma só, 720p a 30 fps, e quando falta banda o WebRTC baixa o fps e a nitidez, nunca a resolução', () => {
-    expect(Object.keys(QUALIDADES)).toEqual([QUALIDADE]);
+  it('o padrão é 720p a 30 fps, e quando falta banda o WebRTC baixa o fps e a nitidez, nunca a resolução', () => {
+    expect(qualidadeEscolhida()).toBe(QUALIDADE);
     expect(QUALIDADES[QUALIDADE]).toMatchObject({ altura: 720, fps: 30, preferencia: 'maintain-resolution' });
+    expect(Object.values(QUALIDADES).every((q) => q.preferencia === 'maintain-resolution')).toBe(true);
+  });
+
+  it('a escolhida na engrenagem vale para as próximas transmissões, e voltar ao padrão apaga a escolha', () => {
+    escolherQualidade('nitida60');
+    expect(qualidadeEscolhida()).toBe('nitida60');
+    escolherQualidade(QUALIDADE);
+    expect(localStorage.getItem('ozamigos-resolucao')).toBeNull();
+    localStorage.setItem('ozamigos-resolucao', 'qualquer'); // de uma versão que não existe mais: vale o padrão
+    expect(qualidadeEscolhida()).toBe(QUALIDADE);
   });
 });
 

@@ -5,7 +5,7 @@
 //   medidor.ts      as estatísticas de cada segundo               relatorio.ts  o relatório da sessão
 
 import { lembrado, lembrar } from './armazenamento';
-import { QUALIDADE, QUALIDADES, type Qualidade } from './qualidade';
+import { QUALIDADE, QUALIDADES, qualidadeEscolhida, type Qualidade } from './qualidade';
 import { notificacaoLigada, type TipoDeNotificacao } from './notificacoes';
 import { tocar } from './sons';
 import { esquecerEscolha, noApp, ponte, resultadoDaUltimaEscolha, seletorCarregando } from './ponte';
@@ -60,7 +60,7 @@ export type Estado = {
   assistindo: string[]; // quem eu escolhi assistir (continua valendo se a pessoa parar e voltar)
   videos: Record<string, MediaStream>; // o que chega de cada pessoa que eu assisto
   minhaTela: MediaStream | null;
-  qualidade: Qualidade; // sempre a mesma (qualidade.ts): fica no estado para os relatórios
+  qualidade: Qualidade; // a da transmissão de agora (720p, ou o 1080p escolhido na engrenagem do app)
   metricas: Record<string, Metrica>; // `${canal}:${id}` -> medição
   avisos: Aviso[];
   conexaoPerdida: boolean; // caiu a conexão com o servidor; o cliente já está tentando voltar sozinho
@@ -926,8 +926,14 @@ class Cliente {
    * o navegador exige um gesto da pessoa. No app para Windows, o seletor é o do Ozamigos.
    */
   async transmitir(fonte: Fonte) {
-    const tela = await this.capturar(fonte);
+    // A qualidade escolhida na engrenagem vale a partir daqui (trocá-la no meio refaria a captura do app).
+    const qualidade = qualidadeEscolhida();
+    const tela = await this.capturar(fonte, qualidade);
     if (!tela) return;
+    if (qualidade !== this.estado.qualidade) {
+      this.registrar(`qualidade: ${QUALIDADES[qualidade].rotulo}`);
+      this.mudar({ qualidade });
+    }
     if (this.estado.minhaTela) {
       await this.trocarFonte(tela);
     } else {
@@ -937,12 +943,12 @@ class Cliente {
     }
   }
 
-  private async capturar(fonte: Fonte): Promise<MediaStream | null> {
+  private async capturar(fonte: Fonte, qualidade: Qualidade): Promise<MediaStream | null> {
     if (noApp) {
       esquecerEscolha();
       seletorCarregando(true);
     }
-    let tela = await capturarDoNavegador(fonte, this.estado.qualidade);
+    let tela = await capturarDoNavegador(fonte, qualidade);
     if (noApp) seletorCarregando(false); // se o app recusou antes de mostrar as fontes, o seletor fecha
     if (!noApp) return tela;
     const { somDoApp, videoDoApp, tipo } = await resultadoDaUltimaEscolha();
