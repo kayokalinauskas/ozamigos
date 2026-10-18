@@ -160,6 +160,49 @@ test('senha errada não entra e explica o motivo', async ({ browser }) => {
   await expect(pagina.getByRole('button', { name: 'Sair da sala' })).toHaveCount(0);
 });
 
+test('quem cria um grupo com nome e senha próprios manda o link, e o amigo só entra com a senha do grupo', async ({ browser }) => {
+  const grupo = `e2e-${Math.random().toString(36).slice(2, 10)}`;
+  const contexto = await browser.newContext();
+  const ana = await contexto.newPage();
+  await ana.addInitScript(prepararPagina);
+  await ana.goto('/');
+  await ana.getByRole('button', { name: 'Criar um grupo com outra senha' }).click();
+  await ana.getByLabel('Nome do grupo').fill(grupo);
+  await ana.getByLabel('Seu nome').fill('Ana');
+  await ana.getByLabel('Senha do grupo').fill('nossa');
+  await ana.getByLabel('Confirme a senha').fill('nossa');
+  await ana.getByRole('button', { name: 'Criar e entrar' }).click();
+  await expect(ana.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+  await expect(ana).toHaveURL(new RegExp(`/${grupo}$`)); // o endereço já é o link do grupo
+
+  // O amigo abre o link: a senha do grupo fixo não abre o grupo.
+  const beto = await (await browser.newContext()).newPage();
+  await beto.addInitScript(prepararPagina);
+  await beto.goto(`/${grupo}`);
+  await expect(beto.getByText(`Grupo ${grupo}`)).toBeVisible();
+  await beto.getByLabel('Seu nome').fill('Beto');
+  await beto.getByLabel('Senha do grupo').fill('teste');
+  await beto.getByRole('button', { name: 'Entrar no grupo' }).click();
+  await expect(beto.getByRole('alert')).toContainText('Senha errada');
+  await beto.getByLabel('Senha do grupo').fill('nossa');
+  await beto.getByRole('button', { name: 'Entrar no grupo' }).click();
+  await expect(beto.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+  await expect(beto.getByRole('complementary', { name: 'Sala e pessoas' })).toContainText('Ana');
+
+  // Um grupo que não existe (ou já sumiu) oferece criar de novo.
+  const caio = await (await browser.newContext()).newPage();
+  await caio.addInitScript(prepararPagina);
+  await caio.goto(`/${grupo}-x`);
+  await caio.getByLabel('Seu nome').fill('Caio');
+  await caio.getByLabel('Senha do grupo').fill('outra');
+  await caio.getByRole('button', { name: 'Entrar no grupo' }).click();
+  await caio.getByRole('button', { name: 'Criar o grupo de novo com esta senha' }).click();
+  await expect(caio.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+  await expect(caio.getByRole('complementary', { name: 'Sala e pessoas' })).not.toContainText('Ana');
+  // Três pessoas a mais com voz ligada pesavam nos testes seguintes (o do chat passava do tempo na suíte inteira).
+  for (const pagina of [ana, beto, caio]) await pagina.context().close();
+});
+
 test('a transmissão de uma pessoa chega em movimento para quem assiste', async ({ browser }) => {
   const sala = novaSala();
   const ana = await entrarNaSala(browser, sala, 'Ana');

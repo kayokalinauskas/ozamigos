@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Eye, LayoutGrid, Link, MonitorUp, RectangleHorizontal, Volume2, VolumeX } from 'lucide-react';
 import { cliente } from '../cliente';
-import { linkDaSala } from '../conexao/codigoDaSala';
 import { useCliente, useNumeroLembrado } from '../useCliente';
 import { Avatar } from './Avatar';
 import { Transmissao } from './Transmissao';
@@ -46,7 +45,7 @@ function SeloDeGravacao() {
 }
 
 export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
-  const { transmitindo, assistindo, meuId, pessoas, sala } = useCliente();
+  const { transmitindo, assistindo, meuId, pessoas } = useCliente();
   const [volumeGeral, setVolumeGeral] = useNumeroLembrado('ozamigos-volume-geral', 100);
   const [geralMudo, setGeralMudo] = useState(false);
 
@@ -126,7 +125,7 @@ export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
           ))}
         </div>
       ) : (
-        <Vazio sala={sala} sozinho={pessoas.length === 0} temAlguemNoAr={disponiveis.length > 0} />
+        <Vazio link={cliente.linkDeConvite()} sozinho={pessoas.length === 0} temAlguemNoAr={disponiveis.length > 0} />
       )}
 
       {disponiveis.length > 0 && (
@@ -147,7 +146,7 @@ export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
   );
 }
 
-function Vazio({ sala, sozinho, temAlguemNoAr }: { sala: string; sozinho: boolean; temAlguemNoAr: boolean }) {
+function Vazio({ link, sozinho, temAlguemNoAr }: { link: string; sozinho: boolean; temAlguemNoAr: boolean }) {
   if (temAlguemNoAr) {
     return (
       <div className="vazio">
@@ -164,7 +163,7 @@ function Vazio({ sala, sozinho, temAlguemNoAr }: { sala: string; sozinho: boolea
       <p>Clique em Transmitir, embaixo, para mostrar o seu jogo. Os amigos escolhem se querem assistir.</p>
       {sozinho && (
         <p className="vazio-link">
-          <Link size={14} aria-hidden="true" /> Convide os amigos: <code>{linkDaSala(sala)}</code>
+          <Link size={14} aria-hidden="true" /> Convide os amigos: <code>{link}</code>
         </p>
       )}
     </div>

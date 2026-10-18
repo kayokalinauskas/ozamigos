@@ -17,7 +17,7 @@ import { trocaDeImagens } from './imagens/troca';
 import { novoIdDeImagem, type Chegada } from './imagens/protocolo';
 import type { ImagemComprimida } from './imagens/compressor';
 import { FOLGA, FolgaAdaptativa } from './folga';
-import { LIMITE_POR_SALA, codigoValido, novoCodigo } from './conexao/codigoDaSala';
+import { LIMITE_POR_SALA, codigoValido, grupoDoCaminho, linkDaSala, linkDoGrupo, novoCodigo } from './conexao/codigoDaSala';
 import {
   FPS_MINIMO_DA_CAPTURA,
   capturarDoNavegador,
@@ -52,7 +52,9 @@ export type Aviso = {
 export type Estado = {
   fase: 'entrada' | 'entrando' | 'sala';
   erro: string;
-  sala: string;
+  recusa: MotivoDoErro | null; // o motivo do erro da entrada (o "Criar de novo" de um grupo que sumiu depende dele)
+  sala: string; // o código da sala, ou o nome do grupo criado na hora
+  grupo: string | null; // o grupo criado na hora (Grupos.java), ou null no grupo fixo
   meuId: string | null;
   meuNome: string;
   pessoas: Pessoa[]; // as outras pessoas, na ordem em que entraram
@@ -147,6 +149,12 @@ const RECUSAS: Partial<Record<MotivoDoErro, string>> = {
   'muitas-tentativas': 'Muitas senhas erradas seguidas deste endereço. Espere 5 minutos e tente de novo.',
   'sala-cheia': `A sala está cheia (máximo de ${LIMITE_POR_SALA} pessoas).`,
   'codigo-invalido': 'Código de sala inválido: use de 6 a 20 letras e números.',
+  'grupo-nao-existe': 'Esse grupo não existe mais: os grupos somem depois de um tempo sem ninguém. Dá para criar de novo, com a senha que vocês combinaram.',
+  'grupo-em-uso': 'Já existe um grupo com esse nome agora. Escolha outro nome.',
+  'grupo-invalido': 'Nome de grupo inválido: use de 3 a 32 letras minúsculas, números e hífen.',
+  'senha-curta': 'A senha do grupo precisa de pelo menos 4 caracteres.',
+  'muitos-grupos': 'Muitos grupos criados deste endereço. Espere 10 minutos e tente de novo.',
+  'grupos-demais': 'Não dá para criar grupos agora. Tente de novo mais tarde.',
 };
 
 /** Os ajustes de transmissão desta versão, como estão no código: vão no relatório do teste de desempenho. */
@@ -174,7 +182,7 @@ class Cliente {
   private estado: Estado;
   private readonly ouvintes = new Set<() => void>();
   private readonly sinalizacao = new Sinalizacao({
-    aoAbrir: () => this.enviar({ tipo: 'entrar', sala: this.estado.sala, senha: this.senha, nome: this.nome, ficha: this.ficha }),
+    aoAbrir: () => this.enviar(this.pedidoDeEntrada()),
     aoReceber: (msg) => this.tratar(msg),
     aoFechar: () => this.conexaoFechou(),
   });
@@ -182,6 +190,8 @@ class Cliente {
   private recusado = false;
   private nome = '';
   private senha = '';
+  private criar = false; // criar o grupo se ele não existe (só nos grupos criados na hora)
+  private salaDoGrupoFixo = ''; // para voltar a ela se criar um grupo der errado
   private ficha = ''; // dada pelo servidor; na reconexão, prova que somos a mesma pessoa
   // Nome de quem saiu -> quando, e se eu assistia. Quem volta ganha outro id: o nome é o que liga.
   private readonly saidas = new Map<string, { momento: number; assistia: boolean }>();
@@ -210,14 +220,18 @@ class Cliente {
   readonly veioDeUmLink: boolean;
 
   constructor() {
+    const grupo = grupoDoCaminho(location.pathname);
     const daUrl = new URLSearchParams(location.search).get('sala');
-    this.veioDeUmLink = Boolean(daUrl && codigoValido(daUrl));
+    // O convite para o app (Convite.tsx) é só das salas do grupo fixo: o app ainda não abre um grupo pelo link.
+    this.veioDeUmLink = !grupo && Boolean(daUrl && codigoValido(daUrl));
     const sala = daUrl && codigoValido(daUrl) ? daUrl : novoCodigo();
     lembrar('ozamigos-qualidade', ''); // a escolha de qualidade saiu (14/10/2026): o que estava guardado não serve mais
     this.estado = {
       fase: 'entrada',
       erro: '',
-      sala,
+      recusa: null,
+      sala: grupo ?? sala,
+      grupo,
       meuId: null,
       meuNome: lembrado('ozamigos-nome'),
       pessoas: [],
@@ -235,7 +249,7 @@ class Cliente {
       conexaoPerdida: false,
       gravacaoDaSala: null,
     };
-    this.trocarSala(sala);
+    if (!grupo) this.trocarSala(sala);
     aoPararVideoDoApp((aviso) => void this.videoDoAppParou(aviso));
     // Um "estou aqui" a cada 30 s: sem isso, proxies e hospedagens gratuitas fecham a conexão parada.
     setInterval(() => {
@@ -328,7 +342,7 @@ class Cliente {
   relatorio() {
     return {
       geradoEm: new Date().toISOString(),
-      sala: this.estado.sala,
+      sala: this.estado.grupo ? `grupo ${this.estado.grupo}` : this.estado.sala,
       eu: this.estado.meuNome,
       app: noApp ? `app ${ponte?.versao ?? '?'}` : 'navegador',
       navegador: navigator.userAgent,
@@ -353,20 +367,48 @@ class Cliente {
   // ===== Entrada =====
 
   trocarSala(codigo: string) {
-    if (!codigoValido(codigo)) return;
+    if (!codigoValido(codigo) || this.estado.grupo) return;
     history.replaceState(null, '', `?sala=${codigo}`);
     this.mudar({ sala: codigo });
   }
 
-  entrar(nome: string, senha: string) {
+  /** O link que se manda aos amigos: o do grupo, ou o da sala. */
+  linkDeConvite(): string {
+    return this.estado.grupo ? linkDoGrupo(this.estado.grupo) : linkDaSala(this.estado.sala);
+  }
+
+  /** A senha lembrada: a do grupo fixo, ou a de cada grupo criado na hora (quem participa de vários). */
+  chaveDaSenha(grupo = this.estado.grupo): string {
+    return grupo ? `ozamigos-senha:grupo:${grupo}` : 'ozamigos-senha';
+  }
+
+  private pedidoDeEntrada(): MensagemParaOServidor {
+    const { grupo, sala, fase } = this.estado;
+    const pedido = { tipo: 'entrar' as const, senha: this.senha, nome: this.nome, ficha: this.ficha };
+    if (!grupo) return { ...pedido, sala };
+    // Voltando depois de uma queda, cria de novo: se o servidor reiniciou, o grupo volta com a mesma senha.
+    return { ...pedido, sala: '', grupo, criar: this.criar || fase === 'sala' };
+  }
+
+  /** Entra no grupo fixo, ou no grupo do endereço; `criar` cria o grupo se ele não existe. */
+  entrar(nome: string, senha: string, criar = false) {
     if (this.estado.fase !== 'entrada') return; // dois cliques abririam duas conexões (uma "pessoa fantasma")
     this.recusado = false;
     this.nome = nome;
     this.senha = senha;
+    this.criar = criar;
     this.ficha = '';
-    this.mudar({ fase: 'entrando', erro: '', meuNome: nome.trim() || 'Amigo' });
+    this.mudar({ fase: 'entrando', erro: '', recusa: null, meuNome: nome.trim() || 'Amigo' });
     voz.preparar(); // no clique: o navegador só deixa tocar som depois de um gesto
     this.sinalizacao.conectar();
+  }
+
+  /** Cria um grupo na hora, a partir da entrada do grupo fixo. Dando certo, o endereço vira o do grupo. */
+  criarGrupo(grupo: string, nome: string, senha: string) {
+    if (this.estado.fase !== 'entrada') return;
+    if (!this.estado.grupo) this.salaDoGrupoFixo = this.estado.sala;
+    this.mudar({ grupo, sala: grupo });
+    this.entrar(nome, senha, true);
   }
 
   private conexaoFechou() {
@@ -449,7 +491,7 @@ class Cliente {
     this.conexoes.forEach(({ pc }) => pc.close());
     voz.sair();
     this.sinalizacao.encerrar();
-    if (paraASala) location.assign(`?sala=${paraASala}`);
+    if (paraASala) location.assign(`/?sala=${paraASala}`);
     else location.reload(); // volta para a entrada, com a mesma sala no link
   }
 
@@ -459,8 +501,10 @@ class Cliente {
    */
   abrirConvite(codigo: string) {
     if (!codigoValido(codigo)) return;
-    const { fase, sala } = this.estado;
-    if (fase === 'entrada') {
+    const { fase, sala, grupo } = this.estado;
+    if (fase === 'entrada' && grupo) {
+      location.assign(`/?sala=${codigo}`); // a sala do convite é do grupo fixo
+    } else if (fase === 'entrada') {
       this.trocarSala(codigo);
     } else if (fase === 'sala' && codigo !== sala) {
       this.avisar(`Convite para a sala ${codigo}.`, 'info', { rotulo: 'Entrar', executar: () => this.sair(codigo) });
@@ -480,9 +524,10 @@ class Cliente {
           this.voltei(msg);
           break;
         }
-        this.registrar(`entrei na sala ${this.estado.sala} como ${this.estado.meuNome}`);
+        this.registrar(`entrei ${e.grupo ? 'no grupo' : 'na sala'} ${this.estado.sala} como ${this.estado.meuNome}`);
         lembrar('ozamigos-nome', this.nome);
-        lembrar('ozamigos-senha', this.senha);
+        lembrar(this.chaveDaSenha(), this.senha);
+        if (e.grupo && location.pathname !== `/${e.grupo}`) history.replaceState(null, '', `/${e.grupo}`); // criado na raiz
         this.mudar({
           fase: 'sala',
           meuId: msg.id,
@@ -640,7 +685,7 @@ class Cliente {
       return;
     }
     this.recusado = true;
-    if (motivo === 'senha-errada') lembrar('ozamigos-senha', ''); // a senha pode ter mudado
+    if (motivo === 'senha-errada') lembrar(this.chaveDaSenha(), ''); // a senha pode ter mudado
     if (this.estado.fase === 'sala') {
       // Recusado ao reconectar (a senha mudou, a sala encheu): desfaz tudo e volta para a entrada.
       this.pararDeTransmitir(false);
@@ -648,7 +693,9 @@ class Cliente {
       voz.sair();
       this.mudar({ meuId: null, pessoas: [], transmitindo: [], plateias: {}, assistindo: [], videos: {}, conexaoPerdida: false, gravacaoDaSala: null });
     }
-    this.mudar({ fase: 'entrada', erro: recusa });
+    // Criar um grupo pela entrada do grupo fixo deu errado: a entrada volta a ser a do grupo fixo.
+    const voltarAoFixo = this.estado.grupo !== null && !grupoDoCaminho(location.pathname);
+    this.mudar({ fase: 'entrada', erro: recusa, recusa: motivo, ...(voltarAoFixo ? { grupo: null, sala: this.salaDoGrupoFixo } : {}) });
   }
 
   // ===== Chat da sala =====

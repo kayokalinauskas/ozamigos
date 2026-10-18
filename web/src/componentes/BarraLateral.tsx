@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Check, Eye, EyeOff, HeadphoneOff, Headphones, Link, LogOut, Mic, MicOff, Settings, SignalLow, SignalMedium, SignalZero, VolumeX } from 'lucide-react';
 import { cliente } from '../cliente';
-import { LIMITE_POR_SALA, linkDaSala } from '../conexao/codigoDaSala';
+import { LIMITE_POR_SALA } from '../conexao/codigoDaSala';
 import { useCliente, useVoz } from '../useCliente';
 import { atalhos } from '../voz/atalhos';
 import { descrever, type QualidadeDaConexao } from '../voz/qualidade';
@@ -12,7 +12,7 @@ import { Logo } from './Logo';
 import { Versao } from './Versao';
 
 export function BarraLateral() {
-  const { sala, pessoas, meuId, meuNome, transmitindo, plateias, assistindo } = useCliente();
+  const { sala, grupo, pessoas, meuId, meuNome, transmitindo, plateias, assistindo } = useCliente();
   const { falando, remotos, conexao } = useVoz();
   const [copiado, setCopiado] = useState(false);
   const [menuDe, setMenuDe] = useState<string | null>(null); // o amigo com o menu de voz aberto
@@ -20,10 +20,10 @@ export function BarraLateral() {
 
   async function copiarLink() {
     try {
-      await navigator.clipboard.writeText(linkDaSala(sala));
+      await navigator.clipboard.writeText(cliente.linkDeConvite());
     } catch {
       // Sem área de transferência (página sem HTTPS, ou permissão negada): mostra o link para copiar à mão.
-      cliente.avisar(`Copie o link: ${linkDaSala(sala)}`);
+      cliente.avisar(`Copie o link: ${cliente.linkDeConvite()}`);
       return;
     }
     setCopiado(true);
@@ -48,7 +48,7 @@ export function BarraLateral() {
 
       <section className="cartao-sala">
         <div>
-          <span className="rotulo">Sala</span>
+          <span className="rotulo">{grupo ? 'Grupo' : 'Sala'}</span>
           <code className="codigo-sala" title={sala}>
             {sala}
           </code>

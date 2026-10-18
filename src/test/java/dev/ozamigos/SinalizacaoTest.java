@@ -246,6 +246,38 @@ class SinalizacaoTest {
     }
 
     @Test
+    void umGrupoCriadoNaHoraTemASenhaDeleESoVeQuemEstaNele() throws Exception {
+        String grupo = "g-" + sala.toLowerCase();
+        Cliente semGrupo = conectar();
+        semGrupo.enviar(entrarNoGrupo(grupo, "nossa", false));
+        assertThat(semGrupo.esperar("erro").path("motivo").asString()).isEqualTo("grupo-nao-existe");
+
+        Cliente ana = conectar();
+        ana.enviar(entrarNoGrupo(grupo, "nossa", true));
+        ana.id = ana.esperar("bem-vindo").path("id").asString();
+        // A senha do grupo fixo não abre o grupo, e a do grupo não abre o grupo fixo.
+        Cliente comAFixa = conectar();
+        comAFixa.enviar(entrarNoGrupo(grupo, "teste", false));
+        assertThat(comAFixa.esperar("erro").path("motivo").asString()).isEqualTo("senha-errada");
+        Cliente outroNome = conectar();
+        outroNome.enviar(entrarNoGrupo(grupo, "outra", true));
+        assertThat(outroNome.esperar("erro").path("motivo").asString()).isEqualTo("grupo-em-uso");
+
+        Cliente beto = conectar();
+        beto.enviar(entrarNoGrupo(grupo, "nossa", false));
+        assertThat(beto.esperar("bem-vindo").path("outros").get(0).path("id").asString()).isEqualTo(ana.id);
+        // Quem está numa sala do grupo fixo com o mesmo código não está no grupo.
+        Cliente fixo = entrar(Grupos.sala(grupo).replaceAll("[^A-Za-z0-9]", ""), "Fixo");
+        fixo.enviar("{\"tipo\":\"chat\",\"texto\":\"oi\"}");
+        fixo.esperar("chat");
+        assertThat(ana.recebeu("chat")).isFalse();
+    }
+
+    private static String entrarNoGrupo(String grupo, String senha, boolean criar) {
+        return "{\"tipo\":\"entrar\",\"grupo\":\"" + grupo + "\",\"senha\":\"" + senha + "\",\"nome\":\"X\",\"criar\":" + criar + "}";
+    }
+
+    @Test
     void nomeSemControleNemInversaoECortadoSemPartirEmoji() {
         assertThat(SinalizacaoHandler.nomeLimpo("  Ana‮\u0007  ")).isEqualTo("Ana");
         assertThat(SinalizacaoHandler.nomeLimpo("\u0000 ")).isEqualTo("Amigo");

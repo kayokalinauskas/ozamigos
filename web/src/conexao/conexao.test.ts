@@ -133,7 +133,10 @@ describe('protocolo', () => {
     const servidor = readFileSync('../src/main/java/dev/ozamigos/SinalizacaoHandler.java', 'utf8');
     const protocolo = readFileSync('src/conexao/protocolo.ts', 'utf8');
     const tipos = [...servidor.matchAll(/put\("tipo", "([a-z-]+)"\)/g)].map((m) => m[1]);
-    const erros = [...servidor.matchAll(/erro\(sessao, "([a-z-]+)"\)/g)].map((m) => m[1]);
+    const erros = [
+      ...[...servidor.matchAll(/(?:erro|recusar)\(sessao, "([a-z-]+)"\)/g)].map((m) => m[1]),
+      ...[...servidor.matchAll(/case [A-Z_, ]+ -> "([a-z-]+)";/g)].map((m) => m[1]), // as recusas dos grupos
+    ];
     expect(tipos.length).toBeGreaterThan(5);
     expect(erros.length).toBeGreaterThan(5);
     for (const nome of [...tipos, ...erros]) expect(protocolo, nome).toContain(`'${nome}'`);

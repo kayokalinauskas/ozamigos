@@ -96,6 +96,7 @@
 - **Presença em tempo real:** quem está na sala, quem está **ao vivo** e quantas pessoas assistem cada transmissão.
 - **Assistir sob demanda:** você escolhe uma ou mais transmissões. O vídeo só sai do PC de quem transmite para quem clicou em **Assistir**, o que poupa o upload e a placa de vídeo de quem transmite.
 - **Todos podem transmitir ao mesmo tempo**, em salas de até 8 pessoas.
+- **Grupos com nome e senha seus:** na entrada, **Criar um grupo com outra senha** cria um grupo no endereço `.../nome-do-grupo`, com a senha que você escolher; é só mandar o link e a senha para os amigos. O grupo existe enquanto é usado: some 30 minutos depois de ficar sem ninguém (ou quando o servidor reinicia), e quem abrir o link depois cria de novo, com a mesma senha, em um clique. O grupo de sempre, com a senha do servidor, continua na entrada.
 - **Layouts:** **Grade**, com tudo lado a lado, ou **Destaque**, com uma transmissão grande e as outras em miniatura (ao lado ou numa fileira embaixo, conforme o espaço). Dois cliques no vídeo abrem a tela cheia, e o botão **Janela flutuante** solta a transmissão numa janelinha que fica por cima do jogo.
 - **Áudio por transmissão:** volume e silenciar de cada uma, lembrados por amigo, mais um volume geral.
 - **Pouco atraso para quem assiste:** a folga contra soluços da rede se ajusta à conexão de cada um, de 80 a 250 ms.
@@ -126,7 +127,7 @@
 
 1. Baixe o `Ozamigos-Instalador-x.y.z.exe` na [última versão](../../releases/latest).
 2. Abra o arquivo. Se o Windows mostrar **"O Windows protegeu o computador"**, clique em **Mais informações** e depois em **Executar assim mesmo**. O instalador não tem assinatura digital paga.
-3. Entre com o seu nome e a **senha do grupo**, que quem administra o servidor passa para você.
+3. Entre com o seu nome e a **senha do grupo**, que quem administra o servidor passa para você. Ou, sem essa senha, abra o link de um grupo que um amigo criou (`.../nome-do-grupo`) e use a senha que ele passou.
 4. Pronto: você já está na conversa. Na primeira vez, permita o microfone. Para escolher o microfone ou a saída de áudio, clique na engrenagem do seu cartão, no canto de baixo.
 
 <p align="center"><img src="docs/imagens/entrada.png" alt="Tela de entrada com nome, senha do grupo e código da sala" width="640"></p>
@@ -435,7 +436,7 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 
 | `tipo` | Campos | Efeito |
 |---|---|---|
-| `entrar` | `sala`, `senha`, `nome`, `ficha` (opcional) | Confere a senha e entra na sala. Na reconexão, a `ficha` recebida no `bem-vindo` anterior tira da sala a conexão antiga, se o servidor ainda não percebeu a queda |
+| `entrar` | `sala`, `senha`, `nome`, `ficha` (opcional), `grupo` e `criar` (opcionais) | Confere a senha e entra na sala. Na reconexão, a `ficha` recebida no `bem-vindo` anterior tira da sala a conexão antiga, se o servidor ainda não percebeu a queda. Com `grupo`, é um grupo criado na hora (`Grupos.java`): a senha é a dele, a sala é a única do grupo (`sala` vai vazia), e `criar: true` o cria se não existe (o cliente manda `criar` também ao reconectar, para o grupo voltar se o servidor reiniciou) |
 | `comecei` / `parei` | — | Começa ou para de transmitir |
 | `assistir` / `deixar` | `para` | Entra ou sai da plateia de quem transmite |
 | `oferta` / `resposta` / `candidato` | `para`, `sdp` ou `candidato`, `canal` (`envio`, `recebimento` ou `voz`) | Repassado só ao destinatário, na mesma sala |
@@ -460,9 +461,9 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `medidas` | `de`, `pacote` | (para quem grava a sala) as medidas de um segundo de outra pessoa |
 | `chat` | `de`, `texto` | Uma mensagem do chat, para todos da sala (inclusive quem mandou, que assim sabe que chegou). O servidor não guarda nada: quem entra depois não vê as anteriores |
 | `previa` | `url`, `site`, `titulo`?, `autor`?, `miniatura`?, `aoVivo`? | A prévia do primeiro link de vídeo ou de canal de uma mensagem do chat (YouTube, Twitch, Kick, TikTok, Streamable, Medal; `aoVivo` num canal transmitindo agora), para todos da sala, logo depois da mensagem. O servidor busca no site e guarda na memória por 1 hora; a `miniatura` é um JPEG pequeno embutido (`data:`) |
-| `erro` | `motivo` | `senha-errada`, `muitas-tentativas`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `chat-rapido-demais`, `mensagem-invalida`, ... |
+| `erro` | `motivo` | `senha-errada`, `muitas-tentativas`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `chat-rapido-demais`, `mensagem-invalida`; dos grupos: `grupo-nao-existe`, `grupo-em-uso` (criar com um nome que existe, com outra senha), `grupo-invalido`, `senha-curta` (menos de 4 caracteres), `muitos-grupos` (3 criados pelo mesmo endereço em 10 minutos), `grupos-demais` (200 ao mesmo tempo) |
 
-Com `senha-errada`, `muitas-tentativas` (10 senhas erradas do mesmo endereço em 5 minutos) e `sala-cheia`, o servidor fecha a conexão logo depois de avisar. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.
+Com `senha-errada`, `muitas-tentativas` (10 senhas erradas do mesmo endereço em 5 minutos), `sala-cheia` e as recusas dos grupos, o servidor fecha a conexão logo depois de avisar. A senha errada de um grupo (e o `grupo-em-uso`) contam no mesmo freio. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.
 
 ---
 
@@ -591,7 +592,7 @@ O workflow [CI](.github/workflows/ci.yml) roda as cinco camadas em cada push na 
 
 - **Sem servidor TURN:** quem está atrás de CGNAT, em 4G/5G ou em rede corporativa pode não conseguir conectar (nem o vídeo nem a voz). O TURN repassa o vídeo e tem custo por GB.
 - **Voz em malha:** cada pessoa manda a própria voz para cada amigo. Com o limite de 8 pessoas por sala, isso fica em ~450 kbps de upload no pior caso.
-- **Senha única por servidor:** pensada para grupos de amigos, cada grupo com o próprio deploy. Há um freio contra adivinhação (10 senhas erradas do mesmo endereço em 5 minutos), mas, para uso público, seria preciso senha por sala.
+- **Uma senha por servidor, mais os grupos criados na hora:** o grupo fixo tem a senha do servidor; os grupos criados na hora têm a senha de quem criou, mas existem só na memória e somem sozinhos. Há um freio contra adivinhação (10 senhas erradas do mesmo endereço em 5 minutos) e contra criar grupos demais. Para grupos fixos de outras pessoas, seria preciso guardá-los num banco de dados.
 - **Estado em memória:** as salas vivem num servidor só. Para mais de um servidor, seria preciso um armazenamento compartilhado (ex.: Redis).
 - **Exclusão de som por grupo de processos:** programas abertos *a partir* do Ozamigos ou de um app da lista `SEM_SOM_DE` também ficam de fora. Jogos abertos pela Steam, pela Epic ou pelo menu Iniciar não são afetados.
 - **Uma pausa curta quando alguém começa a assistir:** cada pessoa nova liga mais um codificador na placa de vídeo de quem transmite, e quem já assistia vê a imagem parar por ~¼ de segundo, uma vez (medido numa AMD RX 7800 XT). Evitar isso exigiria codificar uma vez só, num servidor de mídia.

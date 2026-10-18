@@ -36,3 +36,45 @@ export function linkDoApp(codigo: string): string {
 export function linkDaSala(codigo: string): string {
   return `${location.origin}${location.pathname}?sala=${codigo}`;
 }
+
+// ===== Grupos criados na hora (Grupos.java): o endereço é /nome, e o grupo tem uma sala só =====
+
+/** Os mesmos de Grupos.RESERVADOS no servidor: o grupo fixo e os caminhos do site. */
+const GRUPOS_RESERVADOS = new Set(['ozamigos', 'sinal', 'actuator', 'assets', 'api', 'index', 'error', 'privacidade', 'privacy', 'sala', 'salas', 'grupo', 'grupos', 'admin', 'login', 'app', 'site', 'www', 'en']);
+
+/** Letras minúsculas, números e hífen, de 3 a 32, sem hífen nas pontas (Grupos.NOME_VALIDO). */
+export function grupoValido(nome: string): boolean {
+  return /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(nome) && !GRUPOS_RESERVADOS.has(nome);
+}
+
+/** O nome que a pessoa digitou, do jeito que vai no endereço: minúsculas, sem acentos, espaços viram hífen. */
+export function nomeDeGrupo(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[\s_]+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .slice(0, 32);
+}
+
+/** O grupo de um caminho (/nome), ou null: a raiz e o resto são o grupo fixo. */
+export function grupoDoCaminho(caminho: string): string | null {
+  const nome = caminho.replace(/^\/+|\/+$/g, '');
+  return grupoValido(nome) ? nome : null;
+}
+
+/** O grupo de um link colado (https://.../nome), ou null. */
+export function grupoDe(texto: string): string | null {
+  try {
+    const link = new URL(texto.trim());
+    return link.protocol.startsWith('http') ? grupoDoCaminho(link.pathname) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function linkDoGrupo(nome: string): string {
+  return `${location.origin}/${nome}`;
+}

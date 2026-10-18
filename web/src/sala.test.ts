@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { codigoDe, codigoValido, linkDaSala, linkDoApp, novoCodigo } from './conexao/codigoDaSala';
+import { codigoDe, codigoValido, grupoDe, grupoDoCaminho, grupoValido, linkDaSala, linkDoApp, linkDoGrupo, nomeDeGrupo, novoCodigo } from './conexao/codigoDaSala';
 
 describe('código da sala', () => {
   it('aceita de 6 a 20 letras e números, e nada além disso', () => {
@@ -37,5 +37,24 @@ describe('código da sala', () => {
     expect(codigoDe(linkDoApp('Ab3dEf9'))).toBe('Ab3dEf9');
     expect(codigoDe('ozamigos://sala/Ab3dEf9/')).toBe('Ab3dEf9'); // o Windows às vezes acrescenta a barra
     expect(codigoValido(codigoDe('ozamigos://servidor/Ab3dEf9'))).toBe(false);
+  });
+});
+
+describe('grupo criado na hora', () => {
+  it('o nome vira o do endereço, e os do site e o grupo fixo não valem', () => {
+    expect(nomeDeGrupo('  Amigos do Kayô ')).toBe('amigos-do-kayo');
+    expect(grupoValido('amigos-do-kayo')).toBe(true);
+    expect(grupoValido('ab')).toBe(false);
+    expect(grupoValido('-amigos')).toBe(false);
+    expect(grupoValido('ozamigos')).toBe(false);
+    expect(grupoValido('sinal')).toBe(false);
+  });
+
+  it('o link do grupo volta ao mesmo grupo, e a raiz e os arquivos não são grupos', () => {
+    expect(grupoDe(linkDoGrupo('amigos'))).toBe('amigos');
+    expect(grupoDoCaminho('/amigos/')).toBe('amigos');
+    expect(grupoDoCaminho('/')).toBeNull();
+    expect(grupoDoCaminho('/icone.svg')).toBeNull();
+    expect(grupoDe('https://ozamigos.onrender.com/?sala=Ab3dEf9')).toBeNull();
   });
 });

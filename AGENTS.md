@@ -80,6 +80,14 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - o servidor **carimba `de`** em tudo o que repassa (o cliente nunca diz quem é) e só repassa dentro da mesma sala;
   - os envios usam `ConcurrentWebSocketSessionDecorator` (a sessão "segura");
   - **chat da sala** (`chat` em `SinalizacaoHandler`): só repassa para todos da sala, inclusive quem mandou (é a confirmação de que chegou), e **não guarda nada** (decisão do dono: nada de histórico; quem entra depois não vê o que foi dito). O texto é limpo por `textoDoChat` (sem caracteres de controle nem os de direção do texto, até `CHAT_MAXIMO` = 500), com freio de `CHAT_RAJADA` (5) a cada `CHAT_JANELA_MS` (3 s) por conexão. **O texto do chat nunca vai para o log do servidor.**
+- **Grupos criados na hora** (`Grupos`, 18/10/2026, pedido do dono): qualquer pessoa cria um grupo com nome e senha próprios, no endereço `/nome` (`PaginaDoGrupo` entrega a interface; o `entrar` traz `grupo` e `criar`). **Ficam só na memória, de propósito** (decisão do dono: sem banco de dados, e não importa que o grupo caia): somem quando o servidor reinicia (deploy, o Render dormindo) e `VAZIO_POR` (30 min) depois de ficarem sem ninguém. Quem já estava manda `criar` ao reconectar, e o grupo volta com a mesma senha; quem abre o link de um grupo que sumiu recebe `grupo-nao-existe` e o botão "Criar o grupo de novo com esta senha".
+  - O grupo fixo (a senha `OZAMIGOS_SENHA`, a raiz e as salas por código) continua igual, para o app antigo e para o grupo do dono. "ozamigos" é reservado (`/ozamigos` leva à raiz).
+  - Cada grupo tem uma sala só, de chave `grupo:<nome>` em `Salas`: os códigos do grupo fixo são só letras e números, e nunca se confundem com ela.
+  - **A senha do grupo é escolhida por quem cria** (pode ser fraca): fica só o resumo PBKDF2 com sal (`Grupos.resumo`), não o SHA-256 do `SenhaDoGrupo`. A senha errada de um grupo, e criar um nome que existe com outra senha (`grupo-em-uso`), contam no freio de senhas (`TentativasDeSenha`); senão, criar seria um jeito de chutar a senha sem freio.
+  - Regras: nome com 3–32 letras minúsculas, números e hífen (`NOME_VALIDO`), fora os `RESERVADOS` (o grupo fixo e os caminhos do site; **a lista existe também em `codigoDaSala.ts`**, mude as duas); senha de 4 caracteres ou mais; 3 grupos por endereço a cada 10 min; 200 ao mesmo tempo.
+  - **O nome do grupo não vai para o log** (é escolhido pelas pessoas): o log diz "entrou num grupo".
+  - `PaginaDoGrupo` vem antes do WebSocket na ordem do Spring: o padrão dele exclui `sinal`, `actuator` e `assets`, ou pegaria o `/sinal` (o teste `oEnderecoDeUmGrupoAbreAInterface...` confere).
+  - Na interface, o grupo é `estado.grupo` (do caminho, `grupoDoCaminho`); a senha é lembrada por grupo (`chaveDaSenha`); "Copiar link" dá o do grupo (`linkDeConvite`). Criar pela entrada do grupo fixo (`criarGrupo`) troca o endereço para `/nome` só quando o servidor aceita. O convite `ozamigos://` ainda é só das salas do grupo fixo.
 - `WebSocketConfig`: **sem `setAllowedOrigins`**. Só páginas do próprio servidor conectam; o app Electron funciona porque carrega a interface do servidor. Mensagens de texto vão até 64 KB.
 - Protocolo completo: seção "Protocolo de sinalização" do `README.md`. **Se mudar o protocolo, mude o servidor, os tipos em `web/src/conexao/protocolo.ts` e o README juntos.** O teste `conexao.test.ts` falha se o servidor mandar uma mensagem ou um erro que o `protocolo.ts` não conhece, e o `switch` de `tratar` no `cliente.ts` não compila sem um caso para cada mensagem.
 
@@ -338,7 +346,7 @@ As janelas que ninguém fotografa rodam a 4 quadros por segundo, e os amigos fic
 ## Limitações conscientes (não são bugs)
 
 - Sem TURN: CGNAT, 4G/5G e redes corporativas podem não conectar.
-- Uma senha por servidor, com freio de 10 senhas erradas por endereço em 5 minutos (`TentativasDeSenha`), mas sem senha por sala: o projeto não serve para uso público aberto sem antes mudar isso.
+- Uma senha por servidor no grupo fixo, mais os grupos criados na hora (só na memória, somem sozinhos), com freio de 10 senhas erradas por endereço em 5 minutos (`TentativasDeSenha`) e de 3 grupos criados por endereço em 10 minutos. Para grupos permanentes de outras pessoas, seria preciso um banco de dados (o Render gratuito apaga o disco a cada deploy).
 - Na reconexão, a pessoa ganha outro id e é reconhecida pelo nome. Dois amigos com o mesmo nome podem confundir a volta automática.
 - Recarregar a página (Ctrl+R) não é reconexão: é uma entrada nova, e a volta automática a assistir não sobrevive a isso.
 - Salas em memória, num servidor só.

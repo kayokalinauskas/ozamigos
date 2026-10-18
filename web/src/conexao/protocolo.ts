@@ -17,7 +17,8 @@ type Candidato = { candidato: RTCIceCandidateInit; canal: Canal | 'voz' };
 // ===== Do navegador para o servidor =====
 
 export type MensagemParaOServidor =
-  | { tipo: 'entrar'; sala: string; senha: string; nome: string; ficha: string }
+  // Com `grupo`, um grupo criado na hora (a sala é a dele, e `sala` vai vazia); `criar` o cria se não existe.
+  | { tipo: 'entrar'; sala: string; senha: string; nome: string; ficha: string; grupo?: string; criar?: boolean }
   | { tipo: 'comecei' }
   | { tipo: 'parei' }
   | { tipo: 'assistir'; para: string }
@@ -38,6 +39,12 @@ export type SinalDeVozParaEnviar = Extract<MensagemParaOServidor, { tipo: 'ofert
 
 export type MotivoDoErro =
   | 'senha-errada'
+  | 'grupo-nao-existe'
+  | 'grupo-em-uso'
+  | 'grupo-invalido'
+  | 'senha-curta'
+  | 'muitos-grupos'
+  | 'grupos-demais'
   | 'muitas-tentativas'
   | 'sala-cheia'
   | 'codigo-invalido'

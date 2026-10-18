@@ -46,9 +46,12 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     private final TentativasDeSenha tentativas;
     private final JsonMapper json;
     private final PreviasDeLinks previas;
+    private final Grupos grupos;
 
-    public SinalizacaoHandler(Salas salas, SenhaDoGrupo senhaDoGrupo, TentativasDeSenha tentativas, JsonMapper json, PreviasDeLinks previas) {
+    public SinalizacaoHandler(Salas salas, SenhaDoGrupo senhaDoGrupo, TentativasDeSenha tentativas, JsonMapper json, PreviasDeLinks previas,
+            Grupos grupos) {
         this.salas = salas;
+        this.grupos = grupos;
         this.senhaDoGrupo = senhaDoGrupo;
         this.tentativas = tentativas;
         this.json = json;
@@ -87,7 +90,8 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
         switch (tipo) {
             case "entrar" -> entrar(sessao, id, msg.path("sala").asString(""), msg.path("senha").asString(""),
-                    nomeLimpo(msg.path("nome").asString("")), msg.path("ficha").asString(""));
+                    nomeLimpo(msg.path("nome").asString("")), msg.path("ficha").asString(""),
+                    msg.path("grupo").asString(""), msg.path("criar").asBoolean(false));
             case "comecei" -> comecei(sessao, id, sala);
             case "parei" -> parei(id, sala);
             case "assistir" -> assistir(id, sala, msg.path("para").asString(""));
@@ -102,28 +106,60 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
     }
 
+    /**
+     * Sem {@code grupo}, é o grupo fixo (a senha OZAMIGOS_SENHA e a sala pelo código). Com ele, um grupo criado na hora
+     * (Grupos): a senha é a dele, a sala é a única do grupo, e {@code criar} o cria se não existe. Quem já está num
+     * grupo manda {@code criar} ao reconectar: se o servidor reiniciou, o grupo volta com a mesma senha.
+     */
     private void entrar(WebSocketSession sessao, String id, String codigo, String senha, String nome,
-            String fichaAnterior) throws IOException {
+            String fichaAnterior, String grupo, boolean criar) throws IOException {
         // A senha vem antes de tudo: sem ela, a pessoa não descobre nada sobre a sala.
         String endereco = endereco(sessao.getHandshakeHeaders(), sessao.getRemoteAddress());
         if (tentativas.bloqueado(endereco)) {
             log.warn("{} bloqueado: senhas erradas demais de {}", id, endereco);
-            erro(sessao, "muitas-tentativas");
-            sessao.close(CloseStatus.POLICY_VIOLATION);
+            recusar(sessao, "muitas-tentativas");
             return;
         }
-        if (!senhaDoGrupo.confere(senha)) {
-            log.info("{} errou a senha", id);
-            tentativas.errou(endereco);
-            erro(sessao, "senha-errada");
-            sessao.close(CloseStatus.POLICY_VIOLATION);
-            return;
+        if (grupo.isEmpty()) {
+            if (!senhaDoGrupo.confere(senha)) {
+                log.info("{} errou a senha", id);
+                tentativas.errou(endereco);
+                recusar(sessao, "senha-errada");
+                return;
+            }
+        } else {
+            Grupos.Resultado resultado = grupos.entrar(grupo, senha, criar, endereco);
+            String recusa = switch (resultado) {
+                case ENTRA, CRIADO -> null;
+                case SENHA_ERRADA -> "senha-errada";
+                case EM_USO -> "grupo-em-uso";
+                case NAO_EXISTE -> "grupo-nao-existe";
+                case NOME_INVALIDO -> "grupo-invalido";
+                case SENHA_CURTA -> "senha-curta";
+                case CRIOU_DEMAIS -> "muitos-grupos";
+                case GRUPOS_DEMAIS -> "grupos-demais";
+            };
+            if (resultado == Grupos.Resultado.SENHA_ERRADA || resultado == Grupos.Resultado.EM_USO) {
+                // Criar com um nome que existe também conta: senão, seria um jeito de chutar a senha sem o freio.
+                log.info("{} errou a senha de um grupo", id);
+                tentativas.errou(endereco);
+            }
+            if (recusa != null) {
+                recusar(sessao, recusa);
+                return;
+            }
+            if (resultado == Grupos.Resultado.CRIADO) {
+                // O nome do grupo é escolhido pelas pessoas: não vai para o log.
+                log.info("{} criou um grupo ({} agora)", id, grupos.quantos());
+            }
         }
         if (sessao.getAttributes().containsKey("sala")) {
             erro(sessao, "ja-esta-numa-sala");
             return;
         }
-        if (!CODIGO_VALIDO.matcher(codigo).matches()) {
+        if (!grupo.isEmpty()) {
+            codigo = Grupos.sala(grupo);
+        } else if (!CODIGO_VALIDO.matcher(codigo).matches()) {
             erro(sessao, "codigo-invalido");
             return;
         }
@@ -143,7 +179,13 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             return;
         }
         sessao.getAttributes().put("sala", codigo);
-        log.info("{} entrou na sala {}", id, codigo);
+        if (!grupo.isEmpty()) {
+            sessao.getAttributes().put("grupo", grupo);
+            grupos.ocupado(grupo);
+            log.info("{} entrou num grupo", id);
+        } else {
+            log.info("{} entrou na sala {}", id, codigo);
+        }
 
         ObjectNode boasVindas = json.createObjectNode()
                 .put("tipo", "bem-vindo")
@@ -357,7 +399,14 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         if (saida == null) {
             return;
         }
-        log.info("{} saiu da sala {}", id, sala);
+        if (sala.startsWith("grupo:")) {
+            if (saida.restantes().isEmpty()) {
+                grupos.vazio(sala.substring("grupo:".length()));
+            }
+            log.info("{} saiu de um grupo", id);
+        } else {
+            log.info("{} saiu da sala {}", id, sala);
+        }
         ObjectNode saiu = json.createObjectNode().put("tipo", "saiu").put("id", id);
         for (WebSocketSession restante : saida.restantes()) {
             enviar(restante, saiu);
@@ -416,6 +465,12 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
 
     private WebSocketSession segura(WebSocketSession sessao) {
         return (WebSocketSession) sessao.getAttributes().get("segura");
+    }
+
+    /** Recusado na entrada: o motivo, e a conexão fecha (abrir outra é o "tentar de novo"). */
+    private void recusar(WebSocketSession sessao, String motivo) throws IOException {
+        erro(sessao, motivo);
+        sessao.close(CloseStatus.POLICY_VIOLATION);
     }
 
     private void erro(WebSocketSession sessao, String motivo) throws IOException {
