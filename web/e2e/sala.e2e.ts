@@ -244,7 +244,8 @@ test('chamar a atenção toca para o amigo mesmo com o som e os sons de aviso de
   await ana.getByRole('button', { name: 'Chamar Beto' }).click();
   await expect(beto.getByText('Ana está chamando você.')).toBeVisible();
   await expect.poll(() => beto.evaluate(() => (window as unknown as { __notas: number[] }).__notas)).toContain(1175);
-  await beto.getByRole('button', { name: 'Ligar o som' }).click(); // o aviso já traz o botão
+  // O aviso já traz o botão (o do cartão de baixo, com o som desligado, tem o mesmo nome).
+  await beto.locator('.avisos').getByRole('button', { name: 'Ligar o som' }).click();
   await expect(beto.getByRole('button', { name: 'Desligar o som e o microfone' })).toBeVisible();
   // Para chamar de novo, só depois de um minuto: o botão conta o tempo.
   await expect(ana.getByRole('button', { name: /Chamar de novo em \d+ s/ })).toBeDisabled();
