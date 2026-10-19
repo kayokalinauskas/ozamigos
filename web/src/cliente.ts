@@ -144,8 +144,10 @@ const SUBIR_BITRATE_DEPOIS = 6_000;
 // Quanto depois da oferta conferir se o codificador H.265 está soltando quadros (preferirCodecs, em webrtc.ts).
 const CONFERIR_HEVC_DEPOIS = 10_000;
 
-// Chamar a atenção de alguém: de novo, só depois disso (a mesma regra do servidor, CHAMAR_DE_NOVO_MS).
-export const CHAMAR_DE_NOVO = 60_000;
+// Chamar a atenção de alguém: até tantas vezes nessa janela, para cada pessoa (a mesma regra do servidor,
+// CHAMADAS_POR_JANELA e CHAMADAS_JANELA_MS).
+export const CHAMADAS_POR_JANELA = 5;
+export const CHAMADAS_JANELA = 60_000;
 
 // Recusas do servidor que mandam a pessoa de volta para a tela de entrada, com o motivo.
 const RECUSAS: Partial<Record<MotivoDoErro, string>> = {
@@ -209,7 +211,7 @@ class Cliente {
   private envioDoChat: number[] = []; // quando mandei as últimas mensagens (o freio)
   private avisoDoFreio: number | null = null;
   // Nome de quem chamei -> quando. Pelo nome: quem reconecta ganha outro id, e o freio do servidor é por conexão.
-  private readonly chamadas = new Map<string, number>();
+  private readonly chamadas = new Map<string, number[]>();
   private readonly tentativasDeVideo = new Map<string, number>(); // id -> conexões de vídeo refeitas seguidas
   private readonly folgas = new Map<string, FolgaAdaptativa>(); // quem eu assisto -> folga de rede (folga.ts)
   private readonly relatorioDaSessao = new Relatorio();
@@ -721,20 +723,27 @@ class Cliente {
 
   // ===== Chamar a atenção =====
 
-  /** Quanto falta para poder chamar essa pessoa de novo (0: já pode). */
+  /** As vezes que chamei essa pessoa no último minuto. */
+  private chamadasRecentes(nome: string): number[] {
+    const recentes = (this.chamadas.get(nome) ?? []).filter((t) => Date.now() - t < CHAMADAS_JANELA);
+    this.chamadas.set(nome, recentes);
+    return recentes;
+  }
+
+  /** Quanto falta para poder chamar essa pessoa de novo (0: já pode; só espera quem já chamou 5 vezes no minuto). */
   chamarDeNovoEm(id: string): number {
-    const ultima = this.chamadas.get(this.nomeDe(id));
-    return ultima === undefined ? 0 : Math.max(0, ultima + CHAMAR_DE_NOVO - Date.now());
+    const recentes = this.chamadasRecentes(this.nomeDe(id));
+    return recentes.length < CHAMADAS_POR_JANELA ? 0 : Math.max(0, recentes[0] + CHAMADAS_JANELA - Date.now());
   }
 
   /**
    * "Voltei, volta aí também": um som e um aviso só para essa pessoa, mesmo com o som do Ozamigos e as notificações
-   * desligados. Uma vez por minuto para cada pessoa (o servidor confere).
+   * desligados. Até 5 vezes por minuto para cada pessoa (o servidor confere).
    */
   chamar(id: string) {
     if (this.chamarDeNovoEm(id) > 0 || !this.estado.pessoas.some((p) => p.id === id)) return;
     const nome = this.nomeDe(id);
-    this.chamadas.set(nome, Date.now());
+    this.chamadas.set(nome, [...this.chamadasRecentes(nome), Date.now()]);
     this.enviar({ tipo: 'chamar', para: id });
     this.registrar(`chamei a atenção de ${nome}`);
     this.mostrarAviso(`Você chamou ${nome}.`);

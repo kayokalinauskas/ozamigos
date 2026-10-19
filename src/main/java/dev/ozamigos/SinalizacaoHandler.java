@@ -41,8 +41,12 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     static final int CHAT_MAXIMO = 500;
     static final int CHAT_RAJADA = 5;
     static final long CHAT_JANELA_MS = 3_000;
-    /** Chamar a atenção de alguém: uma vez a cada tanto, para cada pessoa chamada (a mesma regra está no cliente). */
-    static final long CHAMAR_DE_NOVO_MS = 60_000;
+    /**
+     * Chamar a atenção de alguém: até CHAMADAS_POR_JANELA a cada CHAMADAS_JANELA_MS, para cada pessoa chamada (a mesma
+     * regra está no cliente). Era uma por minuto; o dono preferiu até 5 (18/10/2026).
+     */
+    static final int CHAMADAS_POR_JANELA = 5;
+    static final long CHAMADAS_JANELA_MS = 60_000;
 
     private final Salas salas;
     private final SenhaDoGrupo senhaDoGrupo;
@@ -360,7 +364,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     /**
      * Chamar a atenção de alguém da sala (quem voltou para o PC chamando quem está com o som desligado): vai só para
      * essa pessoa, que ouve um som mesmo com o som do Ozamigos desligado. Por isso o freio é aqui, e não só no cliente:
-     * uma vez a cada CHAMAR_DE_NOVO_MS para cada pessoa chamada.
+     * até CHAMADAS_POR_JANELA a cada CHAMADAS_JANELA_MS para cada pessoa chamada.
      */
     private void chamar(WebSocketSession sessao, String id, String sala, String para) throws IOException {
         WebSocketSession destino = para.equals(id) ? null : salas.sessao(sala, para);
@@ -369,15 +373,18 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             return;
         }
         @SuppressWarnings("unchecked")
-        Map<String, Long> chamadas = (Map<String, Long>) sessao.getAttributes().computeIfAbsent("chamadas", c -> new HashMap<String, Long>());
+        Map<String, Deque<Long>> chamadas = (Map<String, Deque<Long>>) sessao.getAttributes().computeIfAbsent("chamadas", c -> new HashMap<String, Deque<Long>>());
         long agora = System.nanoTime();
         synchronized (chamadas) {
-            Long ultima = chamadas.get(para);
-            if (ultima != null && agora - ultima < CHAMAR_DE_NOVO_MS * 1_000_000) {
+            Deque<Long> recentes = chamadas.computeIfAbsent(para, p -> new ArrayDeque<>());
+            while (!recentes.isEmpty() && agora - recentes.peekFirst() >= CHAMADAS_JANELA_MS * 1_000_000) {
+                recentes.removeFirst();
+            }
+            if (recentes.size() >= CHAMADAS_POR_JANELA) {
                 erro(sessao, "chamar-cedo-demais");
                 return;
             }
-            chamadas.put(para, agora);
+            recentes.addLast(agora);
         }
         enviar(destino, json.createObjectNode().put("tipo", "chamado").put("de", id));
     }

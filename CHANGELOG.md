@@ -8,6 +8,9 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+### Mudado
+- **Chamar a atenção bem mais alto, e até 5 vezes por minuto:** o som de quem é chamado ficou bem mais alto que os outros avisos, para ser ouvido com o jogo ligado. E dá para chamar a mesma pessoa até 5 vezes por minuto (era uma).
+
 ## [1.2.21] - 2026-10-18
 
 ### Novo

@@ -246,7 +246,7 @@ class SinalizacaoTest {
     }
 
     @Test
-    void chamarAAtencaoChegaSoAQuemFoiChamadoEUmaVezPorMinuto() throws Exception {
+    void chamarAAtencaoChegaSoAQuemFoiChamadoEAteCincoVezesPorMinuto() throws Exception {
         Cliente ana = entrar(sala, "Ana");
         Cliente beto = entrar(sala, "Beto");
         Cliente caio = entrar(sala, "Caio");
@@ -255,6 +255,10 @@ class SinalizacaoTest {
         assertThat(beto.esperar("chamado").path("de").asString()).isEqualTo(ana.id);
         assertThat(caio.recebeu("chamado")).isFalse();
 
+        for (int i = 1; i < SinalizacaoHandler.CHAMADAS_POR_JANELA; i++) {
+            ana.enviar("{\"tipo\":\"chamar\",\"para\":\"" + beto.id + "\"}");
+            beto.esperar("chamado");
+        }
         ana.enviar("{\"tipo\":\"chamar\",\"para\":\"" + beto.id + "\"}");
         assertThat(ana.esperar("erro").path("motivo").asString()).isEqualTo("chamar-cedo-demais");
         assertThat(beto.recebeu("chamado")).isFalse();

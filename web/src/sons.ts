@@ -11,11 +11,20 @@ const NOTAS = {
   desmudo: [440, 587],
   surdo: [494, 330],
   dessurdo: [330, 494],
-  // Alguém chamou a sua atenção: duas batidas, mais longo que os outros, para ser ouvido.
+  // Alguém chamou a sua atenção: duas batidas e uma nota mais alta, para ser ouvido (veja FORTE).
   chamado: [784, 988, 784, 988, 1175],
 } as const;
 
 export type Som = keyof typeof NOTAS;
+
+/**
+ * Como cada som toca. Os de aviso são discretos (seno a 0,08, notas encavaladas). O chamado precisa ser ouvido por quem
+ * está com o som do Ozamigos desligado, talvez com o jogo alto (pedido do dono, 18/10/2026: "bem mais alto"): onda
+ * triangular (os harmônicos a fazem soar mais alta no mesmo volume), quase 9 vezes o volume dos outros, e notas que
+ * não se encostam (assim o volume de cada uma não soma com o da anterior e não estoura).
+ */
+const SUAVE = { onda: 'sine' as OscillatorType, volume: 0.08, passo: 0.09, duracao: 0.16 };
+const FORTE = { onda: 'triangle' as OscillatorType, volume: 0.7, passo: 0.18, duracao: 0.16 };
 
 let contexto: AudioContext | null = null;
 
@@ -36,18 +45,20 @@ export function tocar(som: Som, sempre = false): void {
   try {
     contexto ??= new AudioContext();
     const agora = contexto.currentTime;
+    const { onda, volume, passo, duracao } = som === 'chamado' ? FORTE : SUAVE;
     NOTAS[som].forEach((frequencia, i) => {
       const oscilador = contexto!.createOscillator();
       const ganho = contexto!.createGain();
-      oscilador.type = 'sine';
+      oscilador.type = onda;
       oscilador.frequency.value = frequencia;
-      const inicio = agora + i * 0.09;
+      const inicio = agora + i * passo;
       ganho.gain.setValueAtTime(0, inicio);
-      ganho.gain.linearRampToValueAtTime(som === 'chamado' ? 0.14 : 0.08, inicio + 0.01);
-      ganho.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.16);
+      ganho.gain.linearRampToValueAtTime(volume, inicio + 0.01);
+      if (som === 'chamado') ganho.gain.setValueAtTime(volume, inicio + duracao * 0.6); // segura a nota antes de soltar
+      ganho.gain.exponentialRampToValueAtTime(0.0001, inicio + duracao);
       oscilador.connect(ganho).connect(contexto!.destination);
       oscilador.start(inicio);
-      oscilador.stop(inicio + 0.18);
+      oscilador.stop(inicio + duracao + 0.02);
     });
   } catch {
     // sem áudio disponível: segue em silêncio

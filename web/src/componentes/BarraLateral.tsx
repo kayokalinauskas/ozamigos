@@ -296,7 +296,8 @@ function MenuDaVoz({ id, nome, aoFechar }: { id: string; nome: string; aoFechar:
 
 /**
  * Chamar a atenção do amigo (por exemplo, ele com o som desligado e você de volta ao PC): ele ouve um som e vê um
- * aviso, mesmo com o som do Ozamigos e as notificações desligados. Uma vez por minuto; o botão conta o tempo.
+ * aviso, mesmo com o som do Ozamigos e as notificações desligados. Até 5 vezes por minuto; depois, o botão conta o
+ * tempo.
  */
 function BotaoDeChamar({ id, nome }: { id: string; nome: string }) {
   const [, redesenhar] = useState(0);
@@ -311,7 +312,7 @@ function BotaoDeChamar({ id, nome }: { id: string; nome: string }) {
       type="button"
       className="botao botao-secundario botao-pequeno menu-da-voz-chamar"
       disabled={falta > 0}
-      title={`Toca um som para ${nome} e mostra um aviso, mesmo com o som dele desligado. Uma vez por minuto.`}
+      title={`Toca um som para ${nome} e mostra um aviso, mesmo com o som dele desligado. Até 5 vezes por minuto.`}
       onClick={() => {
         cliente.chamar(id);
         redesenhar((n) => n + 1);

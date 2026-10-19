@@ -221,7 +221,7 @@ test('/ozamigos é o grupo fixo, sempre na mesma sala, com a senha do servidor',
   for (const pagina of [ana, beto]) await pagina.context().close();
 });
 
-test('chamar a atenção toca para o amigo mesmo com o som e os sons de aviso desligados, uma vez por minuto', async ({ browser }) => {
+test('chamar a atenção toca para o amigo mesmo com o som e os sons de aviso desligados, até 5 vezes por minuto', async ({ browser }) => {
   const sala = novaSala();
   const ana = await entrarNaSala(browser, sala, 'Ana');
   const beto = await entrarNaSala(browser, sala, 'Beto');
@@ -247,7 +247,8 @@ test('chamar a atenção toca para o amigo mesmo com o som e os sons de aviso de
   // O aviso já traz o botão (o do cartão de baixo, com o som desligado, tem o mesmo nome).
   await beto.locator('.avisos').getByRole('button', { name: 'Ligar o som' }).click();
   await expect(beto.getByRole('button', { name: 'Desligar o som e o microfone' })).toBeVisible();
-  // Para chamar de novo, só depois de um minuto: o botão conta o tempo.
+  // Até 5 chamadas por minuto; depois, o botão conta o tempo.
+  for (let i = 1; i < 5; i++) await ana.getByRole('button', { name: 'Chamar Beto' }).click();
   await expect(ana.getByRole('button', { name: /Chamar de novo em \d+ s/ })).toBeDisabled();
   for (const pagina of [ana, beto]) await pagina.context().close();
 });

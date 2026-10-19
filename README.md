@@ -89,7 +89,7 @@
 - **A conexão com cada amigo:** se ela estiver instável ou ruim, um ícone de sinal aparece ao lado do nome; o menu de voz da pessoa mostra o tempo de ida e volta e a perda. Ajuda a saber se o problema é a sua internet ou a dele.
 - **Engrenagem:** microfone e saída de áudio, volumes de entrada e de saída, teste do microfone, cancelamento de eco e controle automático de ganho.
 - **Cada amigo do seu jeito:** clicando no nome, o volume da voz dele (até 200%) e "silenciar para mim", lembrados para as próximas vezes.
-- **Chamar a atenção:** no mesmo menu, **Chamar** toca um som para o amigo e mostra um aviso ("Fulano está chamando você", com o botão **Ligar o som**), mesmo com o som do Ozamigos e as notificações dele desligados. No app, o ícone dele pisca na barra de tarefas. Uma vez por minuto para cada amigo; quem você silenciou para você não consegue te chamar.
+- **Chamar a atenção:** no mesmo menu, **Chamar** toca um som para o amigo e mostra um aviso ("Fulano está chamando você", com o botão **Ligar o som**), mesmo com o som do Ozamigos e as notificações dele desligados. No app, o ícone dele pisca na barra de tarefas. Até 5 vezes por minuto para cada amigo; quem você silenciou para você não consegue te chamar.
 - **Baixo atraso:** a voz tem a própria conexão, separada do vídeo, em Opus a 64 kbps com correção de perda. Na bancada, na mesma rede, ela chega em 60 a 90 ms.
 - **Sem estouro:** um limitador suave antes da caixa de som segura vários amigos falando juntos, ou um volume em 200%.
 
@@ -445,7 +445,7 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `gravar-sala` | `ligada` | Começa ou para a gravação das estatísticas da sala (uma por vez; só quem grava para) |
 | `medidas` | `pacote` | As medidas deste segundo, entregues só a quem grava a sala (sem gravação, o servidor descarta) |
 | `chat` | `texto` | Uma mensagem para a sala (até 500 caracteres; no máximo 5 a cada 3 s por pessoa) |
-| `chamar` | `para` | Chama a atenção de alguém da sala (uma vez por minuto para cada pessoa chamada) |
+| `chamar` | `para` | Chama a atenção de alguém da sala (até 5 vezes por minuto para cada pessoa chamada) |
 
 **Servidor → cliente**
 
