@@ -8,6 +8,9 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+### Corrigido
+- **A voz com um amigo que ficava em "conectando…" para sempre:** às vezes a combinação inicial entre os dois PCs não terminava (por exemplo, numa atualização do Ozamigos, com todos voltando juntos), e a voz entre aqueles dois nunca conectava, mesmo funcionando com os outros. Agora, se não conecta em 20 segundos, ela é refeita sozinha.
+
 ### Mudado
 - **Chamar a atenção bem mais alto, e até 5 vezes por minuto:** o som de quem é chamado ficou bem mais alto que os outros avisos, para ser ouvido com o jogo ligado. E dá para chamar a mesma pessoa até 5 vezes por minuto (era uma).
 

@@ -74,6 +74,7 @@ type ConexaoDeVoz = {
   tentativas: number;
   medidor: MedidorDaConexao;
   espera?: ReturnType<typeof setTimeout>;
+  vigia?: ReturnType<typeof setTimeout>;
 };
 
 export const EU = 'eu';
@@ -86,6 +87,16 @@ const MEDIR_A_CONEXAO_A_CADA = 2_000;
 // Apertar para falar: a voz continua um pouco depois de soltar a tecla, para não cortar o fim da última palavra.
 const SEGURA_AO_SOLTAR = 150;
 const TENTATIVAS_DE_VOZ = 3;
+/**
+ * O vigia: uma conexão de voz que não conecta nesse tempo é refeita, como uma que falhou. Sem ele, uma que ficava parada
+ * em "conectando" (a combinação entre os dois não terminou: uma mensagem que se perdeu numa reconexão, ou os dois
+ * ligando ao mesmo tempo e cada um atendendo a ligação do outro) nunca era refeita, porque só "failed" refazia. Visto
+ * pelo dono em 19/10/2026: um amigo falava com outro, mas com ele ficava "conectando…" para sempre. Uma rede que bloqueia
+ * de verdade dá "failed" em ~30 s; 20 s é antes disso, mas bem depois de uma conexão normal (~1 s).
+ */
+const VIGIA_DA_VOZ = 20_000;
+// Depois do vigia, um sorteio de até tanto antes de ligar de novo (veja vigiar).
+const SORTEIO_DO_VIGIA = 5_000;
 const DO_SISTEMA = noApp ? 'do Windows' : 'do sistema'; // no navegador (e no celular), quem escolhe o padrão é o sistema
 
 class Voz {
@@ -515,6 +526,7 @@ class Voz {
     trocaDeImagens.conectar(id, pc.createDataChannel('imagens', { negotiated: true, id: 1 }), () => pc.sctp?.maxMessageSize);
     const c: ConexaoDeVoz = { id, pc, oferente, pendentes: [], canal, ultimaFala: 0, tentativas, medidor: new MedidorDaConexao() };
     this.conexoes.set(id, c);
+    c.vigia = setTimeout(() => this.vigiar(c), VIGIA_DA_VOZ);
     canal.onopen = () => this.contarMeuEstado(c);
     canal.onmessage = (e) => {
       try {
@@ -533,6 +545,7 @@ class Voz {
       this.cliente?.registrar(`voz com ${this.nomeDe(id)}: ${pc.connectionState}`);
       clearTimeout(c.espera);
       if (pc.connectionState === 'connected') {
+        clearTimeout(c.vigia);
         c.tentativas = 0;
         this.avisouSemVoz.delete(id);
       } else if (pc.connectionState === 'failed') {
@@ -564,6 +577,7 @@ class Voz {
     const c = this.conexoes.get(id);
     if (!c) return;
     clearTimeout(c.espera);
+    clearTimeout(c.vigia);
     trocaDeImagens.desconectar(id);
     c.pc.close();
     c.fonte?.disconnect();
@@ -581,10 +595,25 @@ class Voz {
     this.cliente?.enviar({ tipo: 'oferta', para: id, canal: 'voz', sdp: descricao });
   }
 
+  /**
+   * O vigia disparou: a conexão não conectou a tempo. Este lado liga de novo, tenha ele ligado ou atendido, depois de
+   * um sorteio de até SORTEIO_DO_VIGIA: os vigias dos dois lados disparam quase juntos, e o primeiro a ligar troca a
+   * conexão do outro (que então desiste: a dele já não é a atual). Sem o sorteio, as duas ligações se cruzariam de novo.
+   * Uma ligação que se perdeu no caminho deixa só um lado com conexão (o outro nem a recebeu): esse liga sozinho.
+   */
+  private vigiar(c: ConexaoDeVoz) {
+    if (this.conexoes.get(c.id) !== c || !this.naSala || c.pc.connectionState === 'connected') return;
+    this.cliente?.registrar(`voz com ${this.nomeDe(c.id)}: não conectou em ${VIGIA_DA_VOZ / 1000} s (${c.pc.connectionState})`);
+    c.vigia = setTimeout(() => {
+      if (this.conexoes.get(c.id) !== c || c.pc.connectionState === 'connected') return;
+      this.refazer(c, true);
+    }, Math.random() * SORTEIO_DO_VIGIA);
+  }
+
   /** A conexão caiu: quem ligou liga de novo (até 3 vezes seguidas); o outro lado espera a ligação nova. */
-  private refazer(c: ConexaoDeVoz) {
-    if (this.conexoes.get(c.id) !== c || !this.naSala || !c.oferente) return;
-    if (c.pc.connectionState !== 'failed' && c.pc.connectionState !== 'disconnected') return;
+  private refazer(c: ConexaoDeVoz, peloVigia = false) {
+    if (this.conexoes.get(c.id) !== c || !this.naSala || (!c.oferente && !peloVigia)) return;
+    if (!peloVigia && c.pc.connectionState !== 'failed' && c.pc.connectionState !== 'disconnected') return;
     if (c.tentativas >= TENTATIVAS_DE_VOZ) {
       if (!this.avisouSemVoz.has(c.id)) {
         this.avisouSemVoz.add(c.id);

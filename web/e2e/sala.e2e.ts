@@ -328,6 +328,35 @@ test('a voz chega, o microfone desligado silencia e quem sai some da sala', asyn
   await expect(beto.getByLabel('Sala e pessoas')).not.toContainText('Ana');
 });
 
+test('a voz que fica parada em "conectando" (a ligação se perdeu) é refeita sozinha', async ({ browser }) => {
+  const sala = novaSala();
+  const ana = await entrarNaSala(browser, sala, 'Ana');
+  // Quem chega liga: a primeira ligação de voz do Beto para a Ana some no caminho (como numa reconexão do servidor).
+  const contexto = await browser.newContext();
+  const beto = await contexto.newPage();
+  await beto.addInitScript(prepararPagina);
+  await beto.addInitScript(() => {
+    let perdeu = false;
+    const mandar = WebSocket.prototype.send;
+    WebSocket.prototype.send = function (this: WebSocket, dados: string) {
+      if (!perdeu && typeof dados === 'string' && dados.includes('"tipo":"oferta"') && dados.includes('"canal":"voz"')) {
+        perdeu = true;
+        return;
+      }
+      return mandar.call(this, dados);
+    } as typeof WebSocket.prototype.send;
+  });
+  await beto.goto(`/?sala=${sala}`);
+  await beto.getByLabel('Seu nome').fill('Beto');
+  await beto.getByLabel('Senha do grupo').fill('teste');
+  await beto.getByRole('button', { name: 'Entrar na sala' }).click();
+
+  // O vigia (20 s, mais o sorteio de até 5 s) liga de novo, e o bipe do microfone de cada um chega ao outro.
+  await expect.poll(() => volumeNaSaida(ana), { timeout: 40_000, intervals: [2000] }).toBeGreaterThan(0.01);
+  await expect.poll(() => volumeNaSaida(beto), { timeout: 10_000 }).toBeGreaterThan(0.01);
+  for (const pagina of [ana, beto]) await pagina.context().close();
+});
+
 test('o vídeo de quem transmite só sai para quem clicou em Assistir, e para de sair quando a pessoa deixa de assistir', async ({ browser }) => {
   const sala = novaSala();
   const ana = await entrarNaSala(browser, sala, 'Ana');
