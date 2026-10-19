@@ -8,9 +8,11 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.2.21] - 2026-10-18
+
 ### Novo
-- **O número de mensagens novas no ícone** (app para Windows, próxima versão): a marca de mensagens não lidas do chat agora mostra quantas são (de 1 a 9, e "9+"), sobre o ícone da barra de tarefas e no ícone perto do relógio (no canto de cima). Some quando você abre o chat. Antes, era um ponto verde sem número, e o ícone perto do relógio não mudava.
-- **Chamar a atenção de um amigo:** clicando no nome dele, "Chamar" toca um som e mostra um aviso para ele, mesmo com o som do Ozamigos e as notificações desligados ("Voltei, volta aí também"). O aviso traz o botão para ligar o som. Uma vez por minuto para cada amigo. No app para Windows, a partir da próxima versão, o ícone também pisca na barra de tarefas.
+- **O número de mensagens novas no ícone** (app para Windows): a marca de mensagens não lidas do chat agora mostra quantas são (de 1 a 9, e "9+"), sobre o ícone da barra de tarefas e no ícone perto do relógio (no canto de cima). Some quando você abre o chat. Antes, era um ponto verde sem número, e o ícone perto do relógio não mudava.
+- **Chamar a atenção de um amigo:** clicando no nome dele, "Chamar" toca um som e mostra um aviso para ele, mesmo com o som do Ozamigos e as notificações desligados ("Voltei, volta aí também"). O aviso traz o botão para ligar o som. Uma vez por minuto para cada amigo. No app para Windows, o ícone também pisca na barra de tarefas.
 - **Grupos com nome e senha seus:** na entrada, "Criar um grupo com outra senha" cria um grupo no endereço `.../nome-do-grupo`, com a senha que você escolher. Mande o link e a senha para os amigos. O grupo fica até o Ozamigos ser atualizado ou reiniciado, e quem abrir o link depois cria de novo, com a mesma senha, em um clique. O grupo de sempre continua na entrada, e ganhou o endereço fixo `.../ozamigos`, sempre na mesma sala.
 
 ### Corrigido
@@ -304,7 +306,8 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
-[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.20...HEAD
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.21...HEAD
+[1.2.21]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.20...v1.2.21
 [1.2.20]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.19...v1.2.20
 [1.2.19]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.18...v1.2.19
 [1.2.18]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.17...v1.2.18
