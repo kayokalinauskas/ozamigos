@@ -38,6 +38,7 @@
     },
     "files": [
       "main.js",
+      "marcaDoChat.js",
       "preload.js",
       "inicio.html",
       "inicio.js",

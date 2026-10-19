@@ -3,6 +3,7 @@
 // navegador, o som do PC sem o Discord e sem o próprio app, notificações do Windows, e não ser freado quando fica
 // atrás do jogo.
 
+const { iconeComMarca, marcaSozinha, textoDaMarca } = require('./marcaDoChat');
 const { app, BrowserWindow, MessageChannelMain, Menu, Notification, Tray, desktopCapturer, ipcMain, nativeImage, nativeTheme, net, screen, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
@@ -1066,36 +1067,43 @@ ipcMain.on('bandeja-definir', (evento, ligada) => {
 // ===== Mensagens novas do chat: aviso na barra de tarefas e na bandeja =====
 
 let mensagensNaoLidas = 0;
-let pontoDeAviso = null;
+const marcas = new Map(); // o número escrito -> as imagens, para não redesenhar a cada mensagem
 
 /**
- * Um ponto verde-limão com borda escura, 16×16, para o canto do ícone na barra de tarefas (como o número
- * vermelho do Discord). Desenhado em pixels (BGRA), sem arquivo de imagem.
+ * A marca das mensagens não lidas (marcaDoChat.js), nos dois tamanhos que o Windows usa (100% e 200% da tela): a
+ * bolinha sozinha, para a barra de tarefas, e o ícone com ela no canto de cima, para a bandeja.
  */
-function pontoVerde() {
-  const lado = 16;
-  const pixels = Buffer.alloc(lado * lado * 4);
-  for (let y = 0; y < lado; y++) {
-    for (let x = 0; x < lado; x++) {
-      const distancia = Math.hypot(x + 0.5 - lado / 2, y + 0.5 - lado / 2);
-      const i = (y * lado + x) * 4;
-      const [b, g, r] = distancia <= 5.5 ? [0x4a, 0xf2, 0xb6] : [0x0a, 0x0e, 0x0b]; // --destaque e --fundo
-      const opaco = Math.max(0, Math.min(1, 7.5 - distancia)); // a borda de fora sai suave
-      pixels.set([b, g, r, Math.round(opaco * 255)], i);
-    }
-  }
-  return nativeImage.createFromBitmap(pixels, { width: lado, height: lado });
+function imagensDaMarca(quantas) {
+  const texto = textoDaMarca(quantas);
+  if (marcas.has(texto)) return marcas.get(texto);
+  const juntar = (desenhar) => {
+    const imagem = nativeImage.createFromBitmap(desenhar(16), { width: 16, height: 16 });
+    imagem.addRepresentation({ scaleFactor: 2, buffer: nativeImage.createFromBitmap(desenhar(32), { width: 32, height: 32 }).toPNG() });
+    return imagem;
+  };
+  const icone = nativeImage.createFromPath(ICONE);
+  const doIcone = (lado) => icone.resize({ width: lado, height: lado, quality: 'best' }).toBitmap();
+  const imagens = {
+    barra: juntar((lado) => marcaSozinha(quantas, lado)),
+    bandeja: juntar((lado) => iconeComMarca(doIcone(lado), lado, quantas)),
+  };
+  marcas.set(texto, imagens);
+  return imagens;
 }
 
 /**
- * A página conta as mensagens do chat que a pessoa ainda não viu. Com alguma: o ponto no ícone da barra de tarefas
- * e o número na dica da bandeja; chegou uma nova com a janela fora de foco, o ícone pisca até a pessoa voltar.
+ * A página conta as mensagens do chat que a pessoa ainda não viu (e zera quando ela abre o chat). Com alguma: a marca
+ * com o número no ícone da barra de tarefas (o Windows a põe no canto de baixo) e no da bandeja (no canto de cima), e o
+ * número na dica; chegou uma nova com a janela fora de foco, o ícone pisca até a pessoa voltar. Até a 1.2.20, era um
+ * ponto verde sem número, e a bandeja não mudava.
  */
 ipcMain.on('nao-lidas', (evento, quantas) => {
   if (!vindoDaPagina(evento) || !janela || janela.isDestroyed()) return;
   const n = Math.max(0, Math.min(999, Math.floor(Number(quantas) || 0)));
   const texto = n === 1 ? '1 mensagem nova no chat' : `${n} mensagens novas no chat`;
-  janela.setOverlayIcon(n > 0 ? (pontoDeAviso ??= pontoVerde()) : null, n > 0 ? texto : '');
+  const imagens = n > 0 ? imagensDaMarca(n) : null;
+  janela.setOverlayIcon(imagens?.barra ?? null, n > 0 ? texto : '');
+  bandeja?.setImage(imagens?.bandeja ?? ICONE);
   bandeja?.setToolTip(n > 0 ? `Ozamigos · ${texto}` : 'Ozamigos');
   if (n > mensagensNaoLidas && !janela.isFocused()) janela.flashFrame(true);
   else if (n === 0) janela.flashFrame(false); // tudo lido (a pessoa abriu o chat): não há mais o que chamar atenção

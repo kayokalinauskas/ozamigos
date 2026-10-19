@@ -201,7 +201,10 @@ test('fechar a janela deixa o app na bandeja, e a página tem a bandeja, o aviso
   try {
     await expect(aberto.janela.getByRole('heading', { name: 'servidor de teste' })).toBeVisible({ timeout: PAGINA_DO_SERVIDOR });
     const pagina = await aberto.janela.evaluate(async () => {
-      window.ozamigos.naoLidas(2); // o ponto na barra de tarefas: não pode dar erro
+      // A marca com o número na barra de tarefas e na bandeja (e o "9+"), e de volta ao ícone limpo: não pode dar erro.
+      window.ozamigos.naoLidas(2);
+      window.ozamigos.naoLidas(12);
+      window.ozamigos.naoLidas(0);
       let telaAcordada;
       try {
         await (await navigator.wakeLock.request('screen')).release();
@@ -219,6 +222,27 @@ test('fechar a janela deixa o app na bandeja, e a página tem a bandeja, o aviso
   } finally {
     await fechar(aberto); // sair de verdade (como o "Sair" da bandeja) ainda fecha tudo
     servidor.close();
+  }
+});
+
+test('a marca das mensagens não lidas tem o número, e na bandeja fica no canto de cima sem apagar o ícone', () => {
+  const { iconeComMarca, marcaSozinha, textoDaMarca } = require('../marcaDoChat');
+  expect([1, 9, 10, 250].map(textoDaMarca)).toEqual(['1', '9', '9+', '9+']);
+  const cor = (pixels, lado, x, y) => [...pixels.subarray((y * lado + x) * 4, (y * lado + x) * 4 + 4)];
+  const VERDE = [0x4a, 0xf2, 0xb6, 255];
+  for (const lado of [16, 32]) {
+    const marca = marcaSozinha(3, lado);
+    const cores = new Set(Array.from({ length: lado * lado }, (_, i) => cor(marca, lado, i % lado, Math.floor(i / lado)).join()));
+    expect(cores).toContain(VERDE.join()); // a bolinha
+    expect(cores).toContain([0x0a, 0x0e, 0x0b, 255].join()); // o número, escuro
+    // Um "ícone" cinza: o canto de baixo à esquerda continua o ícone, o de cima à direita ganha a marca.
+    const icone = Buffer.alloc(lado * lado * 4, 0x80);
+    for (const n of [1, 12]) {
+      const comMarca = iconeComMarca(icone, lado, n);
+      expect(cor(comMarca, lado, 1, lado - 2)).toEqual(cor(icone, lado, 1, lado - 2));
+      const alto = Array.from({ length: lado / 2 }, (_, y) => Array.from({ length: lado / 2 }, (_, x) => cor(comMarca, lado, lado / 2 + x, y).join())).flat();
+      expect(alto).toContain(VERDE.join());
+    }
   }
 });
 
