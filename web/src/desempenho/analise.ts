@@ -342,7 +342,7 @@ const CODIGO = {
   captura: 'desktop/captura (o auxiliar da captura do app: Wgc.cs, Conversor.cs, Programa.cs), web/src/videoDoApp.ts, web/src/conexao/captura.ts (tamanhoDaCaptura, FPS_MINIMO_DA_CAPTURA), web/src/cliente.ts (capturar, usarTela) e desktop/main.js (ligarCapturaDeVideo, desktopCapturer, setDisplayMediaRequestHandler)',
   codificador: 'web/src/conexao/captura.ts (montarEnvio, codificacao), web/src/conexao/webrtc.ts (preferirCodecs), web/src/cliente.ts (aplicarQualidade) e desktop/main.js (force-fieldtrials WebRTC-FrameDropper/Disabled)',
   buffer: 'web/src/folga.ts (FolgaAdaptativa: o jitterBufferTarget de quem assiste) e web/src/cliente.ts (ajustarFolga)',
-  rede: 'web/src/conexao/webrtc.ts (SERVIDORES_ICE: só STUN, sem TURN) e web/src/cliente.ts (refazerVideo)',
+  rede: 'web/src/conexao/webrtc.ts (SERVIDORES_ICE e a retransmissão TURN, que só entra quando o caminho direto falha) e web/src/cliente.ts (refazerVideo)',
   interface: 'web/src/conexao/medidor.ts e web/src/cliente.ts (medir(): getStats de todas as conexões a cada 1 s e mudar() que re-renderiza o React) e web/src/componentes/',
   malha: 'web/src/cliente.ts (enviarOferta: uma RTCPeerConnection e uma codificação por espectador)',
 };

@@ -10,7 +10,7 @@
 
 import { criarLimitador } from './limitador';
 import type { SinalDeVozParaEnviar, SinalDoServidor } from '../conexao/protocolo';
-import { adicionarCandidato, novaPeerConnection, opusDeVoz } from '../conexao/webrtc';
+import { adicionarCandidato, caminhoDaConexao, novaPeerConnection, opusDeVoz } from '../conexao/webrtc';
 import urlDoRnnoise from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url';
 import urlDoRnnoiseSimd from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url';
 import { noApp } from '../ponte';
@@ -545,6 +545,7 @@ class Voz {
       this.cliente?.registrar(`voz com ${this.nomeDe(id)}: ${pc.connectionState}`);
       clearTimeout(c.espera);
       if (pc.connectionState === 'connected') {
+        void caminhoDaConexao(pc).then((caminho) => caminho && this.cliente?.registrar(`voz com ${this.nomeDe(id)}: ${caminho}`));
         clearTimeout(c.vigia);
         c.tentativas = 0;
         this.avisouSemVoz.delete(id);

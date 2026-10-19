@@ -37,7 +37,9 @@ import {
   SERVIDORES_ICE,
   adicionarCandidato,
   aquecerWebRtc,
+  caminhoDaConexao,
   definirFolga,
+  definirRetransmissao,
   novaPeerConnection,
   opusEstereo,
 } from './conexao/webrtc';
@@ -166,7 +168,7 @@ const RECUSAS: Partial<Record<MotivoDoErro, string>> = {
 /** Os ajustes de transmissão desta versão, como estão no código: vão no relatório do teste de desempenho. */
 export const AJUSTES_DA_TRANSMISSAO = {
   servidoresIce: SERVIDORES_ICE.map((s) => s.urls).flat(),
-  turn: false,
+  turn: 'credenciais do servidor (Retransmissao.java), quando ligada; usada só quando o caminho direto falha',
   topologia: 'malha P2P: uma RTCPeerConnection e uma codificação por pessoa assistindo',
   codecPreferido: 'H264 (setCodecPreferences), depois os outros',
   folgaDeRedeMs: FOLGA.inicial,
@@ -453,6 +455,12 @@ class Cliente {
   }
 
   /** De volta ao servidor, com um id novo: as conexões antigas não servem mais e são refeitas. */
+  /** A retransmissão que o servidor deu (ou tirou): vale para as conexões novas. Só o fato vai para o relatório. */
+  private usarRetransmissao(servidores: RTCIceServer[]) {
+    definirRetransmissao(servidores);
+    this.registrar(servidores.length ? 'retransmissão disponível' : 'sem retransmissão: só conexões diretas');
+  }
+
   private voltei(msg: Extract<MensagemDoServidor, { tipo: 'bem-vindo' }>) {
     for (const id of this.estado.assistindo) this.lembrarSaida(this.nomeDe(id), true);
     for (const { canal, id } of [...this.conexoes.values()]) this.fecharConexao(canal, id);
@@ -531,6 +539,7 @@ class Cliente {
     switch (msg.tipo) {
       case 'bem-vindo': {
         this.ficha = msg.ficha ?? '';
+        this.usarRetransmissao(msg.retransmissao ?? []);
         if (e.fase === 'sala') {
           this.voltei(msg);
           break;
@@ -679,6 +688,9 @@ class Cliente {
           break;
         }
         this.tratarErro(msg.motivo);
+        break;
+      case 'retransmissao':
+        this.usarRetransmissao(msg.servidores);
         break;
       case 'pong':
         break; // só mostra que o servidor ainda ouve (a Sinalizacao já anotou a hora)
@@ -1256,6 +1268,7 @@ class Cliente {
       if (canal !== 'recebimento') return;
       clearTimeout(espera);
       if (pc.connectionState === 'connected') {
+        void caminhoDaConexao(pc).then((caminho) => caminho && this.registrar(`vídeo de ${this.nomeDe(idRemoto)}: ${caminho}`));
         conectou = true;
         this.tentativasDeVideo.delete(idRemoto);
       } else if (pc.connectionState === 'disconnected') {

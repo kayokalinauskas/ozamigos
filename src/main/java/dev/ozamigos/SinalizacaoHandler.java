@@ -54,10 +54,12 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     private final JsonMapper json;
     private final PreviasDeLinks previas;
     private final Grupos grupos;
+    private final Retransmissao retransmissao;
 
     public SinalizacaoHandler(Salas salas, SenhaDoGrupo senhaDoGrupo, TentativasDeSenha tentativas, JsonMapper json, PreviasDeLinks previas,
-            Grupos grupos) {
+            Grupos grupos, Retransmissao retransmissao) {
         this.salas = salas;
+        this.retransmissao = retransmissao;
         this.grupos = grupos;
         this.senhaDoGrupo = senhaDoGrupo;
         this.tentativas = tentativas;
@@ -205,6 +207,12 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         entrada.compartilhando().forEach(compartilhando::add);
         ObjectNode plateias = boasVindas.putObject("plateias");
         entrada.plateias().forEach((quem, ids) -> ids.forEach(plateias.putArray(quem)::add));
+        // A retransmissão vem já no bem-vindo: a pessoa liga a voz para todos logo que o recebe.
+        WebSocketSession segura = segura(sessao);
+        ArrayNode servidores = retransmissao.entrou(id, endereco, novos -> enviar(segura, mensagemDaRetransmissao(novos)));
+        if (servidores != null) {
+            boasVindas.set("retransmissao", servidores);
+        }
         if (entrada.gravador() != null) {
             boasVindas.putObject("gravando").put("id", entrada.gravador()).put("nome", salas.nome(codigo, entrada.gravador()));
         }
@@ -216,6 +224,13 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         for (WebSocketSession outro : entrada.avisar()) {
             enviar(outro, entrou);
         }
+    }
+
+    /** Credenciais novas da retransmissão (a lista vazia: ela foi cortada; as conexões novas vão só direto). */
+    private ObjectNode mensagemDaRetransmissao(ArrayNode servidores) {
+        ObjectNode mensagem = json.createObjectNode().put("tipo", "retransmissao");
+        mensagem.set("servidores", servidores);
+        return mensagem;
     }
 
     private void comecei(WebSocketSession sessao, String id, String sala) throws IOException {
@@ -424,6 +439,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession sessao, CloseStatus status) throws IOException {
         String id = (String) sessao.getAttributes().get("id");
         String sala = (String) sessao.getAttributes().get("sala");
+        retransmissao.saiu(id);
         if (sala != null) {
             retirar(sala, id);
         }

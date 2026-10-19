@@ -406,6 +406,8 @@ gh release delete v1.0.1 --cleanup-tag --yes
 | `OZAMIGOS_SENHA` | sim | — | Senha do grupo. Sem ela, o servidor não sobe |
 | `PORT` | não | `8080` | Porta HTTP. O Render define `10000` |
 | `YOUTUBE_API_KEY` | não | — | Chave da API de dados do YouTube (v3), para as prévias de links do chat. Sem ela, o YouTube vai pelo oEmbed e pela página do vídeo, que ele às vezes recusa a servidores de datacenter. Gratuita: 10 mil consultas por dia, 1 por link novo |
+| `OZAMIGOS_TURN_ID` e `OZAMIGOS_TURN_TOKEN` | não | — | O *Turn Token ID* e o *API Token* de uma chave do TURN da Cloudflare (*Realtime → TURN Server → Create*). Ligam a retransmissão para quem não conecta direto (veja "Retransmissão" em Segurança). Só valem com as duas de baixo |
+| `OZAMIGOS_CLOUDFLARE_CONTA` e `OZAMIGOS_CLOUDFLARE_LEITURA` | não | — | O *Account ID* e um token só com *Account Analytics: Read*: o servidor lê o consumo da retransmissão a cada 5 minutos e a corta antes de passar da franquia gratuita. Sem eles, a retransmissão fica desligada |
 
 **App para Windows**
 
@@ -451,7 +453,8 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 
 | `tipo` | Campos | Quando |
 |---|---|---|
-| `bem-vindo` | `id`, `ficha`, `outros[]`, `compartilhando[]`, `plateias{}`, `gravando` (`id`, `nome`, se alguém grava a sala) | Ao entrar. A `ficha` é secreta: só quem a recebeu pode usá-la para reconectar |
+| `bem-vindo` | `id`, `ficha`, `outros[]`, `compartilhando[]`, `plateias{}`, `gravando` (`id`, `nome`, se alguém grava a sala), `retransmissao[]` (os `iceServers` do TURN, se ligada e dentro dos limites) | Ao entrar. A `ficha` é secreta: só quem a recebeu pode usá-la para reconectar |
+| `retransmissao` | `servidores[]` | Credenciais renovadas do TURN (a cada 6 h), ou a lista vazia quando ela foi cortada (limite de consumo) |
 | `pong` | — | Resposta ao `ping`. Sem nenhuma mensagem por 70 s, o cliente considera a conexão morta e reconecta |
 | `entrou` / `saiu` | `id` (e `nome`) | Alguém entrou ou saiu |
 | `pode-compartilhar` | — | Confirma o `comecei` |
@@ -537,6 +540,12 @@ A **fluidez** é a porcentagem de quadros que chegaram à tela a tempo: interval
   - permissões (tela, notificações, tela cheia) só valem para o endereço do servidor configurado;
   - links externos abrem no navegador.
 - **Nomes:** aparecem como texto, nunca como HTML.
+- **Retransmissão (TURN da Cloudflare):** quando dois PCs não conectam direto, a voz, as imagens e o vídeo passam pelo TURN, ainda criptografados de ponta a ponta (o TURN só repassa). A Cloudflare dá 1.000 GB por mês e não tem teto de gastos, então o teto é do servidor (`Retransmissao.java`):
+  - cada pessoa numa sala recebe a sua credencial no `bem-vindo` (válida por 12 h, renovada a cada 6 h); quem sai tem a dela **cancelada** na Cloudflare 2 minutos depois, então uma credencial copiada para fora só vale enquanto a pessoa fica na sala;
+  - a cada 5 minutos o servidor lê o consumo na própria Cloudflare (por credencial): um endereço com 10 GB no dia fica sem retransmissão até o dia seguinte (UTC); todos juntos com 100 GB no dia, ou 800 GB nos últimos 31 dias, a desligam para todos, com as credenciais canceladas;
+  - cada endereço recebe até 10 credenciais a cada 10 minutos;
+  - sem conseguir ler o consumo por 15 minutos, ninguém recebe credencial nova.
+  - O log diz o consumo uma vez por hora (`Retransmissão: X GB em 31 dias, Y GB hoje`) e quando ela desliga ou religa; o endereço nunca vai para o log.
 
 ---
 
@@ -585,7 +594,7 @@ O workflow [CI](.github/workflows/ci.yml) roda as cinco camadas em cada push na 
 | Amigos ouvem o próprio som de volta | Transmissão pelo navegador (som do PC inteiro) | Transmita pelo app para Windows |
 | A voz de outro app de chamada vai junto | O app não está na lista `SEM_SOM_DE`, ou roda no navegador | Converse pela voz do próprio Ozamigos, ou acrescente o programa em `SEM_SOM_DE` |
 | Vídeo preto com o jogo em tela cheia | Tela cheia exclusiva não é capturável | "Janela sem bordas" ou transmita a tela inteira |
-| "Não foi possível conectar direto com…" | 4G/5G, CGNAT ou rede corporativa | Outra rede. Esses casos exigem TURN (veja Limitações) |
+| "Não foi possível conectar direto com…" | 4G/5G, CGNAT ou rede corporativa, com a retransmissão desligada ou cortada pelo limite | Configure a retransmissão (veja "Retransmissão" em Segurança) ou use outra rede. O relatório diz `retransmissão disponível` ou `sem retransmissão`, e cada conexão `direto` ou `retransmitido` |
 | "A conexão com o servidor caiu. Reconectando…" | Render reiniciou ou a internet caiu | Espere: o app tenta de novo sozinho (1, 2, 5 e depois a cada 10 s). **Tentar agora** força uma tentativa |
 | Comando com `&&` falha no terminal | O PowerShell 5 não aceita `&&` | Use `;` ou um comando por linha |
 
@@ -593,7 +602,7 @@ O workflow [CI](.github/workflows/ci.yml) roda as cinco camadas em cada push na 
 
 ## Limitações conhecidas
 
-- **Sem servidor TURN:** quem está atrás de CGNAT, em 4G/5G ou em rede corporativa pode não conseguir conectar (nem o vídeo nem a voz). O TURN repassa o vídeo e tem custo por GB.
+- **Retransmissão limitada à franquia gratuita:** quem está atrás de CGNAT, em 4G/5G ou em rede corporativa depende da retransmissão (TURN da Cloudflare). Ela desliga sozinha perto do fim da franquia (800 GB em 31 dias, 100 GB num dia), e cada endereço tem até 10 GB por dia; sem ela, essas pessoas podem não conectar.
 - **Voz em malha:** cada pessoa manda a própria voz para cada amigo. Com o limite de 8 pessoas por sala, isso fica em ~450 kbps de upload no pior caso.
 - **Uma senha por servidor, mais os grupos criados na hora:** o grupo fixo tem a senha do servidor; os grupos criados na hora têm a senha de quem criou, mas existem só na memória, até o servidor reiniciar. Há um freio contra adivinhação (10 senhas erradas do mesmo endereço em 5 minutos) e contra criar grupos demais. Para grupos fixos de outras pessoas, seria preciso guardá-los num banco de dados.
 - **Estado em memória:** as salas vivem num servidor só. Para mais de um servidor, seria preciso um armazenamento compartilhado (ex.: Redis).

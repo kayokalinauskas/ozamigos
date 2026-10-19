@@ -68,6 +68,8 @@ export type MensagemDoServidor =
       compartilhando: string[];
       plateias: Record<string, string[]>;
       gravando?: { id: string; nome: string };
+      // A retransmissão para quem não conecta direto (Retransmissao.java); sem ela, só conexões diretas.
+      retransmissao?: RTCIceServer[];
     }
   | { tipo: 'entrou'; id: string; nome: string }
   | { tipo: 'saiu'; id: string }
@@ -89,6 +91,8 @@ export type MensagemDoServidor =
   // A prévia de um link de vídeo do chat, buscada pelo servidor (PreviasDeLinks): chega logo depois da mensagem.
   | { tipo: 'previa'; url: string; site: string; titulo?: string; autor?: string; miniatura?: string; aoVivo?: boolean }
   | { tipo: 'chamado'; de: string }
+  // Credenciais novas da retransmissão (renovadas), ou a lista vazia: ela foi cortada.
+  | { tipo: 'retransmissao'; servidores: RTCIceServer[] }
   | { tipo: 'erro'; motivo: MotivoDoErro }
   | { tipo: 'pong' };
 

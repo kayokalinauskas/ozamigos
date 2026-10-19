@@ -307,7 +307,7 @@ function configuracao(p: Empurrar, g: Gravacao, titulo: string) {
     '- O app (Electron) desliga o descarte de quadros do WebRTC: `force-fieldtrials=WebRTC-FrameDropper/Disabled/` (`desktop/main.js`), porque o codificador da placa passava do alvo em cenas cheias e o WebRTC descartava quadros.',
     '- Quem assiste segura uns quadros antes de mostrar (`jitterBufferTarget`), contra soluços do Wi-Fi. A folga é adaptativa por conexão (`web/src/folga.ts`): começa em 100 ms, fica entre 80 e 250 ms, sobe com o jitter e a cada congelamento e desce devagar com a rede calma. Ela vale só para o vídeo; o som da transmissão fica com o ajuste automático do WebRTC (antes, a folga também no som fazia a imagem esperar ~200 ms a mais pelo sincronismo).',
     '- A voz da sala anda numa conexão separada por par de pessoas (`web/src/voz/`), sem essa folga: ela não aparece nestas medidas.',
-    '- A sinalização passa por um servidor Spring Boot (WebSocket); o vídeo não passa por ele. Só STUN, sem TURN.',
+    '- A sinalização passa por um servidor Spring Boot (WebSocket); o vídeo não passa por ele. STUN, e a retransmissão (TURN da Cloudflare, credenciais do servidor) só quando o caminho direto falha.',
     '',
     '**Ajustes (lidos do código desta versão):**',
     '',

@@ -4,9 +4,55 @@
 // Dois de empresas diferentes: se uma rede bloquear um, o outro responde.
 export const SERVIDORES_ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
 
+/**
+ * A retransmissão (TURN), que o servidor manda no `bem-vindo` e renova (`retransmissao`): o caminho de reserva para
+ * quem não conecta direto. Com ela na lista, o navegador ainda prefere o caminho direto; só usa a retransmissão quando
+ * ele falha. Vazia: o servidor não deu (desligada, ou o limite de consumo, Retransmissao.java).
+ */
+let retransmissao: RTCIceServer[] = [];
+const abertas = new Set<RTCPeerConnection>();
+
+/** Troca a retransmissão das conexões novas, e também das abertas (vale nas próximas buscas de caminho delas). */
+export function definirRetransmissao(servidores: RTCIceServer[]) {
+  retransmissao = servidores;
+  for (const pc of abertas) {
+    if (pc.signalingState === 'closed') {
+      abertas.delete(pc);
+      continue;
+    }
+    try {
+      pc.setConfiguration({ ...pc.getConfiguration(), iceServers: [...SERVIDORES_ICE, ...retransmissao] });
+    } catch (erro) {
+      console.warn('A conexão não aceitou a retransmissão nova', erro);
+    }
+  }
+}
+
+export function temRetransmissao(): boolean {
+  return retransmissao.length > 0;
+}
+
 /** Uma conexão nova, com vídeo e som pelo mesmo caminho de rede (max-bundle: menos candidatos, conecta mais rápido). */
 export function novaPeerConnection(): RTCPeerConnection {
-  return new RTCPeerConnection({ iceServers: SERVIDORES_ICE, bundlePolicy: 'max-bundle' });
+  const pc = new RTCPeerConnection({ iceServers: [...SERVIDORES_ICE, ...retransmissao], bundlePolicy: 'max-bundle' });
+  abertas.add(pc);
+  return pc;
+}
+
+/** Por onde uma conexão conectada passa: direto, ou pela retransmissão (para o relatório). */
+export async function caminhoDaConexao(pc: RTCPeerConnection): Promise<'direto' | 'retransmitido' | null> {
+  try {
+    const relatorio = await pc.getStats();
+    let par: { localCandidateId?: string; remoteCandidateId?: string } | undefined;
+    relatorio.forEach((r) => {
+      if (r.type === 'transport' && r.selectedCandidatePairId) par = relatorio.get(r.selectedCandidatePairId);
+    });
+    if (!par) return null;
+    const tipos = [par.localCandidateId, par.remoteCandidateId].map((id) => (id ? relatorio.get(id)?.candidateType : undefined));
+    return tipos.includes('relay') ? 'retransmitido' : 'direto';
+  } catch {
+    return null;
+  }
 }
 
 /**
