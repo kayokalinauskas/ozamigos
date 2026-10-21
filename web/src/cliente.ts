@@ -183,6 +183,9 @@ export const AJUSTES_DA_TRANSMISSAO = {
   somDaTransmissao: 'em outro MediaStream que o vídeo: quem assiste não sincroniza os dois, e a imagem não espera o som',
 };
 
+/** A última sala do grupo fixo em que a pessoa entrou: a entrada já vem com ela. */
+export const ULTIMA_SALA = 'ozamigos-ultima-sala';
+
 /** Uma conexão de vídeo com alguém da sala: quem me assiste (envio) ou quem eu assisto (recebimento). */
 export type Ligacao = { id: string; nome: string; pc: RTCPeerConnection };
 
@@ -235,7 +238,10 @@ class Cliente {
     const daUrl = new URLSearchParams(location.search).get('sala');
     // O convite para o app (Convite.tsx) é só das salas do grupo fixo: o app ainda não abre um grupo pelo link.
     this.veioDeUmLink = !grupo && !salaFixa && Boolean(daUrl && codigoValido(daUrl));
-    const sala = daUrl && codigoValido(daUrl) ? daUrl : novoCodigo();
+    // Sem sala no link, a entrada mostra a última em que a pessoa entrou (pedido do dono, 21/10/2026): o app abre
+    // sempre na raiz, e era preciso colar o código de novo a cada vez. O botão ao lado do campo ainda sorteia uma nova.
+    const ultima = lembrado(ULTIMA_SALA);
+    const sala = daUrl && codigoValido(daUrl) ? daUrl : codigoValido(ultima) ? ultima : novoCodigo();
     lembrar('ozamigos-qualidade', ''); // a escolha de qualidade saiu (14/10/2026): o que estava guardado não serve mais
     this.estado = {
       fase: 'entrada',
@@ -547,6 +553,7 @@ class Cliente {
         this.registrar(`entrei ${e.grupo ? 'no grupo' : 'na sala'} ${this.estado.sala} como ${this.estado.meuNome}`);
         lembrar('ozamigos-nome', this.nome);
         lembrar(this.chaveDaSenha(), this.senha);
+        if (!e.grupo) lembrar(ULTIMA_SALA, e.sala);
         if (e.grupo && location.pathname !== `/${e.grupo}`) history.replaceState(null, '', `/${e.grupo}`); // criado na raiz
         this.mudar({
           fase: 'sala',

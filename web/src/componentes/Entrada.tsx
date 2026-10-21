@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { AppWindow, Download, Eye, EyeOff, LoaderCircle, Plus, RefreshCw, Server } from 'lucide-react';
-import { cliente } from '../cliente';
+import { ULTIMA_SALA, cliente } from '../cliente';
 import { codigoDe, codigoValido, grupoDe, grupoReservado, grupoValido, linkDoApp, nomeDeGrupo, novoCodigo } from '../conexao/codigoDaSala';
 import { lembrado, lembrar } from '../armazenamento';
 import { ponte } from '../ponte';
@@ -55,6 +55,7 @@ function EntrarNaSala({ aoCriarGrupo }: { aoCriarGrupo: () => void }) {
   const [nome, setNome] = useState(meuNome);
   const [senha, setSenha] = useState(() => lembrado('ozamigos-senha'));
   const [textoDaSala, setTextoDaSala] = useState(sala);
+  const [ultimaSala] = useState(() => lembrado(ULTIMA_SALA));
   const codigo = codigoDe(textoDaSala);
   const grupoColado = grupoDe(textoDaSala); // o link de um grupo, colado no campo da sala
   const salaOk = codigoValido(codigo) || grupoColado !== null;
@@ -102,7 +103,9 @@ function EntrarNaSala({ aoCriarGrupo }: { aoCriarGrupo: () => void }) {
           </button>
         </span>
         <small id="ajuda-sala" className={salaOk ? 'ajuda' : 'ajuda ajuda-erro'}>
-          {salaOk
+          {salaOk && codigo === ultimaSala
+            ? 'A última sala em que você entrou. Para outra, cole o link ou o código que um amigo mandou, ou crie uma nova no botão ao lado.'
+            : salaOk
             ? 'Cole o link ou o código que um amigo mandou, ou use este para criar uma sala nova.'
             : 'Cole o link da sala ou um código de 6 a 20 letras e números.'}
         </small>

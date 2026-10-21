@@ -153,6 +153,21 @@ test('no navegador do Windows, o link da sala oferece o app, o download ou conti
   await contexto.close();
 });
 
+test('a entrada já vem com a última sala em que a pessoa entrou, e o botão ainda cria uma nova', async ({ browser }) => {
+  const sala = novaSala();
+  const ana = await entrarNaSala(browser, sala, 'Ana');
+  await expect(ana.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+
+  // Abrir de novo sem link (o app abre sempre na raiz): a mesma sala, sem colar o código.
+  const deNovo = await ana.context().newPage();
+  await deNovo.goto('/');
+  await expect(deNovo.getByRole('textbox', { name: /^Sala/ })).toHaveValue(sala);
+  await expect(deNovo.getByText('A última sala em que você entrou')).toBeVisible();
+  await deNovo.getByRole('button', { name: 'Criar uma sala nova' }).click();
+  await expect(deNovo.getByRole('textbox', { name: /^Sala/ })).not.toHaveValue(sala);
+  await ana.context().close();
+});
+
 test('senha errada não entra e explica o motivo', async ({ browser }) => {
   const pagina = await entrarNaSala(browser, novaSala(), 'Intruso', 'chute');
 
