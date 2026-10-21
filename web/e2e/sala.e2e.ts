@@ -168,7 +168,7 @@ test('a entrada já vem com a última sala em que a pessoa entrou, e o botão ai
   await ana.context().close();
 });
 
-test('a raiz volta ao último grupo em que a pessoa entrou, com a senha lembrada, até ela escolher a entrada do Ozamigos', async ({ browser }) => {
+test('a raiz volta ao último lugar em que a pessoa entrou: o grupo, com a senha lembrada, até ela entrar numa sala por código', async ({ browser }) => {
   const grupo = `e2e-${Math.random().toString(36).slice(2, 10)}`;
   const contexto = await browser.newContext();
   const ana = await contexto.newPage();
@@ -188,11 +188,22 @@ test('a raiz volta ao último grupo em que a pessoa entrou, com a senha lembrada
   await expect(deNovo.getByText(`Grupo ${grupo}`)).toBeVisible();
   await expect(deNovo.getByLabel('Senha do grupo')).toHaveValue('segredo');
 
-  // Escolher a entrada do Ozamigos esquece o grupo: a raiz para de voltar para ele.
+  // No navegador, não entra sozinho (outra aba entraria de novo com o mesmo nome): só no app.
+  await expect(deNovo.getByRole('button', { name: 'Entrar no grupo' })).toBeEnabled();
+
+  // A entrada do Ozamigos não volta para o grupo; entrar numa sala por código passa a ser o último lugar.
   await deNovo.getByRole('link', { name: 'Ir para a entrada do Ozamigos' }).click();
-  await expect(deNovo.getByRole('textbox', { name: /^Sala/ })).toBeVisible();
-  await deNovo.goto('/');
-  await expect(deNovo.getByRole('textbox', { name: /^Sala/ })).toBeVisible();
+  const campo = deNovo.getByRole('textbox', { name: /^Sala/ });
+  await expect(campo).toBeVisible();
+  const sala = novaSala();
+  await campo.fill(sala);
+  await deNovo.getByLabel('Seu nome').fill('Ana');
+  await deNovo.getByLabel('Senha do grupo').fill('teste');
+  await deNovo.getByRole('button', { name: 'Entrar na sala' }).click();
+  await expect(deNovo.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+  const terceira = await contexto.newPage();
+  await terceira.goto('/');
+  await expect(terceira.getByRole('textbox', { name: /^Sala/ })).toHaveValue(sala);
   await contexto.close();
 });
 

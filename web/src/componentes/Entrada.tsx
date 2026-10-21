@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { AppWindow, Download, Eye, EyeOff, LoaderCircle, Plus, RefreshCw, Server } from 'lucide-react';
-import { ULTIMA_SALA, ULTIMO_GRUPO, cliente } from '../cliente';
+import { ULTIMA_SALA, cliente } from '../cliente';
 import { codigoDe, codigoValido, grupoDe, grupoReservado, grupoValido, linkDoApp, nomeDeGrupo, novoCodigo } from '../conexao/codigoDaSala';
 import { lembrado, lembrar } from '../armazenamento';
 import { ponte } from '../ponte';
@@ -17,6 +17,9 @@ const SENHA_MINIMA = 4;
 export function Entrada() {
   const { sala, grupo, salaFixa } = useCliente();
   const [criando, setCriando] = useState(false);
+
+  // O app aberto no último lugar entra sozinho (uma vez; as regras em entradaAutomatica.ts).
+  useEffect(() => cliente.entrarSozinhoSePuder(), []);
 
   // No navegador do Windows, o link de uma sala pergunta antes se a pessoa quer abrir no app (Convite.tsx).
   const [convite, setConvite] = useState(() => !ponte && NO_WINDOWS && cliente.veioDeUmLink && !lembrado(FICA_NO_NAVEGADOR));
@@ -162,11 +165,8 @@ function EntrarNoGrupo({ grupo, fixo = false }: { grupo: string; fixo?: boolean 
       ) : (
         <BotaoDeEntrar entrando={entrando} desligado={false} texto="Entrar no grupo" />
       )}
-      <a
-        className="botao botao-fantasma botao-pequeno trocar-servidor"
-        href="/"
-        onClick={() => lembrar(ULTIMO_GRUPO, '')} // senão, a raiz voltaria direto para este grupo
-      >
+      {/* Com o ?entrada, a raiz não volta para este grupo (o último lugar só muda quando a pessoa entra em outro). */}
+      <a className="botao botao-fantasma botao-pequeno trocar-servidor" href="/?entrada">
         Ir para a entrada do Ozamigos
       </a>
 

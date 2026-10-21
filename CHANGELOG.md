@@ -15,7 +15,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 - **A voz com um amigo que ficava em "conectando…" para sempre:** às vezes a combinação inicial entre os dois PCs não terminava (por exemplo, numa atualização do Ozamigos, com todos voltando juntos), e a voz entre aqueles dois nunca conectava, mesmo funcionando com os outros. Agora, se não conecta em 20 segundos, ela é refeita sozinha.
 
 ### Mudado
-- **O Ozamigos lembra onde você estava:** ao abrir de novo, ele volta ao último grupo em que você entrou (um grupo criado por vocês ou o `/ozamigos`), já com a senha, e é só clicar em "Entrar no grupo". Se foi uma sala por código, o campo da sala já vem com ela; o botão ao lado continua criando uma sala nova. Para escolher outro lugar, use "Ir para a entrada do Ozamigos".
+- **O Ozamigos lembra onde você estava:** ao abrir de novo, o app para Windows entra sozinho no último grupo ou sala em que você estava, como o Discord. Se você tinha saído com "Sair da sala", ele só mostra a entrada, já preenchida. Se a senha mudou ou a sala está cheia, a entrada aparece com o motivo. No navegador, a entrada vem preenchida com o último lugar. Para escolher outro, use "Ir para a entrada do Ozamigos" (nos grupos) ou o botão ao lado do campo da sala.
 - **Chamar a atenção bem mais alto, e até 5 vezes por minuto:** o som de quem é chamado ficou bem mais alto que os outros avisos, para ser ouvido com o jogo ligado. E dá para chamar a mesma pessoa até 5 vezes por minuto (era uma).
 
 ## [1.2.21] - 2026-10-18

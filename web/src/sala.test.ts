@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { deveEntrarSozinho } from './entradaAutomatica';
 import { codigoDe, codigoValido, grupoDe, grupoDoCaminho, grupoReservado, grupoValido, linkDaSala, linkDoApp, linkDoGrupo, nomeDeGrupo, novoCodigo } from './conexao/codigoDaSala';
 
 describe('código da sala', () => {
@@ -58,5 +59,21 @@ describe('grupo criado na hora', () => {
     expect(grupoDoCaminho('/')).toBeNull();
     expect(grupoDoCaminho('/icone.svg')).toBeNull();
     expect(grupoDe('https://ozamigos.onrender.com/?sala=Ab3dEf9')).toBeNull();
+  });
+});
+
+describe('entrada automática ao abrir o app', () => {
+  const tudo = { voltouAoUltimo: true, noApp: true, nome: 'Kayo', senha: 'segredo', naoEntrarSozinho: false };
+
+  it('entra sozinho no app, de volta ao último lugar, com o nome e a senha lembrados', () => {
+    expect(deveEntrarSozinho(tudo)).toBe(true);
+  });
+
+  it('não entra sozinho por um link, no navegador, sem nome ou senha, nem depois de sair de propósito', () => {
+    expect(deveEntrarSozinho({ ...tudo, voltouAoUltimo: false })).toBe(false); // link, recarregar, sair, "Ir para a entrada"
+    expect(deveEntrarSozinho({ ...tudo, noApp: false })).toBe(false); // outra aba entraria de novo com o mesmo nome
+    expect(deveEntrarSozinho({ ...tudo, nome: '  ' })).toBe(false);
+    expect(deveEntrarSozinho({ ...tudo, senha: '' })).toBe(false); // a senha errada apaga a lembrada
+    expect(deveEntrarSozinho({ ...tudo, naoEntrarSozinho: true })).toBe(false); // saiu, ou a última foi recusada
   });
 });

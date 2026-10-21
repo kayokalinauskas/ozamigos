@@ -17,6 +17,7 @@ import { trocaDeImagens } from './imagens/troca';
 import { novoIdDeImagem, type Chegada } from './imagens/protocolo';
 import type { ImagemComprimida } from './imagens/compressor';
 import { FOLGA, FolgaAdaptativa } from './folga';
+import { NAO_ENTRAR_SOZINHO, deveEntrarSozinho } from './entradaAutomatica';
 import { LIMITE_POR_SALA, SALA_FIXA, codigoValido, ehASalaFixa, grupoDoCaminho, grupoValido, linkDaSala, linkDoGrupo, novoCodigo } from './conexao/codigoDaSala';
 import {
   FPS_MINIMO_DA_CAPTURA,
@@ -207,6 +208,9 @@ class Cliente {
   private nome = '';
   private senha = '';
   private criar = false; // criar o grupo se ele não existe (só nos grupos criados na hora)
+  /** A página abriu na raiz, sem link, e voltou ao último lugar: o app pode entrar sozinho (entradaAutomatica.ts). */
+  private voltouAoUltimo = false;
+  private entrandoSozinho = false;
   private salaDoGrupoFixo = ''; // para voltar a ela se criar um grupo der errado
   private ficha = ''; // dada pelo servidor; na reconexão, prova que somos a mesma pessoa
   // Nome de quem saiu -> quando, e se eu assistia. Quem volta ganha outro id: o nome é o que liga.
@@ -239,11 +243,11 @@ class Cliente {
 
   constructor() {
     // A raiz sem link (o app abre sempre nela) volta ao último grupo, com o endereço dele: sair, recarregar e copiar o
-    // link continuam valendo para o grupo. "Ir para a entrada do Ozamigos", na entrada do grupo, esquece a escolha.
+    // link continuam valendo para o grupo. "Ir para a entrada do Ozamigos" leva a /?entrada, que não volta.
+    const naRaiz = location.pathname === '/' && !location.search;
     const ultimoGrupo = lembrado(ULTIMO_GRUPO);
-    if (location.pathname === '/' && !location.search && (grupoValido(ultimoGrupo) || ultimoGrupo === SALA_FIXA)) {
-      history.replaceState(null, '', `/${ultimoGrupo}`);
-    }
+    const voltaAoGrupo = naRaiz && (grupoValido(ultimoGrupo) || ultimoGrupo === SALA_FIXA);
+    if (voltaAoGrupo) history.replaceState(null, '', `/${ultimoGrupo}`);
     const grupo = grupoDoCaminho(location.pathname);
     const salaFixa = ehASalaFixa(location.pathname);
     const daUrl = new URLSearchParams(location.search).get('sala');
@@ -253,6 +257,7 @@ class Cliente {
     // sempre na raiz, e era preciso colar o código de novo a cada vez. O botão ao lado do campo ainda sorteia uma nova.
     const ultima = lembrado(ULTIMA_SALA);
     const sala = daUrl && codigoValido(daUrl) ? daUrl : codigoValido(ultima) ? ultima : novoCodigo();
+    this.voltouAoUltimo = voltaAoGrupo || (naRaiz && codigoValido(ultima));
     lembrar('ozamigos-qualidade', ''); // a escolha de qualidade saiu (14/10/2026): o que estava guardado não serve mais
     this.estado = {
       fase: 'entrada',
@@ -433,6 +438,23 @@ class Cliente {
     this.sinalizacao.conectar();
   }
 
+  /**
+   * Ao abrir o app no último lugar (a entrada chama uma vez, ao aparecer), entra sozinho se tudo estiver lembrado e a
+   * pessoa não tiver saído de propósito (as regras em entradaAutomatica.ts). Num grupo, cria de novo se ele sumiu
+   * (o servidor reiniciou), com a senha lembrada: o mesmo que a reconexão faz. Recusada, a entrada fica na tela com o
+   * motivo, e a próxima abertura não tenta de novo.
+   */
+  entrarSozinhoSePuder() {
+    if (!this.voltouAoUltimo || this.estado.fase !== 'entrada') return;
+    this.voltouAoUltimo = false; // uma vez só por abertura
+    const nome = lembrado('ozamigos-nome');
+    const senha = lembrado(this.chaveDaSenha());
+    if (!deveEntrarSozinho({ voltouAoUltimo: true, noApp, nome, senha, naoEntrarSozinho: lembrado(NAO_ENTRAR_SOZINHO) === 'sim' })) return;
+    this.registrar('entrada automática no último lugar');
+    this.entrandoSozinho = true;
+    this.entrar(nome, senha, this.estado.grupo !== null);
+  }
+
   /** Cria um grupo na hora, a partir da entrada do grupo fixo. Dando certo, o endereço vira o do grupo. */
   criarGrupo(grupo: string, nome: string, senha: string) {
     if (this.estado.fase !== 'entrada') return;
@@ -446,6 +468,7 @@ class Cliente {
     if (this.estado.fase === 'sala') {
       this.perderConexao();
     } else {
+      this.entrandoSozinho = false; // sem internet não é recusa: a próxima abertura tenta de novo
       this.mudar({ fase: 'entrada', erro: 'Não foi possível conectar. Confira a internet e tente de novo em instantes.' });
     }
   }
@@ -527,6 +550,7 @@ class Cliente {
     this.conexoes.forEach(({ pc }) => pc.close());
     voz.sair();
     this.sinalizacao.encerrar();
+    if (!paraASala) lembrar(NAO_ENTRAR_SOZINHO, 'sim'); // saiu de propósito: a próxima abertura não entra sozinha
     if (paraASala) location.assign(`/?sala=${paraASala}`);
     else location.reload(); // volta para a entrada, com a mesma sala no link
   }
@@ -565,6 +589,11 @@ class Cliente {
         lembrar('ozamigos-nome', this.nome);
         lembrar(this.chaveDaSenha(), this.senha);
         lembrar(ULTIMO_GRUPO, e.grupo ?? (e.salaFixa ? SALA_FIXA : ''));
+        lembrar(NAO_ENTRAR_SOZINHO, '');
+        if (this.entrandoSozinho) {
+          this.entrandoSozinho = false;
+          this.avisar(`Você voltou ${e.grupo || e.salaFixa ? `para o grupo ${e.grupo ?? SALA_FIXA}` : `para a sala ${e.sala}`}.`);
+        }
         if (!e.grupo) lembrar(ULTIMA_SALA, e.sala);
         if (e.grupo && location.pathname !== `/${e.grupo}`) history.replaceState(null, '', `/${e.grupo}`); // criado na raiz
         this.mudar({
@@ -735,6 +764,11 @@ class Cliente {
     }
     this.recusado = true;
     if (motivo === 'senha-errada') lembrar(this.chaveDaSenha(), ''); // a senha pode ter mudado
+    if (this.entrandoSozinho) {
+      // A sala encheu, o nome do grupo agora é de outra pessoa...: a próxima abertura mostra a entrada, sem tentar de novo.
+      this.entrandoSozinho = false;
+      lembrar(NAO_ENTRAR_SOZINHO, 'sim');
+    }
     if (this.estado.fase === 'sala') {
       // Recusado ao reconectar (a senha mudou, a sala encheu): desfaz tudo e volta para a entrada.
       this.pararDeTransmitir(false);
