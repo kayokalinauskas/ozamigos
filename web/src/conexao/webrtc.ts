@@ -14,6 +14,7 @@ const abertas = new Set<RTCPeerConnection>();
 
 /** Troca a retransmissão das conexões novas, e também das abertas (vale nas próximas buscas de caminho delas). */
 export function definirRetransmissao(servidores: RTCIceServer[]) {
+  if (JSON.stringify(servidores) === JSON.stringify(retransmissao)) return; // sem ela (desligada no servidor), nada muda
   retransmissao = servidores;
   for (const pc of abertas) {
     if (pc.signalingState === 'closed') {
