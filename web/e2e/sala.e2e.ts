@@ -168,6 +168,34 @@ test('a entrada já vem com a última sala em que a pessoa entrou, e o botão ai
   await ana.context().close();
 });
 
+test('a raiz volta ao último grupo em que a pessoa entrou, com a senha lembrada, até ela escolher a entrada do Ozamigos', async ({ browser }) => {
+  const grupo = `e2e-${Math.random().toString(36).slice(2, 10)}`;
+  const contexto = await browser.newContext();
+  const ana = await contexto.newPage();
+  await ana.addInitScript(prepararPagina);
+  await ana.goto(`/${grupo}`);
+  await ana.getByLabel('Seu nome').fill('Ana');
+  await ana.getByLabel('Senha do grupo').fill('segredo');
+  await ana.getByRole('button', { name: 'Entrar no grupo' }).click();
+  await expect(ana.getByRole('alert')).toContainText('Esse grupo não existe mais'); // é novo: cria com esta senha
+  await ana.getByRole('button', { name: 'Criar o grupo de novo com esta senha' }).click();
+  await expect(ana.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+
+  // Abrir de novo na raiz (o app abre sempre nela): o grupo, com o endereço dele e a senha já preenchida.
+  const deNovo = await contexto.newPage();
+  await deNovo.goto('/');
+  await expect(deNovo).toHaveURL(new RegExp(`/${grupo}$`));
+  await expect(deNovo.getByText(`Grupo ${grupo}`)).toBeVisible();
+  await expect(deNovo.getByLabel('Senha do grupo')).toHaveValue('segredo');
+
+  // Escolher a entrada do Ozamigos esquece o grupo: a raiz para de voltar para ele.
+  await deNovo.getByRole('link', { name: 'Ir para a entrada do Ozamigos' }).click();
+  await expect(deNovo.getByRole('textbox', { name: /^Sala/ })).toBeVisible();
+  await deNovo.goto('/');
+  await expect(deNovo.getByRole('textbox', { name: /^Sala/ })).toBeVisible();
+  await contexto.close();
+});
+
 test('senha errada não entra e explica o motivo', async ({ browser }) => {
   const pagina = await entrarNaSala(browser, novaSala(), 'Intruso', 'chute');
 

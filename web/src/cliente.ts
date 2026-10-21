@@ -17,7 +17,7 @@ import { trocaDeImagens } from './imagens/troca';
 import { novoIdDeImagem, type Chegada } from './imagens/protocolo';
 import type { ImagemComprimida } from './imagens/compressor';
 import { FOLGA, FolgaAdaptativa } from './folga';
-import { LIMITE_POR_SALA, SALA_FIXA, codigoValido, ehASalaFixa, grupoDoCaminho, linkDaSala, linkDoGrupo, novoCodigo } from './conexao/codigoDaSala';
+import { LIMITE_POR_SALA, SALA_FIXA, codigoValido, ehASalaFixa, grupoDoCaminho, grupoValido, linkDaSala, linkDoGrupo, novoCodigo } from './conexao/codigoDaSala';
 import {
   FPS_MINIMO_DA_CAPTURA,
   capturarDoNavegador,
@@ -185,6 +185,11 @@ export const AJUSTES_DA_TRANSMISSAO = {
 
 /** A última sala do grupo fixo em que a pessoa entrou: a entrada já vem com ela. */
 export const ULTIMA_SALA = 'ozamigos-ultima-sala';
+/**
+ * O último grupo em que a pessoa entrou (um criado na hora, ou "ozamigos" para o /ozamigos), ou vazio se foi uma sala
+ * do grupo fixo. A raiz sem link abre direto nele: o app abre sempre na raiz.
+ */
+export const ULTIMO_GRUPO = 'ozamigos-ultimo-grupo';
 
 /** Uma conexão de vídeo com alguém da sala: quem me assiste (envio) ou quem eu assisto (recebimento). */
 export type Ligacao = { id: string; nome: string; pc: RTCPeerConnection };
@@ -233,6 +238,12 @@ class Cliente {
   readonly veioDeUmLink: boolean;
 
   constructor() {
+    // A raiz sem link (o app abre sempre nela) volta ao último grupo, com o endereço dele: sair, recarregar e copiar o
+    // link continuam valendo para o grupo. "Ir para a entrada do Ozamigos", na entrada do grupo, esquece a escolha.
+    const ultimoGrupo = lembrado(ULTIMO_GRUPO);
+    if (location.pathname === '/' && !location.search && (grupoValido(ultimoGrupo) || ultimoGrupo === SALA_FIXA)) {
+      history.replaceState(null, '', `/${ultimoGrupo}`);
+    }
     const grupo = grupoDoCaminho(location.pathname);
     const salaFixa = ehASalaFixa(location.pathname);
     const daUrl = new URLSearchParams(location.search).get('sala');
@@ -553,6 +564,7 @@ class Cliente {
         this.registrar(`entrei ${e.grupo ? 'no grupo' : 'na sala'} ${this.estado.sala} como ${this.estado.meuNome}`);
         lembrar('ozamigos-nome', this.nome);
         lembrar(this.chaveDaSenha(), this.senha);
+        lembrar(ULTIMO_GRUPO, e.grupo ?? (e.salaFixa ? SALA_FIXA : ''));
         if (!e.grupo) lembrar(ULTIMA_SALA, e.sala);
         if (e.grupo && location.pathname !== `/${e.grupo}`) history.replaceState(null, '', `/${e.grupo}`); // criado na raiz
         this.mudar({

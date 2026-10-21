@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { AppWindow, Download, Eye, EyeOff, LoaderCircle, Plus, RefreshCw, Server } from 'lucide-react';
-import { ULTIMA_SALA, cliente } from '../cliente';
+import { ULTIMA_SALA, ULTIMO_GRUPO, cliente } from '../cliente';
 import { codigoDe, codigoValido, grupoDe, grupoReservado, grupoValido, linkDoApp, nomeDeGrupo, novoCodigo } from '../conexao/codigoDaSala';
 import { lembrado, lembrar } from '../armazenamento';
 import { ponte } from '../ponte';
@@ -162,7 +162,11 @@ function EntrarNoGrupo({ grupo, fixo = false }: { grupo: string; fixo?: boolean 
       ) : (
         <BotaoDeEntrar entrando={entrando} desligado={false} texto="Entrar no grupo" />
       )}
-      <a className="botao botao-fantasma botao-pequeno trocar-servidor" href="/">
+      <a
+        className="botao botao-fantasma botao-pequeno trocar-servidor"
+        href="/"
+        onClick={() => lembrar(ULTIMO_GRUPO, '')} // senão, a raiz voltaria direto para este grupo
+      >
         Ir para a entrada do Ozamigos
       </a>
 
