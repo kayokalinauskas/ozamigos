@@ -38,6 +38,7 @@ Os relatórios saem em HTML (com gráficos), em Markdown (para colar numa IA) e 
 | Os amigos não me ouvem | Na engrenagem, escolha o microfone certo e use **Testar o microfone** |
 | O começo das palavras some | Ligue **Ajustar sozinho** na sensibilidade |
 | Os amigos ouvem eco | Use fone, ou ligue o **Cancelamento de eco** na engrenagem |
+| Barulho de fundo chega aos amigos | Na engrenagem, escolha a redução de ruído **RNNoise** |
 | Os amigos ouvem o próprio som de volta | Transmita pelo app para Windows, não pelo navegador |
 | O vídeo fica preto com o jogo em tela cheia | Use "janela sem bordas" ou transmita a tela inteira |
 | "Não foi possível conectar direto com…" | A rede bloqueia a conexão direta (4G/5G ou rede corporativa). Ligue a retransmissão ou troque de rede |

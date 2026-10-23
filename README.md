@@ -25,7 +25,7 @@
 
 ## Recursos
 
-- Voz sempre ligada, com redução de ruído e atalhos que funcionam com o jogo na frente.
+- Voz sempre ligada, com redução de ruído (RNNoise) e atalhos que funcionam com o jogo na frente.
 - Todos podem transmitir ao mesmo tempo, em salas de até 8 pessoas.
 - Grupos com nome e senha próprios.
 - Chat com imagens e prévia de links.
@@ -58,6 +58,19 @@ Abra `http://localhost:8080` e entre com a senha `teste`.
 | `git tag vX.Y.Z; git push origin vX.Y.Z` | Publica uma versão do app (antes, aumente a versão em `desktop/package.json`) |
 
 Para publicar o servidor, use a imagem do `Dockerfile`, com a variável `OZAMIGOS_SENHA` e o health check em `/actuator/health`.
+
+## Feito com
+
+| Parte | Ferramentas |
+|---|---|
+| Servidor | Java 25, Spring Boot 4 (WebSocket e Actuator), imageio-webp |
+| Interface | React 19, TypeScript, Vite, ícones Lucide, fontes Inter e Sora |
+| Voz e vídeo | WebRTC (H.265/H.264 e Opus), RNNoise ([web-noise-suppressor](https://github.com/sapphi-red/web-noise-suppressor)) |
+| Imagens do chat | libwebp, via [jSquash](https://github.com/jamsinclair/jSquash) |
+| App para Windows | Electron 44, electron-builder e electron-updater |
+| Som e captura do app | C# (.NET 10): Windows Graphics Capture, Direct3D 11 ([Vortice](https://github.com/amerkoleci/Vortice.Windows)) e o loopback de processo do Windows |
+| Retransmissão (opcional) | TURN da Cloudflare |
+| Testes | JUnit, AssertJ, Vitest e Playwright |
 
 ## Documentação
 
