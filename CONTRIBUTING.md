@@ -19,14 +19,14 @@ Falhas de segurança **não** vão em issue: veja [SECURITY.md](SECURITY.md).
    cd web; npm ci; npm run typecheck; npm run build; cd ..
    .\mvnw.cmd test
    ```
-3. Se mexeu no comportamento, teste rodando o app (veja **Rodar localmente** no [README](README.md)).
+3. Se mexeu no comportamento, teste rodando o app (veja **Desenvolvimento** no [README](README.md)).
 4. Abra o pull request explicando o que mudou e por quê.
 
 ## Convenções
 
 - **Português do Brasil** no código, nos identificadores, nos comentários, nas mensagens de commit e nos textos da interface. Os comentários explicam o *porquê*.
 - Siga o estilo do código ao redor. O [AGENTS.md](AGENTS.md) explica a arquitetura, os contratos (como o protocolo de sinalização) e as armadilhas conhecidas.
-- Mudou o protocolo? Mude o servidor (`src/`), o `web/src/conexao/protocolo.ts` e a seção do protocolo no README juntos.
+- Mudou o protocolo? Mude o servidor (`src/`), o `web/src/conexao/protocolo.ts` e o [docs/protocolo.md](docs/protocolo.md) juntos.
 
 ## Marca
 

@@ -21,7 +21,7 @@ Deploy: Render (Docker). O `Dockerfile` tem 3 etapas: Node monta `web/`, o JDK c
 - **Idioma:** código, identificadores, comentários, mensagens de commit e textos da interface em **português do Brasil**. Os comentários explicam o *porquê*, no tom dos já existentes.
 - **Commits:** adicione **caminhos explícitos** (`git add caminho/arquivo`), nunca `git add -A` ou `git add .`. Faça push só quando pedirem.
 - **Terminal do dono:** é o PowerShell 5.1, que **não aceita `&&`**. Nas instruções para ele, use um comando por linha ou `;`.
-- **Testes:** poucos e essenciais, um por comportamento que importa (pedido do dono). Rode `.\testar.ps1` antes de commitar (servidor, interface, áudio, ponta a ponta e app; a seção "Testes" do README explica cada camada). Mudança de comportamento ganha teste na camada certa; o resto se verifica rodando o app (veja "Como testar").
+- **Testes:** poucos e essenciais, um por comportamento que importa (pedido do dono). Rode `.\testar.ps1` antes de commitar (servidor, interface, áudio, ponta a ponta e app; as camadas estão no `testar.ps1`). Mudança de comportamento ganha teste na camada certa; o resto se verifica rodando o app (veja "Como testar").
 - **Telas prioritárias:** 1920×1080 e 2560×1440. A interface é tema escuro, com os tokens CSS em `web/src/estilo.css`.
 - **Celular (navegador):** quem usa é quem assiste. **Nada pode passar da largura da tela**: no celular, um elemento mais largo estica a página inteira e aparece rolagem de lado (aconteceu com a fileira de baixo, até 14/10/2026). As regras ficam no `@media (max-width: 640px)` do `estilo.css`, e o teste e2e "no celular, nada passa da largura da tela" confere. Em fileira com `flex`, lembre do `min-width: 0`: sem ele, um `select` deixa o grupo da largura da opção mais comprida. Textos para quem não está no app não falam em "Windows" (`Padrão do sistema`).
 - **Tom de produto** (pedido do dono, 17/10/2026): o Ozamigos é tratado como produto, mesmo sendo hoje de um grupo de amigos. **No app e no site, os textos não explicam como ele funciona por dentro nem onde está hospedado:** nada de "servidor gratuito", "dorme", Render, Cloudflare, STUN/TURN, WebRTC, P2P, RNNoise, "rede neural", kbps ou medidas de bancada. Diga o benefício ("pouco atraso", "redução de ruído inteligente", "só chega a quem clicar em Assistir"). Os detalhes técnicos ficam no GitHub (README, AGENTS, CHANGELOG), no máximo. As exceções são as telas de diagnóstico (painel de estatísticas, relatórios, teste de desempenho), que são técnicas de propósito.
@@ -65,6 +65,16 @@ cd desktop; npm run instalador
 java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static-locations=file:src/main/resources/static/ --spring.web.resources.cache.period=0
 ```
 
+## Variáveis de ambiente do servidor
+
+| Variável | Obrigatória | Padrão | Descrição |
+|---|---|---|---|
+| `OZAMIGOS_SENHA` | sim | — | Senha do grupo. Sem ela, o servidor não sobe |
+| `PORT` | não | `8080` | Porta HTTP. O Render define `10000` |
+| `YOUTUBE_API_KEY` | não | — | Chave da API de dados do YouTube (v3), para as prévias de links do chat. Sem ela, o YouTube vai pelo oEmbed e pela página do vídeo, que ele às vezes recusa a servidores de datacenter. Gratuita: 10 mil consultas por dia, 1 por link novo |
+| `OZAMIGOS_TURN_ID` e `OZAMIGOS_TURN_TOKEN` | não | — | O *Turn Token ID* e o *API Token* de uma chave do TURN da Cloudflare (*Realtime → TURN Server → Create*). Ligam a retransmissão para quem não conecta direto (veja "Retransmissão" em Segurança). Só valem com as duas de baixo |
+| `OZAMIGOS_CLOUDFLARE_CONTA` e `OZAMIGOS_CLOUDFLARE_LEITURA` | não | — | O *Account ID* e um token só com *Account Analytics: Read*: o servidor lê o consumo da retransmissão a cada 5 minutos e a corta antes de passar da franquia gratuita. Sem eles, a retransmissão fica desligada |
+
 ## Arquitetura e contratos importantes
 
 ### Servidor (`src/main/java/dev/ozamigos/`)
@@ -93,7 +103,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - A cada 5 min, com alguém usando, lê o consumo pelo GraphQL (`callsTurnUsageAdaptiveGroups`, `egressBytes`, que é o que a Cloudflare cobra): os últimos 31 dias (qualquer mês de cobrança cabe nessa janela) e o de hoje por credencial (`username`), somado por endereço (`emitidas`). Limites: 10 GB por endereço no dia, 100 GB no dia e 800 GB em 31 dias para todos; passou, as credenciais são canceladas e quem estava recebe a lista vazia. 10 credenciais por endereço a cada 10 min. **A consulta ainda não foi conferida contra a Cloudflare de verdade** (sem as chaves no PC): se o log disser "não deu para ler o consumo", o erro do GraphQL vem junto.
   - Na interface, `definirRetransmissao` (`webrtc.ts`) põe a lista nas conexões novas e nas abertas (`setConfiguration`). O relatório registra se ela veio e, por conexão, `direto` ou `retransmitido` (`caminhoDaConexao`). O endereço não vai para o log (a política de privacidade fala dele na memória por até 2 dias). Testes: `RetransmissaoTest`, com uma Cloudflare falsa. **Ainda desligada no Render:** as variáveis ficaram para depois; o passo a passo está no `TODO.md`.
 - `WebSocketConfig`: **sem `setAllowedOrigins`**. Só páginas do próprio servidor conectam; o app Electron funciona porque carrega a interface do servidor. Mensagens de texto vão até 64 KB.
-- Protocolo completo: seção "Protocolo de sinalização" do `README.md`. **Se mudar o protocolo, mude o servidor, os tipos em `web/src/conexao/protocolo.ts` e o README juntos.** O teste `conexao.test.ts` falha se o servidor mandar uma mensagem ou um erro que o `protocolo.ts` não conhece, e o `switch` de `tratar` no `cliente.ts` não compila sem um caso para cada mensagem.
+- Protocolo completo: `docs/protocolo.md`. **Se mudar o protocolo, mude o servidor, os tipos em `web/src/conexao/protocolo.ts` e o `docs/protocolo.md` juntos.** O teste `conexao.test.ts` falha se o servidor mandar uma mensagem ou um erro que o `protocolo.ts` não conhece, e o `switch` de `tratar` no `cliente.ts` não compila sem um caso para cada mensagem.
 
 ### Interface (`web/src/`)
 
