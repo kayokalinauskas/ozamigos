@@ -519,7 +519,7 @@ class Voz {
     // uma rede que não deixa conectar fazia ligar de novo para sempre, sem nunca avisar).
     const tentativas = this.conexoes.get(id)?.tentativas ?? 0;
     this.fechar(id);
-    const pc = novaPeerConnection();
+    const pc = novaPeerConnection('voz');
     // O canal de dados é combinado (mesmo id dos dois lados): não precisa de mais sinalização.
     const canal = pc.createDataChannel('estado', { negotiated: true, id: 0 });
     // As imagens do chat vão num segundo canal da mesma conexão (imagens/troca.ts): direto entre os PCs.

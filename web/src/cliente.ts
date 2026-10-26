@@ -31,7 +31,7 @@ import {
   type Fonte,
 } from './conexao/captura';
 import { Medidor, type Metrica } from './conexao/medidor';
-import type { Canal, MensagemDoServidor, MensagemParaOServidor, MotivoDoErro, Pessoa } from './conexao/protocolo';
+import type { Canal, LimiteDoVideo, MensagemDoServidor, MensagemParaOServidor, MotivoDoErro, Pessoa } from './conexao/protocolo';
 import { Relatorio } from './conexao/relatorio';
 import { Sinalizacao } from './conexao/sinalizacao';
 import {
@@ -40,6 +40,7 @@ import {
   aquecerWebRtc,
   caminhoDaConexao,
   definirFolga,
+  conexoesAbertas,
   definirRetransmissao,
   novaPeerConnection,
   opusEstereo,
@@ -496,9 +497,33 @@ class Cliente {
 
   /** De volta ao servidor, com um id novo: as conexões antigas não servem mais e são refeitas. */
   /** A retransmissão que o servidor deu (ou tirou): vale para as conexões novas. Só o fato vai para o relatório. */
-  private usarRetransmissao(servidores: RTCIceServer[]) {
-    definirRetransmissao(servidores);
-    this.registrar(servidores.length ? 'retransmissão disponível' : 'sem retransmissão: só conexões diretas');
+  private usarRetransmissao(video: RTCIceServer[], vozes: RTCIceServer[], limite?: LimiteDoVideo) {
+    definirRetransmissao('voz', vozes);
+    definirRetransmissao('video', video);
+    const doVideo = video.length ? 'disponível' : limite ? `cortada (limite ${limite})` : 'não';
+    this.registrar(`retransmissão: voz ${vozes.length ? 'disponível' : 'não'}, vídeo ${doVideo}`);
+    if (!limite) this.avisouDoLimite = false;
+    else if (!this.avisouDoLimite) void this.avisarDoLimiteDoVideo(limite);
+  }
+
+  /**
+   * O vídeo ficou sem a retransmissão por um limite de consumo (Retransmissao.java): quem depende dela fica sabendo por
+   * quê, uma vez (pedido do dono, 27/10/2026). Pelo limite geral, só quem tem uma transmissão passando por ela agora:
+   * quem conecta direto nem percebe o corte.
+   */
+  private avisouDoLimite = false;
+  private async avisarDoLimiteDoVideo(limite: LimiteDoVideo) {
+    this.avisouDoLimite = true;
+    if (limite === 'geral') {
+      const caminhos = await Promise.all(conexoesAbertas('video').map((pc) => caminhoDaConexao(pc)));
+      if (!caminhos.includes('retransmitido')) return;
+    }
+    this.avisar(
+      limite === 'seu'
+        ? 'Você assistiu bastante hoje pela conexão de reserva da sua internet, e o vídeo por ela chegou ao limite do dia. A voz continua normalmente, e o vídeo volta amanhã.'
+        : 'O vídeo pela conexão de reserva chegou ao limite do Ozamigos por enquanto. A voz continua normalmente.',
+      'erro',
+    );
   }
 
   private voltei(msg: Extract<MensagemDoServidor, { tipo: 'bem-vindo' }>) {
@@ -580,7 +605,7 @@ class Cliente {
     switch (msg.tipo) {
       case 'bem-vindo': {
         this.ficha = msg.ficha ?? '';
-        this.usarRetransmissao(msg.retransmissao ?? []);
+        this.usarRetransmissao(msg.retransmissao ?? [], msg.retransmissaoDaVoz ?? [], msg.limiteDoVideo);
         if (e.fase === 'sala') {
           this.voltei(msg);
           break;
@@ -738,7 +763,7 @@ class Cliente {
         this.tratarErro(msg.motivo);
         break;
       case 'retransmissao':
-        this.usarRetransmissao(msg.servidores);
+        this.usarRetransmissao(msg.servidores, msg.voz ?? [], msg.limiteDoVideo);
         break;
       case 'pong':
         break; // só mostra que o servidor ainda ouve (a Sinalizacao já anotou a hora)
@@ -1303,7 +1328,7 @@ class Cliente {
   // ===== Conexões WebRTC =====
 
   private novaConexao(canal: Canal, idRemoto: string): Conexao {
-    const pc = novaPeerConnection();
+    const pc = novaPeerConnection('video');
     const conexao: Conexao = { pc, pendentes: [], canal, id: idRemoto };
     this.conexoes.set(chave(canal, idRemoto), conexao);
 

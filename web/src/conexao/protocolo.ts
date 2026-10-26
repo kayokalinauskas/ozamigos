@@ -68,8 +68,11 @@ export type MensagemDoServidor =
       compartilhando: string[];
       plateias: Record<string, string[]>;
       gravando?: { id: string; nome: string };
-      // A retransmissão para quem não conecta direto (Retransmissao.java); sem ela, só conexões diretas.
+      // A retransmissão para quem não conecta direto (Retransmissao.java), uma para o vídeo (`retransmissao`, o nome de
+      // antes) e outra para a voz; sem elas, só conexões diretas. limiteDoVideo: por que o vídeo veio sem.
       retransmissao?: RTCIceServer[];
+      retransmissaoDaVoz?: RTCIceServer[];
+      limiteDoVideo?: LimiteDoVideo;
     }
   | { tipo: 'entrou'; id: string; nome: string }
   | { tipo: 'saiu'; id: string }
@@ -91,10 +94,13 @@ export type MensagemDoServidor =
   // A prévia de um link de vídeo do chat, buscada pelo servidor (PreviasDeLinks): chega logo depois da mensagem.
   | { tipo: 'previa'; url: string; site: string; titulo?: string; autor?: string; miniatura?: string; aoVivo?: boolean }
   | { tipo: 'chamado'; de: string }
-  // Credenciais novas da retransmissão (renovadas), ou a lista vazia: ela foi cortada.
-  | { tipo: 'retransmissao'; servidores: RTCIceServer[] }
+  // As credenciais da retransmissão que valem agora: `servidores` do vídeo, `voz` da voz; a lista vazia, cortada.
+  | { tipo: 'retransmissao'; servidores: RTCIceServer[]; voz?: RTCIceServer[]; limiteDoVideo?: LimiteDoVideo }
   | { tipo: 'erro'; motivo: MotivoDoErro }
   | { tipo: 'pong' };
+
+/** Por que o vídeo ficou sem a retransmissão: o uso desta pessoa passou do limite do dia, ou o de todos juntos. */
+export type LimiteDoVideo = 'seu' | 'geral';
 
 export type SinalDoServidor = Extract<MensagemDoServidor, { tipo: 'oferta' | 'resposta' | 'candidato' }>;
 

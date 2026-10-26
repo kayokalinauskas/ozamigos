@@ -20,8 +20,8 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 
 | `tipo` | Campos | Quando |
 |---|---|---|
-| `bem-vindo` | `id`, `ficha`, `outros[]`, `compartilhando[]`, `plateias{}`, `gravando` (`id`, `nome`, se alguém grava a sala), `retransmissao[]` (os `iceServers` do TURN, se ligada e dentro dos limites) | Ao entrar. A `ficha` é secreta: só quem a recebeu pode usá-la para reconectar |
-| `retransmissao` | `servidores[]` | Credenciais renovadas do TURN (a cada 6 h), ou a lista vazia quando ela foi cortada (limite de consumo) |
+| `bem-vindo` | `id`, `ficha`, `outros[]`, `compartilhando[]`, `plateias{}`, `gravando` (`id`, `nome`, se alguém grava a sala), `retransmissao[]` e `retransmissaoDaVoz[]` (os `iceServers` do TURN para o vídeo e para a voz, se ligada e dentro dos limites; a página de antes usa a do vídeo para tudo), `limiteDoVideo` (`seu` ou `geral`, se o vídeo veio sem por um limite) | Ao entrar. A `ficha` é secreta: só quem a recebeu pode usá-la para reconectar |
+| `retransmissao` | `servidores[]` (vídeo), `voz[]`, `limiteDoVideo`? | As credenciais do TURN que valem agora: renovadas (a cada 6 h), dadas depois da entrada, ou a lista vazia de um uso cortado por um limite de consumo. `limiteDoVideo`: `seu` (esta pessoa passou do limite de vídeo do dia; a página avisa que foi o uso dela) ou `geral` (o total de todos) |
 | `pong` | — | Resposta ao `ping`. Sem nenhuma mensagem por 70 s, o cliente considera a conexão morta e reconecta |
 | `entrou` / `saiu` | `id` (e `nome`) | Alguém entrou ou saiu |
 | `pode-compartilhar` | — | Confirma o `comecei` |

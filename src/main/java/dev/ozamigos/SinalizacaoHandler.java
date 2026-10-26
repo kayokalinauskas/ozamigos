@@ -208,10 +208,15 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         ObjectNode plateias = boasVindas.putObject("plateias");
         entrada.plateias().forEach((quem, ids) -> ids.forEach(plateias.putArray(quem)::add));
         // A retransmissão vem já no bem-vindo: a pessoa liga a voz para todos logo que o recebe.
+        // "retransmissao" é a do vídeo: a página de antes (aberta antes do deploy) a usa também na voz, como antes.
         WebSocketSession segura = segura(sessao);
-        ArrayNode servidores = retransmissao.entrou(id, endereco, novos -> enviar(segura, mensagemDaRetransmissao(novos)));
-        if (servidores != null) {
-            boasVindas.set("retransmissao", servidores);
+        Retransmissao.Credenciais credenciais = retransmissao.entrou(id, endereco, novas -> enviar(segura, mensagemDaRetransmissao(novas)));
+        if (credenciais != null) {
+            boasVindas.set("retransmissao", credenciais.video());
+            boasVindas.set("retransmissaoDaVoz", credenciais.voz());
+            if (credenciais.limiteDoVideo() != null) {
+                boasVindas.put("limiteDoVideo", credenciais.limiteDoVideo());
+            }
         }
         if (entrada.gravador() != null) {
             boasVindas.putObject("gravando").put("id", entrada.gravador()).put("nome", salas.nome(codigo, entrada.gravador()));
@@ -226,10 +231,18 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
     }
 
-    /** Credenciais novas da retransmissão (a lista vazia: ela foi cortada; as conexões novas vão só direto). */
-    private ObjectNode mensagemDaRetransmissao(ArrayNode servidores) {
+    /**
+     * As credenciais da retransmissão que valem agora: as do vídeo em {@code servidores} (o nome de antes, que a página
+     * de antes usa para tudo) e as da voz em {@code voz}. A lista vazia: aquele uso foi cortado, e as conexões novas dele
+     * vão só direto; {@code limiteDoVideo} diz por quê.
+     */
+    private ObjectNode mensagemDaRetransmissao(Retransmissao.Credenciais credenciais) {
         ObjectNode mensagem = json.createObjectNode().put("tipo", "retransmissao");
-        mensagem.set("servidores", servidores);
+        mensagem.set("servidores", credenciais.video());
+        mensagem.set("voz", credenciais.voz());
+        if (credenciais.limiteDoVideo() != null) {
+            mensagem.put("limiteDoVideo", credenciais.limiteDoVideo());
+        }
         return mensagem;
     }
 
