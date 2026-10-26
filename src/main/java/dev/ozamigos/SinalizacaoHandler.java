@@ -192,9 +192,9 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         if (!grupo.isEmpty()) {
             sessao.getAttributes().put("grupo", grupo);
             grupos.ocupado(grupo);
-            log.info("{} entrou num grupo", id);
+            log.info("{} ({}) entrou num grupo", id, nome);
         } else {
-            log.info("{} entrou na sala {}", id, codigo);
+            log.info("{} ({}) entrou na sala {}", id, nome, codigo);
         }
 
         ObjectNode boasVindas = json.createObjectNode()
@@ -210,7 +210,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         // A retransmissão vem já no bem-vindo: a pessoa liga a voz para todos logo que o recebe.
         // "retransmissao" é a do vídeo: a página de antes (aberta antes do deploy) a usa também na voz, como antes.
         WebSocketSession segura = segura(sessao);
-        Retransmissao.Credenciais credenciais = retransmissao.entrou(id, endereco, novas -> enviar(segura, mensagemDaRetransmissao(novas)));
+        Retransmissao.Credenciais credenciais = retransmissao.entrou(id, nome, endereco, novas -> enviar(segura, mensagemDaRetransmissao(novas)));
         if (credenciais != null) {
             boasVindas.set("retransmissao", credenciais.video());
             boasVindas.set("retransmissaoDaVoz", credenciais.voz());
@@ -460,6 +460,9 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
 
     /** Tira a pessoa da sala e avisa quem ficou. Se ela já tinha saído, não faz nada. */
     private void retirar(String sala, String id) throws IOException {
+        // O nome vai para o log junto com o id (pedido do dono, 26/10/2026; a política de privacidade fala dele). Já
+        // limpo por nomeLimpo: sem quebras de linha nem caracteres de controle, ninguém escreve linhas falsas no log.
+        String nome = salas.nome(sala, id);
         Salas.Saida saida = salas.sair(sala, id);
         if (saida == null) {
             return;
@@ -468,9 +471,9 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             if (saida.restantes().isEmpty()) {
                 grupos.vazio(sala.substring("grupo:".length()));
             }
-            log.info("{} saiu de um grupo", id);
+            log.info("{} ({}) saiu de um grupo", id, nome);
         } else {
-            log.info("{} saiu da sala {}", id, sala);
+            log.info("{} ({}) saiu da sala {}", id, nome, sala);
         }
         ObjectNode saiu = json.createObjectNode().put("tipo", "saiu").put("id", id);
         for (WebSocketSession restante : saida.restantes()) {

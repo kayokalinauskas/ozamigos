@@ -41,7 +41,7 @@ import tools.jackson.databind.node.ArrayNode;
  * cartão cadastrado nela</b>: o teto é este. Qualquer pessoa numa sala recebe credenciais (o dono quis deixar aberto
  * para todos os grupos e medir), e o abuso é contido assim:
  * <ul>
- * <li>cada pessoa recebe <b>duas credenciais, uma para a voz e outra para o vídeo</b> ({@link Uso}; 27/10/2026, pedido
+ * <li>cada pessoa recebe <b>duas credenciais, uma para a voz e outra para o vídeo</b> ({@link Uso}; 26/10/2026, pedido
  * do dono): a Cloudflare mede cada uma, e quem gasta muito perde só o vídeo e continua conversando. A voz (com as
  * imagens do chat) gasta ~0,03 GB por hora; passar de {@code LIMITE_DE_VOZ_POR_ENDERECO} na voz não é conversa, é
  * abuso, e corta as duas;
@@ -121,6 +121,7 @@ public class Retransmissao {
 
     /** Quem está numa sala agora, com as credenciais de cada uso. */
     private final class Pessoa {
+        final String nome;
         final String endereco;
         /** Recebe as credenciais que valem agora (as novas, ou a lista vazia de um uso cortado). */
         final Consumer<Credenciais> avisar;
@@ -130,7 +131,8 @@ public class Retransmissao {
         /** Credenciais estão sendo pedidas à Cloudflare para ela: a entrada e o passo não pedem duas vezes. */
         boolean emitindo;
 
-        Pessoa(String endereco, Consumer<Credenciais> avisar) {
+        Pessoa(String nome, String endereco, Consumer<Credenciais> avisar) {
+            this.nome = nome;
             this.endereco = endereco;
             this.avisar = avisar;
             for (Uso uso : Uso.values()) {
@@ -144,7 +146,8 @@ public class Retransmissao {
         }
     }
 
-    private record Emitida(String endereco, Uso uso, Instant quando) {}
+    /** De quem é cada credencial: o endereço (para os limites) e o id e o nome da pessoa (para o log do consumo). */
+    private record Emitida(String endereco, Uso uso, Instant quando, String id, String nome) {}
 
     private final Cloudflare cloudflare;
     private final JsonMapper json;
@@ -229,7 +232,7 @@ public class Retransmissao {
      * (até 26/10/2026), a primeira pessoa depois de um deploy esperava o prazo inteiro da consulta à Cloudflare, que no
      * servidor recém-acordado passou de 6 s. Só o pedido das credenciais (rápido) fica na entrada.
      */
-    public Credenciais entrou(String id, String endereco, Consumer<Credenciais> avisar) {
+    public Credenciais entrou(String id, String nome, String endereco, Consumer<Credenciais> avisar) {
         if (cloudflare == null) {
             return null;
         }
@@ -246,7 +249,7 @@ public class Retransmissao {
         }
         Set<Uso> usos;
         synchronized (this) {
-            Pessoa pessoa = new Pessoa(endereco, avisar);
+            Pessoa pessoa = new Pessoa(nome, endereco, avisar);
             pessoas.put(id, pessoa);
             usos = liberados(endereco);
             if (usos.isEmpty() || !reservar(endereco)) {
@@ -382,12 +385,17 @@ public class Retransmissao {
                 Map<Uso, Long> hojePorUso = new EnumMap<>(Uso.class);
                 Map<String, Long> videoPorEndereco = new HashMap<>();
                 Map<String, Long> vozPorEndereco = new HashMap<>();
+                Map<String, String> nomesPorEndereco = new HashMap<>();
+                Map<String, long[]> porPessoa = new HashMap<>(); // "nome (id)" → vídeo, voz
                 for (Map.Entry<String, Long> uso : consumo.hojePorUsuario().entrySet()) {
                     hojeTotal += uso.getValue();
                     Emitida emitida = emitidas.get(uso.getKey());
                     if (emitida != null) {
                         hojePorUso.merge(emitida.uso(), uso.getValue(), Long::sum);
                         (emitida.uso() == Uso.VIDEO ? videoPorEndereco : vozPorEndereco).merge(emitida.endereco(), uso.getValue(), Long::sum);
+                        String quem = emitida.nome() + " (" + emitida.id() + ")";
+                        nomesPorEndereco.merge(emitida.endereco(), quem, (a, b) -> a.contains(b) ? a : a + ", " + b);
+                        porPessoa.computeIfAbsent(quem, q -> new long[2])[emitida.uso() == Uso.VIDEO ? 0 : 1] += uso.getValue();
                     } else if (uso.getValue() > 0 && orfasCanceladas.add(uso.getKey())) {
                         // Usada hoje, mas não emitida por este servidor: de antes de um reinício (a memória se perdeu),
                         // ninguém a vigia. Quem estava na sala reconectou e já tem outra; cancelar uma que não existe
@@ -395,24 +403,26 @@ public class Retransmissao {
                         revogar.add(uso.getKey());
                     }
                 }
-                // Os endereços não vão para o log (a política de privacidade só fala do log das senhas erradas).
+                // Os endereços não vão para o log (a política de privacidade só fala do log das senhas erradas): vai o
+                // nome de quem usou o endereço (pedido do dono, 26/10/2026; a política fala dele).
                 vozPorEndereco.forEach((endereco, bytes) -> {
                     if (bytes >= LIMITE_DE_VOZ_POR_ENDERECO && bloqueados.add(endereco)) {
-                        log.warn("Retransmissão: um endereço passou de {} GB de voz hoje (não é conversa) e ficou sem ela até amanhã",
-                                LIMITE_DE_VOZ_POR_ENDERECO / GB);
+                        log.warn("Retransmissão: {} passou de {} GB de voz hoje (não é conversa) e ficou sem ela até amanhã",
+                                nomesPorEndereco.get(endereco), LIMITE_DE_VOZ_POR_ENDERECO / GB);
                     }
                 });
                 videoPorEndereco.forEach((endereco, bytes) -> {
                     if (bytes >= LIMITE_DE_VIDEO_POR_ENDERECO && semVideo.add(endereco)) {
-                        log.warn("Retransmissão: um endereço passou de {} GB de vídeo hoje e ficou sem o vídeo até amanhã (a voz continua)",
-                                LIMITE_DE_VIDEO_POR_ENDERECO / GB);
+                        log.warn("Retransmissão: {} passou de {} GB de vídeo hoje e ficou sem o vídeo até amanhã (a voz continua)",
+                                nomesPorEndereco.get(endereco), LIMITE_DE_VIDEO_POR_ENDERECO / GB);
                     }
                 });
                 boolean esgotou = consumo.periodo() >= LIMITE_DO_PERIODO || hojeTotal >= LIMITE_DO_DIA;
                 boolean videoEsgotou = consumo.periodo() >= LIMITE_DO_PERIODO_DO_VIDEO || hojeTotal >= LIMITE_DO_DIA_DO_VIDEO;
-                String resumo = String.format(java.util.Locale.ROOT, "%s GB em %d dias, %s GB hoje (vídeo %s, voz %s)",
-                        gb(consumo.periodo()), DIAS_DO_PERIODO, gb(hojeTotal),
-                        gb(hojePorUso.getOrDefault(Uso.VIDEO, 0L)), gb(hojePorUso.getOrDefault(Uso.VOZ, 0L)));
+                String resumo = String.format(java.util.Locale.ROOT, "%s em %d dias, %s hoje (vídeo %s, voz %s)",
+                        quanto(consumo.periodo()), DIAS_DO_PERIODO, quanto(hojeTotal),
+                        quanto(hojePorUso.getOrDefault(Uso.VIDEO, 0L)), quanto(hojePorUso.getOrDefault(Uso.VOZ, 0L)));
+                boolean relatou = true;
                 if (esgotou != esgotada) {
                     log.warn("Retransmissão {}: {}", esgotou ? "desligada pelo limite" : "religada", resumo);
                     esgotada = esgotou;
@@ -422,6 +432,15 @@ public class Retransmissao {
                     log.info("Retransmissão: {}", resumo);
                     relatouEm = agora;
                     relatadoHoje = hojeTotal;
+                } else {
+                    relatou = false;
+                }
+                // Junto com o total, quanto cada pessoa usou hoje, de quem mais usou para quem menos (as 20 primeiras).
+                if (relatou) {
+                    porPessoa.entrySet().stream()
+                            .sorted((a, b) -> Long.compare(b.getValue()[0] + b.getValue()[1], a.getValue()[0] + a.getValue()[1]))
+                            .limit(20)
+                            .forEach(p -> log.info("Retransmissão de {} hoje: vídeo {}, voz {}", p.getKey(), quanto(p.getValue()[0]), quanto(p.getValue()[1])));
                 }
                 videoEsgotado = videoEsgotou;
                 for (Pessoa pessoa : pessoas.values()) {
@@ -456,8 +475,11 @@ public class Retransmissao {
         }
     }
 
-    private static String gb(long bytes) {
-        return String.format(java.util.Locale.ROOT, "%.1f", bytes / (double) GB);
+    /** "350 MB" abaixo de 1 GB (a voz fica sempre ali), "2.4 GB" acima. */
+    static String quanto(long bytes) {
+        return bytes < GB
+                ? String.format(java.util.Locale.ROOT, "%d MB", Math.round(bytes / 1_000_000.0))
+                : String.format(java.util.Locale.ROOT, "%.1f GB", bytes / (double) GB);
     }
 
     /** Pede à Cloudflare uma credencial de cada uso: as que vêm valem para a pessoa, e ela recebe as de agora. */
@@ -486,7 +508,7 @@ public class Retransmissao {
                     revogarEm.put(usuario, relogio.instant()); // saiu (ou foi cortada) enquanto gerava
                     continue;
                 }
-                emitidas.put(usuario, new Emitida(pessoa.endereco, uso, relogio.instant()));
+                emitidas.put(usuario, new Emitida(pessoa.endereco, uso, relogio.instant(), id, pessoa.nome));
                 pessoa.credenciais.get(uso).add(usuario);
                 pessoa.ultima.put(uso, relogio.instant());
                 pessoa.atuais.put(uso, nova.getValue().servidores());

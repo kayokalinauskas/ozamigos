@@ -81,7 +81,7 @@ class RetransmissaoTest {
     private final Map<String, List<Retransmissao.Credenciais>> avisos = new HashMap<>();
 
     private Retransmissao.Credenciais entrar(String id, String endereco) {
-        return retransmissao.entrou(id, endereco, credenciais -> avisos.computeIfAbsent(id, i -> new ArrayList<>()).add(credenciais));
+        return retransmissao.entrou(id, "Nome de " + id, endereco, credenciais -> avisos.computeIfAbsent(id, i -> new ArrayList<>()).add(credenciais));
     }
 
     private static String usuario(ArrayNode servidores) {
@@ -97,7 +97,7 @@ class RetransmissaoTest {
     void desligadaSemAsVariaveis() {
         Retransmissao desligada = new Retransmissao(null, json, relogio, false);
 
-        assertThat(desligada.entrou("a", "1.1.1.1", c -> {})).isNull();
+        assertThat(desligada.entrou("a", "Ana", "1.1.1.1", c -> {})).isNull();
     }
 
     @Test
@@ -231,6 +231,12 @@ class RetransmissaoTest {
         passarMinutos(5);
 
         assertThat(cloudflare.revogadas).containsExactly("de-antes"); // uma vez só, e as da Ana continuam
+    }
+
+    @Test
+    void oConsumoNoLogVemEmMbAbaixoDeUmGb() {
+        assertThat(Retransmissao.quanto(12_400_000)).isEqualTo("12 MB");
+        assertThat(Retransmissao.quanto(2_440_000_000L)).isEqualTo("2.4 GB");
     }
 
     @Test

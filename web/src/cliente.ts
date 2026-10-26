@@ -508,7 +508,7 @@ class Cliente {
 
   /**
    * O vídeo ficou sem a retransmissão por um limite de consumo (Retransmissao.java): quem depende dela fica sabendo por
-   * quê, uma vez (pedido do dono, 27/10/2026). Pelo limite geral, só quem tem uma transmissão passando por ela agora:
+   * quê, uma vez (pedido do dono, 26/10/2026). Pelo limite geral, só quem tem uma transmissão passando por ela agora:
    * quem conecta direto nem percebe o corte.
    */
   private avisouDoLimite = false;
