@@ -36,7 +36,8 @@ export function definirRetransmissao(uso: UsoDaConexao, servidores: RTCIceServer
 
 /** As conexões abertas de um uso (para saber se alguma passa pela retransmissão). */
 export function conexoesAbertas(uso: UsoDaConexao): RTCPeerConnection[] {
-  return [...abertas].filter(([pc, u]) => u === uso && pc.signalingState !== 'closed').map(([pc]) => pc);
+  for (const pc of abertas.keys()) if (pc.signalingState === 'closed') abertas.delete(pc);
+  return [...abertas].filter(([, u]) => u === uso).map(([pc]) => pc);
 }
 
 /** Uma conexão nova, com vídeo e som pelo mesmo caminho de rede (max-bundle: menos candidatos, conecta mais rápido). */

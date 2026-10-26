@@ -4,6 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -29,6 +34,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
 
 /** A sinalização de ponta a ponta no servidor: clientes WebSocket de verdade contra o Tomcat numa porta aleatória. */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT, properties = "ozamigos.senha=teste")
@@ -106,6 +112,46 @@ class SinalizacaoTest {
                     ? new Buscador.Resposta(200, "application/json", "{\"title\":\"A jogada\",\"author_name\":\"Canal\"}".getBytes(StandardCharsets.UTF_8), null)
                     : new Buscador.Resposta(404, "", new byte[0], null);
         }
+
+        /** Uma Cloudflare falsa, com o consumo zerado: a retransmissão fica ligada nos testes. */
+        @Bean
+        @Primary
+        Retransmissao retransmissaoFalsa(JsonMapper json) {
+            AtomicInteger geradas = new AtomicInteger();
+            Retransmissao.Cloudflare cloudflare = new Retransmissao.Cloudflare() {
+                @Override
+                public Credencial gerar(Duration validade) {
+                    String usuario = "u" + geradas.incrementAndGet();
+                    ArrayNode servidores = json.createArrayNode();
+                    servidores.addObject().put("username", usuario).put("credential", "x").putArray("urls").add("turn:turn.exemplo:3478");
+                    return new Credencial(usuario, servidores);
+                }
+
+                @Override
+                public void revogar(String usuario) {}
+
+                @Override
+                public Consumo consumo(LocalDate desde, LocalDate hoje) {
+                    return new Consumo(0, Map.of());
+                }
+            };
+            return new Retransmissao(cloudflare, json, Clock.systemUTC(), false);
+        }
+    }
+
+    @Test
+    void oBemVindoTrazUmaRetransmissaoParaOVideoEOutraParaAVoz() throws Exception {
+        // De um endereço só dele: os outros testes, todos de localhost, gastam os pedidos de credenciais da janela.
+        Cliente ana = conectar("cf-" + sala, "198.51.100.1");
+        ana.enviar("{\"tipo\":\"entrar\",\"sala\":\"" + sala + "\",\"senha\":\"teste\",\"nome\":\"Ana\"}");
+
+        JsonNode boasVindas = ana.esperar("bem-vindo");
+
+        String video = boasVindas.path("retransmissao").path(0).path("username").asString();
+        String voz = boasVindas.path("retransmissaoDaVoz").path(0).path("username").asString();
+        assertThat(video).startsWith("u");
+        assertThat(voz).startsWith("u").isNotEqualTo(video);
+        assertThat(boasVindas.has("limiteDoVideo")).isFalse();
     }
 
     @Test

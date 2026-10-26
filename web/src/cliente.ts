@@ -495,7 +495,6 @@ class Cliente {
     this.sinalizacao.reconectarAgora();
   }
 
-  /** De volta ao servidor, com um id novo: as conexões antigas não servem mais e são refeitas. */
   /** A retransmissão que o servidor deu (ou tirou): vale para as conexões novas. Só o fato vai para o relatório. */
   private usarRetransmissao(video: RTCIceServer[], vozes: RTCIceServer[], limite?: LimiteDoVideo) {
     definirRetransmissao('voz', vozes);
@@ -503,7 +502,7 @@ class Cliente {
     const doVideo = video.length ? 'disponível' : limite ? `cortada (limite ${limite})` : 'não';
     this.registrar(`retransmissão: voz ${vozes.length ? 'disponível' : 'não'}, vídeo ${doVideo}`);
     if (!limite) this.avisouDoLimite = false;
-    else if (!this.avisouDoLimite) void this.avisarDoLimiteDoVideo(limite);
+    else if (!this.avisouDoLimite) void this.avisarDoLimiteDoVideo(limite, vozes.length > 0);
   }
 
   /**
@@ -512,20 +511,26 @@ class Cliente {
    * quem conecta direto nem percebe o corte.
    */
   private avisouDoLimite = false;
-  private async avisarDoLimiteDoVideo(limite: LimiteDoVideo) {
+  private async avisarDoLimiteDoVideo(limite: LimiteDoVideo, vozContinua: boolean) {
     this.avisouDoLimite = true;
     if (limite === 'geral') {
-      const caminhos = await Promise.all(conexoesAbertas('video').map((pc) => caminhoDaConexao(pc)));
+      const conexoes = [...conexoesAbertas('video'), ...(vozContinua ? [] : conexoesAbertas('voz'))];
+      const caminhos = await Promise.all(conexoes.map((pc) => caminhoDaConexao(pc)));
       if (!caminhos.includes('retransmitido')) return;
     }
-    this.avisar(
+    // Sem a voz também: o teto de todos, ou a credencial da voz usada para outra coisa (Retransmissao.java).
+    const texto =
       limite === 'seu'
-        ? 'Você assistiu bastante hoje pela conexão de reserva da sua internet, e o vídeo por ela chegou ao limite do dia. A voz continua normalmente, e o vídeo volta amanhã.'
-        : 'O vídeo pela conexão de reserva chegou ao limite do Ozamigos por enquanto. A voz continua normalmente.',
-      'erro',
-    );
+        ? vozContinua
+          ? 'Você assistiu bastante hoje pela conexão de reserva da sua internet, e o vídeo por ela chegou ao limite do dia. A voz continua normalmente, e o vídeo volta amanhã.'
+          : 'Você usou bastante hoje a conexão de reserva da sua internet, e ela chegou ao limite do dia. Ela volta amanhã.'
+        : vozContinua
+          ? 'O vídeo pela conexão de reserva chegou ao limite do Ozamigos por enquanto. A voz continua normalmente.'
+          : 'A conexão de reserva chegou ao limite do Ozamigos por enquanto.';
+    this.avisar(texto, 'erro');
   }
 
+  /** De volta ao servidor, com um id novo: as conexões antigas não servem mais e são refeitas. */
   private voltei(msg: Extract<MensagemDoServidor, { tipo: 'bem-vindo' }>) {
     for (const id of this.estado.assistindo) this.lembrarSaida(this.nomeDe(id), true);
     for (const { canal, id } of [...this.conexoes.values()]) this.fecharConexao(canal, id);

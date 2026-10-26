@@ -546,6 +546,8 @@ test('um print colado no chat chega comprimido ao amigo, direto entre os PCs, e 
   await beto.getByRole('button', { name: /^Chat/ }).click();
   const recebida = beto.getByRole('img', { name: 'Imagem de Ana' });
   await expect(recebida).toBeVisible();
+  // Visível não é aberta: com o PC ocupado (a suíte inteira), o tamanho ainda vinha 0×0.
+  await expect.poll(() => recebida.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
   const tamanho = await recebida.evaluate((img: HTMLImageElement) => ({ largura: img.naturalWidth, altura: img.naturalHeight, src: img.src }));
   expect(tamanho).toMatchObject({ largura: 2560, altura: 1440 });
   expect(tamanho.src).toMatch(/^blob:/); // veio pelo canal de dados, não de um endereço do servidor
