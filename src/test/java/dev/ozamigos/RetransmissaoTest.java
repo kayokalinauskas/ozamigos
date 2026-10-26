@@ -46,6 +46,7 @@ class RetransmissaoTest {
         long periodo;
         final Map<String, Long> hoje = new HashMap<>();
         boolean fora;
+        int revogarFalha; // quantas vezes o cancelamento ainda vai falhar
 
         @Override
         public Credencial gerar(Duration validade) {
@@ -56,7 +57,11 @@ class RetransmissaoTest {
         }
 
         @Override
-        public void revogar(String usuario) {
+        public void revogar(String usuario) throws IOException {
+            if (revogarFalha > 0) {
+                revogarFalha--;
+                throw new IOException("fora do ar");
+            }
             revogadas.add(usuario);
         }
 
@@ -163,6 +168,30 @@ class RetransmissaoTest {
         assertThat(avisos.get("ana")).singleElement().satisfies(lista -> assertThat(lista.path(0).path("username").asString()).isEqualTo("u1"));
         passarMinutos(1);
         assertThat(cloudflare.geradas).isEqualTo(1); // uma só, sem pedir de novo a cada passo
+    }
+
+    @Test
+    void oCancelamentoQueFalhaETentadoDeNovo() {
+        entrar("ana", "1.1.1.1");
+        retransmissao.saiu("ana");
+        cloudflare.revogarFalha = 1;
+
+        passarMinutos(2);
+        assertThat(cloudflare.revogadas).isEmpty();
+
+        passarMinutos(1);
+        assertThat(cloudflare.revogadas).containsExactly("u1");
+    }
+
+    @Test
+    void umaCredencialDeAntesDoReinicioUsadaHojeECancelada() {
+        entrar("ana", "1.1.1.1");
+        cloudflare.hoje.put("de-antes", Retransmissao.GB); // emitida pelo servidor antes de reiniciar
+
+        passarMinutos(5);
+        passarMinutos(5);
+
+        assertThat(cloudflare.revogadas).containsExactly("de-antes"); // uma vez só, e a da Ana continua
     }
 
     @Test

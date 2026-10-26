@@ -57,9 +57,13 @@ public class Retransmissao {
     private static final Logger log = LoggerFactory.getLogger(Retransmissao.class);
 
     static final long GB = 1_000_000_000L;
-    static final long LIMITE_DO_PERIODO = 800 * GB;
+    /**
+     * Metade da franquia (1.000 GB), e não 800 como até 26/10/2026: o dono precisou cadastrar um cartão na Cloudflare, e
+     * a folga cobre o que escapa da vigilância (a amostragem das estatísticas, os minutos entre uma leitura e outra).
+     */
+    static final long LIMITE_DO_PERIODO = 500 * GB;
     static final int DIAS_DO_PERIODO = 31;
-    static final long LIMITE_DO_DIA = 100 * GB;
+    static final long LIMITE_DO_DIA = 50 * GB;
     /** ~5 horas de uma transmissão em 720p retransmitida para uma pessoa; a voz gasta ~0,03 GB por hora. */
     static final long LIMITE_POR_ENDERECO = 10 * GB;
     static final int CREDENCIAIS_POR_ENDERECO = 10;
@@ -129,6 +133,8 @@ public class Retransmissao {
     private Instant relatouEm;
     private Instant tentouEm;
     private Instant avisouFalhaEm;
+    /** Credenciais com consumo hoje que este servidor não emitiu (de antes de um reinício), já canceladas. */
+    private final Set<String> orfasCanceladas = new HashSet<>();
 
     @Autowired
     public Retransmissao(JsonMapper json,
@@ -234,7 +240,11 @@ public class Retransmissao {
     void passo() {
         boolean emUso;
         synchronized (this) {
-            emUso = !pessoas.isEmpty() || !revogarEm.isEmpty();
+            // Lê também logo ao subir (as credenciais de antes do reinício) e enquanto alguma emitida ainda vale, mesmo
+            // com a sala vazia: só com gente na sala, uma credencial copiada era usada sem ninguém olhar.
+            Instant agora = relogio.instant();
+            emUso = consumoEm == null || !pessoas.isEmpty() || !revogarEm.isEmpty()
+                    || emitidas.values().stream().anyMatch(e -> e.quando().plus(VALIDADE).isAfter(agora));
         }
         if (emUso && consumoVelho(CONFERIR_A_CADA)) {
             conferir();
@@ -318,6 +328,11 @@ public class Retransmissao {
                     Emitida emitida = emitidas.get(uso.getKey());
                     if (emitida != null) {
                         porEndereco.merge(emitida.endereco(), uso.getValue(), Long::sum);
+                    } else if (uso.getValue() > 0 && orfasCanceladas.add(uso.getKey())) {
+                        // Usada hoje, mas não emitida por este servidor: de antes de um reinício (a memória se perdeu),
+                        // ninguém a vigia. Quem estava na sala reconectou e já tem outra; cancelar uma que não existe
+                        // mais é inofensivo (a Cloudflare responde 404).
+                        revogar.add(uso.getKey());
                     }
                 }
                 porEndereco.forEach((endereco, bytes) -> {
@@ -392,13 +407,18 @@ public class Retransmissao {
         }
     }
 
+    /** Cancela na Cloudflare; falhando, tenta de novo no próximo passo (uma credencial esquecida valeria até 12 h). */
     private void revogar(String usuario) {
         try {
             cloudflare.revogar(usuario);
+            return;
         } catch (IOException e) {
-            log.warn("Retransmissão: não deu para cancelar uma credencial: {}", e.getMessage());
+            log.warn("Retransmissão: não deu para cancelar uma credencial, tentando de novo: {}", e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+        synchronized (this) {
+            revogarEm.putIfAbsent(usuario, relogio.instant().plus(PASSO));
         }
     }
 

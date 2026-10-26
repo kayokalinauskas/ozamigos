@@ -26,5 +26,5 @@ O último passo foi decidido, mas não feito: **pôr as credenciais nas variáve
 6. Testar com o correa: no relatório do app (estatísticas → "Salvar relatório"), devem aparecer `retransmissão disponível` e, na conexão com ele, `voz com correa: retransmitido`.
 
 **Ainda por decidir:**
-- O limite por endereço é de 10 GB por dia (`LIMITE_POR_ENDERECO`). Em 720p, isso dá umas 5 horas de transmissão retransmitida para uma pessoa (em 1080p · 60, umas 2). A sugestão é subir para 20 GB; os limites de 100 GB no dia e 800 GB em 31 dias continuam valendo.
+- O limite por endereço é de 10 GB por dia (`LIMITE_POR_ENDERECO`). Em 720p, isso dá umas 5 horas de transmissão retransmitida para uma pessoa (em 1080p · 60, umas 2). Os limites totais são 50 GB no dia e 500 GB em 31 dias (baixados em 26/10/2026, com o cartão cadastrado na Cloudflare).
 - Hoje a retransmissão vale para todos os grupos, e o dono vai medir o consumo. Se gastar muito, a ideia é limitar à sala fixa `ozamigos`.
