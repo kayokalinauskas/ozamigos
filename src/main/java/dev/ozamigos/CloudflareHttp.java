@@ -61,7 +61,7 @@ final class CloudflareHttp implements Retransmissao.Cloudflare {
     @Override
     public Credencial gerar(Duration validade) throws IOException, InterruptedException {
         JsonNode resposta = pedir(URI.create(TURN + id + "/credentials/generate-ice-servers"), token,
-                json.createObjectNode().put("ttl", validade.toSeconds()), "gerar");
+                json.createObjectNode().put("ttl", validade.toSeconds()), "gerar", Duration.ofSeconds(6));
         ArrayNode servidores = json.createArrayNode();
         String usuario = null;
         for (JsonNode servidor : resposta.path("iceServers")) {
@@ -104,7 +104,8 @@ final class CloudflareHttp implements Retransmissao.Cloudflare {
     public Consumo consumo(LocalDate desde, LocalDate hoje) throws IOException, InterruptedException {
         ObjectNode corpo = json.createObjectNode().put("query", CONSULTA);
         corpo.putObject("variables").put("conta", conta).put("desde", desde.toString()).put("hoje", hoje.toString());
-        JsonNode resposta = pedir(GRAPHQL, leitura, corpo, "consumo");
+        // Roda em segundo plano, e a consulta de 31 dias passou de 6 s com o servidor recém-acordado (26/10/2026).
+        JsonNode resposta = pedir(GRAPHQL, leitura, corpo, "consumo", Duration.ofSeconds(30));
         JsonNode erros = resposta.path("errors");
         if (erros.isArray() && !erros.isEmpty()) {
             throw new IOException("a consulta do consumo falhou: " + erros.path(0).path("message").asString("?"));
@@ -124,9 +125,9 @@ final class CloudflareHttp implements Retransmissao.Cloudflare {
         return new Consumo(periodo, hojePorUsuario);
     }
 
-    private JsonNode pedir(URI endereco, String chave, JsonNode corpo, String oQue) throws IOException, InterruptedException {
+    private JsonNode pedir(URI endereco, String chave, JsonNode corpo, String oQue, Duration prazo) throws IOException, InterruptedException {
         HttpRequest pedido = HttpRequest.newBuilder(endereco)
-                .timeout(Duration.ofSeconds(6))
+                .timeout(prazo)
                 .header("Authorization", "Bearer " + chave)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(corpo)))

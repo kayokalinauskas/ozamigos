@@ -153,6 +153,19 @@ class RetransmissaoTest {
     }
 
     @Test
+    void quemEntraAntesDeOConsumoSerLidoRecebeACredencialPeloAvisoQuandoEleFor() {
+        cloudflare.fora = true; // a primeira leitura falha (o servidor acabou de acordar)
+        assertThat(entrar("ana", "1.1.1.1")).isNull();
+
+        cloudflare.fora = false;
+        passarMinutos(1);
+
+        assertThat(avisos.get("ana")).singleElement().satisfies(lista -> assertThat(lista.path(0).path("username").asString()).isEqualTo("u1"));
+        passarMinutos(1);
+        assertThat(cloudflare.geradas).isEqualTo(1); // uma só, sem pedir de novo a cada passo
+    }
+
+    @Test
     void cadaEnderecoTemUmNumeroDeCredenciaisPorJanela() {
         for (int i = 0; i < Retransmissao.CREDENCIAIS_POR_ENDERECO; i++) {
             assertThat(entrar("p" + i, "1.1.1.1")).isNotNull();

@@ -14,6 +14,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -97,6 +98,8 @@ public class Retransmissao {
         final Consumer<ArrayNode> avisar;
         final List<String> credenciais = new ArrayList<>();
         Instant ultima;
+        /** Uma credencial está sendo pedida à Cloudflare para ela: a entrada e o passo não pedem duas. */
+        boolean emitindo;
 
         Pessoa(String endereco, Consumer<ArrayNode> avisar) {
             this.endereco = endereco;
@@ -110,6 +113,8 @@ public class Retransmissao {
     private final JsonMapper json;
     private final Clock relogio;
     private final ScheduledExecutorService tarefas;
+    /** Onde a leitura do consumo roda quando a entrada a pede: a thread da retransmissão (nos testes, na hora). */
+    private final Executor emSegundoPlano;
     private final Object conferindo = new Object();
 
     private final Map<String, Pessoa> pessoas = new HashMap<>();
@@ -123,6 +128,7 @@ public class Retransmissao {
     private Instant consumoEm;
     private Instant relatouEm;
     private Instant tentouEm;
+    private Instant avisouFalhaEm;
 
     @Autowired
     public Retransmissao(JsonMapper json,
@@ -140,8 +146,10 @@ public class Retransmissao {
         if (cloudflare != null && emSegundoPlano) {
             tarefas = Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().name("retransmissao").factory());
             tarefas.scheduleWithFixedDelay(this::passoSemFalhar, 0, PASSO.toSeconds(), TimeUnit.SECONDS);
+            this.emSegundoPlano = tarefas;
         } else {
             tarefas = null;
+            this.emSegundoPlano = Runnable::run;
         }
     }
 
@@ -170,21 +178,36 @@ public class Retransmissao {
     }
 
     /**
-     * Alguém entrou numa sala: as credenciais dele, ou null (desligada, limite, ou a Cloudflare falhou). Pode levar
-     * um instante (pede à Cloudflare). avisar recebe as credenciais renovadas, e a lista vazia quando ela é cortada.
+     * Alguém entrou numa sala: as credenciais dele, ou null (desligada, limite, a Cloudflare falhou, ou o consumo ainda
+     * não foi lido). avisar recebe as credenciais que chegam depois (a primeira, quando o consumo ainda estava sendo
+     * lido; as renovadas) e a lista vazia quando ela é cortada.
+     *
+     * <p>A entrada nunca espera a leitura do consumo: ela vai para a thread da retransmissão. Lida no meio da entrada
+     * (até 26/10/2026), a primeira pessoa depois de um deploy esperava o prazo inteiro da consulta à Cloudflare, que no
+     * servidor recém-acordado passou de 6 s. Só o pedido da credencial (rápido) fica na entrada.
      */
     public ArrayNode entrou(String id, String endereco, Consumer<ArrayNode> avisar) {
         if (cloudflare == null) {
             return null;
         }
         if (consumoVelho(CONFERIR_A_CADA)) {
-            conferir();
+            // Lê, e o passo logo em seguida dá a credencial a quem entrou sem ela (o passo sozinho só lê com alguém na sala).
+            emSegundoPlano.execute(() -> {
+                try {
+                    conferir();
+                } catch (RuntimeException e) {
+                    log.warn("Retransmissão: falha ao ler o consumo: {}", e.toString());
+                }
+                passoSemFalhar();
+            });
         }
         synchronized (this) {
-            pessoas.put(id, new Pessoa(endereco, avisar));
+            Pessoa pessoa = new Pessoa(endereco, avisar);
+            pessoas.put(id, pessoa);
             if (!liberada(endereco) || !reservar(endereco)) {
-                return null;
+                return null; // sem leitura valendo, o passo dá a credencial assim que ler o consumo
             }
+            pessoa.emitindo = true;
         }
         return emitir(id);
     }
@@ -228,10 +251,11 @@ public class Retransmissao {
                 }
             }
             pessoas.forEach((id, pessoa) -> {
-                if (!liberada(pessoa.endereco)) {
+                if (pessoa.emitindo || !liberada(pessoa.endereco)) {
                     return;
                 }
                 if (pessoa.ultima == null ? reservar(pessoa.endereco) : !pessoa.ultima.plus(RENOVAR_DEPOIS).isAfter(agora)) {
+                    pessoa.emitindo = true;
                     renovar.add(id);
                 }
             });
@@ -267,12 +291,17 @@ public class Retransmissao {
             try {
                 consumo = cloudflare.consumo(hoje.minusDays(DIAS_DO_PERIODO - 1), hoje);
             } catch (IOException e) {
-                log.warn("Retransmissão: não deu para ler o consumo: {}", e.getMessage());
+                // Tenta de novo a cada passo (30 s) enquanto alguém usa; no log, uma vez a cada 10 minutos.
+                if (avisouFalhaEm == null || !avisouFalhaEm.plus(Duration.ofMinutes(10)).isAfter(inicio)) {
+                    log.warn("Retransmissão: não deu para ler o consumo: {}", e.getMessage());
+                    avisouFalhaEm = inicio;
+                }
                 return;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             }
+            avisouFalhaEm = null;
             List<String> revogar = new ArrayList<>();
             List<Pessoa> cortadas = new ArrayList<>();
             synchronized (this) {
@@ -339,13 +368,19 @@ public class Retransmissao {
             credencial = cloudflare.gerar(VALIDADE);
         } catch (IOException e) {
             log.warn("Retransmissão: não deu para gerar uma credencial: {}", e.getMessage());
-            return null;
+            credencial = null;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return null;
+            credencial = null;
         }
         synchronized (this) {
             Pessoa pessoa = pessoas.get(id);
+            if (pessoa != null) {
+                pessoa.emitindo = false; // falhando, o passo tenta de novo
+            }
+            if (credencial == null) {
+                return null;
+            }
             if (pessoa == null || !liberada(pessoa.endereco)) {
                 revogarEm.put(credencial.usuario(), relogio.instant()); // saiu (ou foi cortada) enquanto gerava
                 return null;
