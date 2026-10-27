@@ -21,6 +21,7 @@ O deploy é uma imagem Docker (`Dockerfile`: Node monta `web/`, o JDK compila, o
 
 - **Idioma:** código, identificadores, comentários, commits e textos em **português do Brasil**. Comentários explicam o *porquê*.
 - **Git:** `git add` com **caminhos explícitos**, nunca `-A` ou `.`. Push só quando pedirem. Commits com o e-mail noreply do GitHub.
+- **Mudanças grandes em branch, não na `main`** (decisão do dono, 27/10/2026): cada push na `main` vai para o ar no Render, e nada pela metade pode ir. As contas vivem no branch `contas`, com um PR em rascunho para a `main`; partes menores entram no `contas` por PRs próprios, e o `contas` só entra na `main` com uma fase inteira pronta para quem usa (a 0 e a 1 juntas). Correções pequenas continuam direto na `main`; traga-as para o `contas` com merge da `main`.
 - **Terminal do dono:** PowerShell 5.1, **sem `&&`**. Nas instruções para ele, use `;` ou um comando por linha.
 - **Testes:** poucos e essenciais, um por comportamento que importa. Rode `.\testar.ps1` antes de commitar. O resto se confere rodando o app (veja "Como testar").
 - **Porta 8080:** o dono costuma ter outra coisa nela. Teste na **8090** e **não mate processos que você não abriu** (nem o Ozamigos instalado).

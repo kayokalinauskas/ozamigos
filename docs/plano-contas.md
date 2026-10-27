@@ -3,6 +3,16 @@
 Plano de execução para o Ozamigos ganhar contas (login com Google e Discord), um banco de dados e servidores que
 ficam salvos, no estilo do Discord. Escrito em 27/10/2026, a partir do código de hoje. **Nada aqui está feito ainda.**
 
+## Como o trabalho anda (decisão do dono, 27/10/2026)
+
+- Tudo isto fica no branch **`contas`**, com um PR em rascunho para a `main`. **Nada vai para o ar pela metade:** cada
+  push na `main` é um deploy no Render.
+- Partes de uma fase entram no `contas` por PRs próprios (branches `contas-...`), com o CI rodando em cada um.
+- O `contas` entra na `main` só com uma fase completa para quem usa: **a fase 0 vai junto com a fase 1**, porque
+  sozinha não muda nada para ninguém. Depois, cada fase é um merge.
+- As variáveis do banco e do login podem ser criadas no Render antes do merge: sem o código novo, ele as ignora.
+- Correções do dia a dia continuam direto na `main`; o `contas` recebe a `main` por merge de tempos em tempos.
+
 ## Princípios (valem para todas as fases)
 
 1. **Voz e vídeo continuam diretos entre os PCs.** O banco guarda só o que precisa sobreviver a um reinício: contas,
