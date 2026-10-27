@@ -2,29 +2,34 @@
 
 Pendências que ficaram para depois, com o que falta para fechar cada uma.
 
-## Ligar a retransmissão (TURN da Cloudflare)
+## Ligar o banco no Render (fase 0 das contas)
 
-O código está pronto e no repositório desde 19/10/2026 (`Retransmissao.java`, `CloudflareHttp.java`; detalhes em "Retransmissão" no `AGENTS.md` e em "Segurança" no `README.md`). Ele **fica desligado enquanto as variáveis não existirem**: sem elas, o Ozamigos funciona como antes, só com conexões diretas. Motivo: um amigo (o correa) não conecta com o dono nem com VPN, porque as duas redes são restritivas; só a retransmissão resolve.
+O código está pronto (`Banco.java`, `VidaDoBanco.java`, `compose.yaml`, `backup.yml`; plano em
+`docs/plano-contas.md`). Sem as variáveis, o servidor funciona como antes, sem banco. Os valores nunca vão para o
+código nem para o chat.
 
-O último passo foi decidido, mas não feito: **pôr as credenciais nas variáveis de ambiente do Render**.
+1. Em https://supabase.com, criar a conta (**sem cartão**: o plano Free não pede) e um projeto:
+   - **Region: East US (North Virginia)**, a mesma do Render;
+   - uma senha forte para o banco (guardar num gerenciador de senhas).
+2. No projeto, em *Connect*, copiar a conexão do **Session pooler** (não a *Direct connection*, que é só IPv6, nem a
+   *Transaction pooler*). Ela vem assim (o `aws-0` pode ter outro número; use o que aparecer): `postgresql://postgres.XXXX:[SENHA]@aws-0-us-east-1.pooler.supabase.com:5432/postgres`.
+3. No Render, em *Environment*, criar:
 
-1. Na Cloudflare, em *Realtime → TURN Server → Create*, criar a chave `ozamigos` e anotar o **Turn Token ID** e o **API Token**.
-2. Em *Manage account → Account API Tokens → Create Token*, criar um token **só com *Account Analytics: Read*** e anotar o **Account ID** da conta.
-3. Em *Manage account → Billing*, conferir que **não há cartão cadastrado** (o dono não aceita nenhum risco de cobrança).
-4. No Render, em *Environment*, criar as quatro variáveis. Os valores nunca vão para o código nem para o chat:
-
-   | Variável | Valor |
+   | Variável | Valor (do exemplo acima) |
    |---|---|
-   | `OZAMIGOS_TURN_ID` | o Turn Token ID |
-   | `OZAMIGOS_TURN_TOKEN` | o API Token do TURN |
-   | `OZAMIGOS_CLOUDFLARE_CONTA` | o Account ID |
-   | `OZAMIGOS_CLOUDFLARE_LEITURA` | o token só de leitura |
+   | `OZAMIGOS_BANCO_URL` | `jdbc:postgresql://aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require` |
+   | `OZAMIGOS_BANCO_USUARIO` | `postgres.XXXX` |
+   | `OZAMIGOS_BANCO_SENHA` | a senha do banco |
 
-5. Depois do deploy, conferir no log do Render:
-   - `Retransmissão ligada`;
-   - logo depois, `Retransmissão: X GB em 31 dias, Y GB hoje`. **A consulta do consumo nunca rodou contra a Cloudflare de verdade.** Se aparecer `não deu para ler o consumo: ...`, a mensagem do GraphQL vem junto: corrigir a consulta em `CloudflareHttp.CONSULTA`. Até ela funcionar, ninguém recebe credencial (falha fechada).
-6. Testar com o correa: no relatório do app (estatísticas → "Salvar relatório"), devem aparecer `retransmissão disponível` e, na conexão com ele, `voz com correa: retransmitido`.
+4. No GitHub, em *Settings → Secrets and variables → Actions*, criar:
+   - `BANCO_BACKUP_URL`: a conexão do passo 2, com a senha no lugar de `[SENHA]`;
+   - `BACKUP_CHAVE`: uma frase longa e aleatória, **guardada também fora do GitHub** (sem ela, o backup não abre).
+5. Depois do deploy, conferir no log do Render: `Banco pronto: 1 migrações aplicadas agora, esquema na versão 1`. Se
+   aparecer `Banco: não deu para preparar (...)`, a mensagem diz o motivo (senha, endereço); as salas continuam
+   funcionando enquanto isso.
+6. Em *Actions → Backup do banco → Run workflow*, rodar uma vez e conferir que o artefato `banco-...` aparece.
 
-**Ainda por decidir:**
-- O limite por endereço é de 10 GB por dia (`LIMITE_POR_ENDERECO`). Em 720p, isso dá umas 5 horas de transmissão retransmitida para uma pessoa (em 1080p · 60, umas 2). Os limites totais são 50 GB no dia e 500 GB em 31 dias (baixados em 26/10/2026, com o cartão cadastrado na Cloudflare).
-- Hoje a retransmissão vale para todos os grupos, e o dono vai medir o consumo. Se gastar muito, a ideia é limitar à sala fixa `ozamigos`.
+## Retransmissão (TURN da Cloudflare)
+
+Ligada desde 26/10/2026, com os limites do `AGENTS.md`. Ainda por decidir: o limite de vídeo por endereço (10 GB por
+dia, umas 5 horas de 720p retransmitido). Na fase 1 das contas, ela passa a ser só para quem tem conta.

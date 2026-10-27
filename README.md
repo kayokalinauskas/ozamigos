@@ -57,7 +57,7 @@ Abra `http://localhost:8080` e entre com a senha `teste`.
 | `cd desktop; npm install; npm start` | Abre o app do Windows |
 | `git tag vX.Y.Z; git push origin vX.Y.Z` | Publica uma versão do app (antes, aumente a versão em `desktop/package.json`) |
 
-Para publicar o servidor, use a imagem do `Dockerfile`, com a variável `OZAMIGOS_SENHA` e o health check em `/actuator/health`.
+Para publicar o servidor, use a imagem do `Dockerfile`, com a variável `OZAMIGOS_SENHA` e o health check em `/actuator/health`. Para rodar tudo no seu PC com o banco, `docker compose up --build` (página em `http://localhost:8090`, senha `teste`).
 
 ## Feito com
 

@@ -13,7 +13,9 @@ Ozamigos: voz e transmissão de jogos entre amigos, **P2P por WebRTC**. Três pe
 | `desktop/` | Electron 44 + auxiliares C# (.NET 10) em `desktop/som/` e `desktop/captura/` | App Windows: carrega a interface **do servidor** (`loadURL`) e acrescenta seletor, captura própria, som do PC sem eco, atalhos globais, bandeja e atualização |
 | `site/` | HTML, CSS e JS puros | Site de apresentação (PT e EN), no GitHub Pages |
 
-O deploy é uma imagem Docker (`Dockerfile`: Node monta `web/`, o JDK compila, o JRE roda). Hoje roda no Render, que publica a cada push na `main`.
+O deploy é uma imagem Docker (`Dockerfile`: Node monta `web/`, o JDK compila, o JRE roda). Hoje roda no Render, que publica a cada push na `main`. O `compose.yaml` sobe a mesma imagem com um Postgres local.
+
+**Em andamento:** contas (Google e Discord), banco e servidores salvos, em fases. O plano, as decisões do dono e o que fica de fora estão em `docs/plano-contas.md`; leia antes de mexer em login, banco ou servidores.
 
 ## Regras (siga sempre)
 
@@ -49,6 +51,7 @@ $env:OZAMIGOS_SENHA = "teste"; $env:PORT = "8090"
 .\mvnw.cmd spring-boot:run                         # servidor local
 .\mvnw.cmd test                                    # testes do servidor
 .\testar.ps1                                       # tudo: servidor, interface, áudio, e2e (8090) e app; -Rapido pula navegadores e app
+docker compose up --build                          # servidor + Postgres local, em http://localhost:8090 (senha teste)
 cd desktop; npm install; npm run som; npm run captura; npm start   # app em desenvolvimento (veja o aviso em "Como testar")
 cd desktop; npm run instalador                     # instalador e portátil em desktop\dist
 ```
@@ -67,6 +70,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 | `YOUTUBE_API_KEY` | não | API de dados do YouTube v3, para as prévias. Sem ela, oEmbed e página do vídeo, que às vezes recusam IPs de datacenter |
 | `OZAMIGOS_TURN_ID`, `OZAMIGOS_TURN_TOKEN` | não | Chave do TURN da Cloudflare (*Realtime → TURN Server*) |
 | `OZAMIGOS_CLOUDFLARE_CONTA`, `OZAMIGOS_CLOUDFLARE_LEITURA` | não | Account ID e token só com *Account Analytics: Read*, para ler o consumo. **A retransmissão só liga com as quatro** |
+| `OZAMIGOS_BANCO_URL`, `OZAMIGOS_BANCO_USUARIO`, `OZAMIGOS_BANCO_SENHA` | não | O Postgres (`jdbc:postgresql://...`). Sem a URL, o servidor sobe sem banco |
 
 ## Servidor (`src/main/java/dev/ozamigos/`)
 
@@ -84,10 +88,16 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - Cada grupo tem uma sala só, de chave `grupo:<nome>`. **O nome do grupo não vai para o log.**
   - `/ozamigos` é o grupo fixo com uma sala só (`SALA_FIXA` em `codigoDaSala.ts`), com a senha do servidor; `/?sala=ozamigos` cai na mesma.
   - `PaginaDoGrupo` vem antes do WebSocket e exclui `sinal`, `actuator` e `assets` do padrão.
+- **Banco** (`Banco`, `VidaDoBanco`, migrações em `src/main/resources/db/migracao/`): PostgreSQL, **opcional** (sem `OZAMIGOS_BANCO_URL`, nada dele existe). No Render, o Supabase grátis em East US (a região do Render), pelo *Session pooler* (a conexão direta do Supabase grátis é só IPv6).
+  - **O banco fora do ar nunca derruba as salas:** a fonte de dados é montada pelo `Banco` (o `DataSourceAutoConfiguration` fica excluído no `application.properties`) e não conecta ao nascer; as migrações do Flyway rodam pelo `VidaDoBanco`, numa thread própria, de novo a cada 30 s até dar certo. **Não troque pelo Flyway do Spring**: com o banco fora, o servidor não subiria. O que depende do banco confere `VidaDoBanco.pronto()`.
+  - A saúde (`/actuator/health`) **não inclui o banco** (`management.health.db.enabled=false`): senão, o Render reiniciaria o servidor e o app ficaria em "Conectando..." com o banco fora.
+  - Um sinal de vida por dia (`sinais_de_vida`): o Supabase grátis pausa o projeto depois de 7 dias sem uso.
+  - **Migração aplicada nunca muda**: corrija com uma nova (`V2__...sql`). Acesso pelo `JdbcClient`, com SQL escrito à mão.
+  - Backup semanal criptografado pelo `backup.yml` (o repositório é público). Testes: `BancoTest`, num Postgres de verdade pelo Testcontainers (precisa do Docker ligado; sem ele, pula).
 - **Retransmissão** (`Retransmissao`, `CloudflareHttp`): TURN da Cloudflare para quem não conecta direto. **A Cloudflare não tem teto de gastos; o teto é desta classe, que falha fechada** (sem ler o consumo há 15 min, ninguém recebe credencial nova).
   - **Duas credenciais por pessoa, uma para a voz (com as imagens do chat) e outra para o vídeo** (26/10/2026, pedido do dono): a Cloudflare mede cada uma, e quem gasta muito perde só o vídeo e continua conversando, com um aviso dizendo que foi o uso dela (`avisarDoLimiteDoVideo` em `cliente.ts`). No `bem-vindo`, `retransmissao` (vídeo, o nome de antes: a página aberta antes do deploy a usa para tudo) e `retransmissaoDaVoz`; na interface, `novaPeerConnection('voz' | 'video')`. Válidas por 12 h, renovadas a cada 6 h (`retransmissao`), canceladas 2 min depois de a pessoa sair.
   - **O dono tem cartão cadastrado na Cloudflare (26/10/2026): passar da franquia seria cobrado.** Limites: vídeo, 10 GB por endereço no dia; voz, 3 GB por endereço no dia (passar disso não é conversa: corta as duas); no total, o vídeo para em 45 GB no dia ou 450 GB em 31 dias, e tudo para em 50 GB no dia ou 500 GB em 31 dias (metade da franquia, para a folga cobrir o que escapa entre as leituras); 10 pedidos de credenciais por endereço a cada 10 min. O log diz o consumo (vídeo e voz) de hora em hora e a cada 1 GB a mais no dia, junto com quanto cada pessoa usou hoje (`Retransmissão de Kayo (1e0331af) hoje: vídeo 2.4 GB, voz 12 MB`), e os cortes dizem o nome de quem passou do limite. Consumo lido a cada 5 min pelo GraphQL (`egressBytes`), **também logo ao subir e com a sala vazia** enquanto alguma credencial emitida ainda vale. Credencial usada hoje que este servidor não emitiu (de antes de um reinício) é cancelada; cancelamento que falha é tentado de novo a cada 30 s. **A leitura nunca bloqueia a entrada** (roda na thread da retransmissão, com prazo de 30 s): quem entra antes da primeira leitura recebe a credencial depois, pela mensagem `retransmissao`. Lida no meio da entrada, a primeira pessoa depois de um deploy esperava a consulta, que passou de 6 s no servidor recém-acordado (26/10/2026).
-  - **Ainda desligada no Render** e nunca conferida contra a Cloudflare de verdade (passo a passo no `TODO.md`). O endereço não vai para o log. Testes: `RetransmissaoTest`, com uma Cloudflare falsa.
+  - **Ligada no Render desde 26/10/2026.** O endereço não vai para o log. Testes: `RetransmissaoTest`, com uma Cloudflare falsa. **Decidido para a fase 1 das contas: só quem tem conta recebe a retransmissão** (`docs/plano-contas.md`).
 - **Prévias de links** (`PreviasDeLinks`): o servidor busca a prévia do primeiro link de vídeo ou canal e manda `previa` para a sala; ninguém da sala acessa o site.
   - **Lista fechada, contra SSRF:** `reconhecer` só aceita os caminhos conhecidos de cada site; redirecionamentos seguidos à mão só para `PAGINAS`, imagens só de `IMAGENS`. **Nunca busque um endereço vindo do chat sem passar por essa lista.**
   - Miniatura reduzida no servidor (até 400 px, JPEG ≤ 48 KB, `data:`), lida já reduzida (`setSourceSubsampling`); acima de 40 MP nem abre. WebP pelo `imageio-webp`.
