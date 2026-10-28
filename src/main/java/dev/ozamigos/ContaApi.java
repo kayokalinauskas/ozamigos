@@ -129,7 +129,7 @@ public class ContaApi {
         if (!contas.disponivel()) {
             return erro(HttpStatus.SERVICE_UNAVAILABLE, "contas-indisponiveis");
         }
-        if (!trocas.passa(Login.endereco(pedido))) {
+        if (!trocas.passa(Enderecos.de(pedido))) {
             return erro(HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
         }
         Optional<UUID> usuario = codigos.trocar(codigo.codigo(), CodigosDoApp.Uso.LOGIN);

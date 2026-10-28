@@ -79,7 +79,7 @@ public class Login {
         String erro = null;
         if (!provedores.existe(provedor) || !contas.disponivel()) {
             erro = "indisponivel";
-        } else if (!comecos.passa(endereco(pedido))) {
+        } else if (!comecos.passa(Enderecos.de(pedido))) {
             erro = "muitas-tentativas";
         }
         if (erro != null) {
@@ -103,12 +103,4 @@ public class Login {
         return voltar + (voltar.contains("?") ? "&" : "?") + "erro-de-login=" + erro;
     }
 
-    /** O endereço de quem pediu, pela mesma regra do WebSocket (o CF-Connecting-IP da Cloudflare, senão o remoto). */
-    static String endereco(HttpServletRequest pedido) {
-        String daCloudflare = pedido.getHeader("CF-Connecting-IP");
-        if (daCloudflare != null && !daCloudflare.isBlank()) {
-            return daCloudflare.strip();
-        }
-        return pedido.getRemoteAddr();
-    }
 }

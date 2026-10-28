@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { LoaderCircle, LogIn, LogOut, Trash2 } from 'lucide-react';
+import { LoaderCircle, LogOut, Trash2 } from 'lucide-react';
+import '@fontsource/google-sans/500.css'; // a fonte do botão do Google, pela diretriz de marca dele
 import { cliente } from '../cliente';
 import {
   NOME_DO_PROVEDOR,
@@ -20,8 +21,19 @@ import { Avatar } from './Avatar';
 const VANTAGEM = 'Com a conta, o seu nome e a sua foto aparecem na sala, e a conversa funciona mesmo em redes mais fechadas.';
 
 /**
- * "Entrar com Google" e "Entrar com Discord" (os que o servidor tiver). No app, o login abre no navegador do sistema;
- * dando certo numa sala aberta, a conexão com o servidor é refeita para a conta valer na hora.
+ * Os botões de cada provedor seguem a marca dele, com o logo oficial (web/public/marcas, sem redesenhar nem mudar a cor):
+ * o do Google pela diretriz do Google Identity (tema escuro: fundo #131314, borda #8E918F, texto #E3E3E3, Google Sans
+ * 500 14/20, 12 px antes do logo, 10 depois, 12 no fim) e com um texto que ela aceita ("Continuar com o Google"); o do
+ * Discord no Blurple (#5865F2) com o símbolo branco. Mudar o texto ou as cores do Google pode custar a aprovação dele.
+ */
+const MARCA: Record<Provedor, { logo: string; texto: string }> = {
+  google: { logo: '/marcas/google.svg', texto: 'Continuar com o Google' },
+  discord: { logo: '/marcas/discord.svg', texto: 'Continuar com o Discord' },
+};
+
+/**
+ * Os botões de login (os que o servidor tiver). No app, o login abre no navegador do sistema; dando certo numa sala
+ * aberta, a conexão com o servidor é refeita para a conta valer na hora.
  */
 export function BotoesDeLogin() {
   const { login, ocupada } = useConta();
@@ -40,12 +52,17 @@ export function BotoesDeLogin() {
         <button
           key={provedor}
           type="button"
-          className="botao botao-secundario botao-login"
-          disabled={ocupada}
+          className={`botao-login botao-login-${provedor}`}
+          // No app, clicar de novo vale: o login novo cancela o que ficou esperando no navegador (a aba fechada).
+          disabled={ocupada && !noApp}
           onClick={() => void entrar(provedor)}
         >
-          {qual === provedor ? <LoaderCircle size={16} className="girando" /> : <LogIn size={16} />}
-          Entrar com {NOME_DO_PROVEDOR[provedor]}
+          {qual === provedor ? (
+            <LoaderCircle size={20} className="girando" aria-hidden="true" />
+          ) : (
+            <img src={MARCA[provedor].logo} alt="" width={provedor === 'google' ? 20 : 22} height={provedor === 'google' ? 20 : 17} draggable={false} />
+          )}
+          <span>{MARCA[provedor].texto}</span>
         </button>
       ))}
       {noApp && qual && <p className="ajuda">Continue no navegador que abriu. Depois, é só voltar para cá.</p>}
@@ -161,7 +178,6 @@ function Perfil() {
     if (novo === null) return;
     setNome(novo);
     setSalvo(true);
-    cliente.renovarConexao(); // numa sala, os amigos já veem o nome novo
   }
 
   return (
@@ -186,7 +202,9 @@ function Perfil() {
               Salvar
             </button>
           </span>
-          <small className="ajuda">{salvo ? 'Nome salvo.' : 'A foto é a do seu Google ou Discord.'}</small>
+          <small className="ajuda">
+            {salvo ? 'Nome salvo. Os amigos veem o nome novo na próxima vez que você entrar numa sala.' : 'A foto é a do seu Google ou Discord.'}
+          </small>
         </label>
       </form>
     </section>

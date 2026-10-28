@@ -1,5 +1,7 @@
 package dev.ozamigos;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,9 +33,17 @@ public class Contas {
 
     public enum Desligamento { DESLIGADA, NAO_TINHA, ULTIMA }
 
+    /**
+     * O banco não respondeu: por esse tempo, todos entram como convidados sem nem tentar. Sem isso, cada entrada com
+     * conta esperaria o prazo da conexão (Banco), e depois de um deploy, com todos voltando juntos, a fila de 5 conexões
+     * segurava as salas por dezenas de segundos.
+     */
+    static final Duration FORA_POR = Duration.ofSeconds(30);
+
     private final VidaDoBanco vida;
     private final JdbcClient banco;
     private final TransactionTemplate transacao;
+    private volatile Instant foraAte = Instant.MIN;
 
     public Contas(ObjectProvider<VidaDoBanco> vida, ObjectProvider<DataSource> fonte) {
         this.vida = vida.getIfAvailable();
@@ -42,9 +52,14 @@ public class Contas {
         this.transacao = dados == null ? null : new TransactionTemplate(new DataSourceTransactionManager(dados));
     }
 
-    /** O banco existe e as migrações rodaram: dá para entrar com conta. */
+    /** O banco existe, as migrações rodaram e ele não falhou há pouco: dá para entrar com conta. */
     public boolean disponivel() {
-        return vida != null && vida.pronto();
+        return vida != null && vida.pronto() && Instant.now().isAfter(foraAte);
+    }
+
+    /** Uma consulta falhou: o banco fica de fora por FORA_POR (disponivel() responde false, sem tentar). */
+    void bancoFalhou() {
+        foraAte = Instant.now().plus(FORA_POR);
     }
 
     /**

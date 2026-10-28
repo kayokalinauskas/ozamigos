@@ -1,8 +1,6 @@
 package dev.ozamigos;
 
 import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
 
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -22,28 +20,19 @@ public class ContaNoWebSocket implements HandshakeInterceptor {
     static final String NOME = "nomeDaConta";
 
     private final Sessoes sessoes;
-    private final Contas contas;
 
-    public ContaNoWebSocket(Sessoes sessoes, Contas contas) {
+    public ContaNoWebSocket(Sessoes sessoes) {
         this.sessoes = sessoes;
-        this.contas = contas;
     }
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest pedido, ServerHttpResponse resposta, WebSocketHandler handler,
             Map<String, Object> atributos) {
-        Optional<UUID> usuario = sessoes.usuario(Sessoes.segredoDe(pedido.getHeaders()));
-        if (usuario.isEmpty()) {
-            return true;
-        }
-        try {
-            contas.usuario(usuario.get()).ifPresent(conta -> {
-                atributos.put(CONTA, new Salas.Conta(conta.id().toString(), ContaApi.enderecoDaFoto(conta)));
-                atributos.put(NOME, conta.nome());
-            });
-        } catch (RuntimeException erro) {
-            // O banco caiu entre as duas consultas: convidada desta vez.
-        }
+        // Uma consulta só (Sessoes.conta): esta roda a cada entrada numa sala, e todos voltam juntos depois de um deploy.
+        sessoes.conta(Sessoes.segredoDe(pedido.getHeaders())).ifPresent(conta -> {
+            atributos.put(CONTA, new Salas.Conta(conta.id().toString(), ContaApi.enderecoDaFoto(conta)));
+            atributos.put(NOME, conta.nome());
+        });
         return true;
     }
 

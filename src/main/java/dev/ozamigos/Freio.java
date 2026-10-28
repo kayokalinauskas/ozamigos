@@ -9,8 +9,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Até {@code limite} vezes por chave (um endereço, uma conta) a cada {@code janela}, contando só o que passou. A mesma
- * regra do TentativasDeSenha, para as ações das contas (começar um login, resgatar um código do app).
+ * Até {@code limite} vezes por chave (um endereço, uma conta) a cada {@code janela}, contando só o que passou. É o freio
+ * das senhas erradas (TentativasDeSenha) e das ações das contas (começar um login, trocar um código do app).
  */
 final class Freio {
 
@@ -34,6 +34,29 @@ final class Freio {
 
     /** Conta mais uma vez, se ainda cabe. False: passou do limite, e esta não conta. */
     synchronized boolean passa(String chave) {
+        if (excedeu(chave)) {
+            return false;
+        }
+        contar(chave);
+        return true;
+    }
+
+    /** Esta chave já chegou ao limite na janela? Não conta nada. */
+    synchronized boolean excedeu(String chave) {
+        Deque<Instant> recentes = vezes.get(chave);
+        if (recentes == null) {
+            return false;
+        }
+        esquecerAntigas(recentes, relogio.instant());
+        if (recentes.isEmpty()) {
+            vezes.remove(chave);
+            return false;
+        }
+        return recentes.size() >= limite;
+    }
+
+    /** Conta mais uma vez, sem olhar o limite (uma senha errada conta mesmo com o endereço já bloqueado). */
+    synchronized void contar(String chave) {
         Instant agora = relogio.instant();
         if (vezes.size() >= CHAVES_ANTES_DE_LIMPAR) {
             vezes.values().removeIf(recentes -> {
@@ -41,13 +64,7 @@ final class Freio {
                 return recentes.isEmpty();
             });
         }
-        Deque<Instant> recentes = vezes.computeIfAbsent(chave, c -> new ArrayDeque<>());
-        esquecerAntigas(recentes, agora);
-        if (recentes.size() >= limite) {
-            return false;
-        }
-        recentes.addLast(agora);
-        return true;
+        vezes.computeIfAbsent(chave, c -> new ArrayDeque<>()).addLast(agora);
     }
 
     private void esquecerAntigas(Deque<Instant> recentes, Instant agora) {

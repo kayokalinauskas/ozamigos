@@ -57,6 +57,12 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
     public void onAuthenticationSuccess(HttpServletRequest pedido, HttpServletResponse resposta, Authentication autenticacao)
             throws IOException {
         Login.Pedido login = pedidoDoLogin(pedido);
+        if (login == null) {
+            // Não dá para saber se o login era do app (e para qual porta) ou do navegador: logar este navegador deixaria
+            // o app esperando à toa. Volta para a entrada, e a pessoa tenta de novo.
+            resposta.sendRedirect(Login.comErro("/", "tempo"));
+            return;
+        }
         try {
             concluir(resposta, login, (OAuth2AuthenticationToken) autenticacao);
         } catch (DataAccessException erro) {
@@ -108,7 +114,12 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
             throws IOException {
         // A pessoa recusou na tela do provedor, ou o login expirou: o motivo do Spring vai para o log, sem dados dela.
         log.info("Login recusado: {}", erro.getClass().getSimpleName());
-        falhar(resposta, pedidoDoLogin(pedido), "recusado");
+        Login.Pedido login = pedidoDoLogin(pedido);
+        if (login == null) {
+            resposta.sendRedirect(Login.comErro("/", "tempo"));
+            return;
+        }
+        falhar(resposta, login, "recusado");
     }
 
     private static void falhar(HttpServletResponse resposta, Login.Pedido login, String motivo) throws IOException {
@@ -117,7 +128,7 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
                 : Login.comErro(login.voltar(), motivo));
     }
 
-    /** O pedido guardado no começo (Login); sem ele (a sessão do login venceu), volta para a entrada. A sessão sai. */
+    /** O pedido guardado no começo (Login), ou null se a sessão do login sumiu. A sessão sai. */
     private static Login.Pedido pedidoDoLogin(HttpServletRequest pedido) {
         HttpSession sessao = pedido.getSession(false);
         Login.Pedido login = null;
@@ -125,7 +136,7 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
             login = (Login.Pedido) sessao.getAttribute(Login.PEDIDO);
             sessao.invalidate();
         }
-        return login != null ? login : new Login.Pedido("/", null, null, null);
+        return login;
     }
 
     /** O perfil de cada provedor, ou null se faltar o id (resposta estranha do provedor). */
