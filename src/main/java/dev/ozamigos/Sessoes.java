@@ -91,7 +91,8 @@ public class Sessoes {
                     select u.id, u.nome, u.foto_versao, u.foto is not null as tem_foto,
                            s.usada_em < now() - make_interval(secs => :renovar) as renovar
                     from sessoes s join usuarios u on u.id = s.usuario_id
-                    where s.resumo = :resumo and s.expira_em > now()""")
+                    where s.resumo = :resumo and s.expira_em > now()
+                      and not exists (select 1 from banimentos b where b.usuario_id = u.id)""")
                     .param("resumo", resumo).param("renovar", (double) RENOVAR_A_CADA.toSeconds())
                     .query((linha, n) -> new Achada(new Contas.Usuario(linha.getObject("id", UUID.class), linha.getString("nome"),
                             linha.getInt("foto_versao"), linha.getBoolean("tem_foto"), List.of()), linha.getBoolean("renovar")))
@@ -113,6 +114,18 @@ public class Sessoes {
         if (segredo != null && SEGREDO.matcher(segredo).matches()) {
             banco.sql("delete from sessoes where resumo = :resumo").param("resumo", resumo(segredo)).update();
         }
+    }
+
+    /**
+     * A sessão desse segredo foi criada há menos de {@code ha} (um login recente): o painel do dono pede isso antes de
+     * apagar ou banir, e um cookie roubado não basta.
+     */
+    public boolean recente(String segredo, Duration ha) {
+        if (segredo == null || !SEGREDO.matcher(segredo).matches()) {
+            return false;
+        }
+        return banco.sql("select exists (select 1 from sessoes where resumo = :resumo and criada_em > now() - make_interval(secs => :ha))")
+                .param("resumo", resumo(segredo)).param("ha", (double) ha.toSeconds()).query(Boolean.class).single();
     }
 
     /** Encerra todas as sessões da conta, em todos os aparelhos (um cookie roubado deixa de valer). */

@@ -111,6 +111,10 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
         } catch (Contas.NovasDemais e) {
             falhar(resposta, login, "contas-novas-demais");
             return;
+        } catch (Contas.Banida e) {
+            log.info("Uma conta banida do {} tentou entrar", provedor);
+            falhar(resposta, login, "banida");
+            return;
         }
         fotos.atualizar(entrada.id(), perfil.foto(), entrada.fotoOrigem());
         if (login.portaDoApp() != null) {

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Eye, LoaderCircle, MonitorUp, RefreshCw } from 'lucide-react';
-import { enviar } from '../conta';
+import { entrarCom, enviar, NOME_DO_PROVEDOR, useConta, type Provedor } from '../conta';
 import { Avatar } from './Avatar';
 import { Logo } from './Logo';
 
 // O painel do dono (PainelApi.java): só o dono recebe os dados; para os outros, o servidor responde como se o painel não
-// existisse, e esta página diz só isso.
+// existisse, e esta página diz só isso. Apagar, banir e desbanir pedem um login recente (o servidor confere): sem ele, o
+// painel pede para entrar de novo.
 
 type NoAr = { nome: string; conta: string | null; transmitindo: boolean; assistindo: string[] };
 type SalaAberta = { codigo: string | null; nome: string; pessoas: NoAr[] };
@@ -37,19 +38,46 @@ type Banco = {
   bloqueios: number;
 };
 type ServidorNoPainel = { codigo: string; nome: string; icone: string | null; dono: string | null; nomeDoDono: string | null; membros: number; convitesValendo: number; criadoEm: string };
-type ContaNoPainel = { id: string; nome: string; foto: string | null; provedores: string[]; criadaEm: string; vistaEm: string; donaDe: number; membroDe: number; sessoes: number };
-type Dados = { agora: string; salas: SalaAberta[]; retransmissao: Retransmissao; banco: Banco; servidores: ServidorNoPainel[]; contas: ContaNoPainel[] };
+type ContaNoPainel = { id: string; nome: string; foto: string | null; provedores: string[]; criadaEm: string; vistaEm: string; donaDe: number; membroDe: number; sessoes: number; banida: boolean };
+type Banimento = { provedor: string; idExterno: string; conta: string | null; nome: string; banidoEm: string; porQuem: string | null };
+type AcaoDoPainel = { quando: string; quem: string | null; acao: 'apagar-servidor' | 'banir' | 'desbanir'; alvo: string; nomeDoAlvo: string };
+type Dados = {
+  agora: string;
+  salas: SalaAberta[];
+  retransmissao: Retransmissao;
+  banco: Banco;
+  servidores: ServidorNoPainel[];
+  contas: ContaNoPainel[];
+  banimentos: Banimento[];
+  registro: AcaoDoPainel[];
+  loginRecente: boolean;
+};
+
+/** Faz uma ação do painel e lê tudo de novo; um erro vira o aviso no topo. */
+type Agir = (metodo: string, caminho: string, corpo?: unknown) => Promise<void>;
+
+const TEXTO_DA_ACAO: Record<AcaoDoPainel['acao'], string> = { 'apagar-servidor': 'apagou o servidor', banir: 'baniu', desbanir: 'desbaniu' };
+
+const ERROS: Record<string, string> = {
+  'servidor-nao-existe': 'Esse servidor não existe mais.',
+  'conta-nao-existe': 'Essa conta não existe mais.',
+  'nao-banida': 'Essa conta não está banida.',
+  'dono-nao-se-bane': 'Uma conta dona do Ozamigos não pode ser banida.',
+  'muitas-tentativas': 'Muitas ações em pouco tempo. Espere um minuto.',
+};
 
 /** O banco grátis do Supabase. */
 const BANCO_GRATIS = 500e6;
 const ATUALIZAR_A_CADA_MS = 15_000;
 
-type Aba = 'agora' | 'servidores' | 'contas' | 'consumo';
+type Aba = 'agora' | 'servidores' | 'contas' | 'banidos' | 'consumo' | 'registro';
 const ABAS: { id: Aba; titulo: string }[] = [
   { id: 'agora', titulo: 'Agora' },
   { id: 'servidores', titulo: 'Servidores' },
   { id: 'contas', titulo: 'Contas' },
+  { id: 'banidos', titulo: 'Banidos' },
   { id: 'consumo', titulo: 'Consumo' },
+  { id: 'registro', titulo: 'Registro' },
 ];
 
 function bytes(n: number | undefined): string {
@@ -87,6 +115,22 @@ export function Painel() {
     const vez = setInterval(() => void ler(), ATUALIZAR_A_CADA_MS);
     return () => clearInterval(vez);
   }, [ler]);
+
+  const agir: Agir = useCallback(
+    async (metodo, caminho, corpo) => {
+      const resposta = await enviar(metodo, caminho, corpo);
+      if (resposta.ok) {
+        setErro('');
+      } else if (resposta.motivo === 'login-antigo') {
+        setDados((atual) => atual && { ...atual, loginRecente: false });
+        return;
+      } else {
+        setErro(ERROS[resposta.motivo ?? ''] ?? 'Não deu certo. Tente de novo.');
+      }
+      await ler();
+    },
+    [ler],
+  );
 
   // Antes da resposta, e para quem não é dono, nada do painel: nem o título.
   if (!dados) {
@@ -131,15 +175,78 @@ export function Painel() {
           </button>
         ))}
       </div>
-      {erro && <p className="ajuda">{erro}</p>}
+      {erro && (
+        <p className="painel-alerta" role="alert">
+          {erro}
+        </p>
+      )}
+      {!dados.loginRecente && <EntrarDeNovo aoEntrar={() => void ler()} />}
       <section role="tabpanel">
         {aba === 'agora' && <Agora dados={dados} />}
-        {aba === 'servidores' && <Servidores dados={dados} />}
-        {aba === 'contas' && <Contas dados={dados} />}
+        {aba === 'servidores' && <Servidores dados={dados} agir={agir} />}
+        {aba === 'contas' && <Contas dados={dados} agir={agir} />}
+        {aba === 'banidos' && <Banidos dados={dados} agir={agir} />}
         {aba === 'consumo' && <Consumo dados={dados} />}
+        {aba === 'registro' && <Registro dados={dados} />}
       </section>
       <p className="painel-rodape">Lido às {new Date(dados.agora).toLocaleTimeString('pt-BR')}</p>
     </main>
+  );
+}
+
+/** Sem login recente, as ações não valem: entrar de novo (no navegador, a página volta para cá; no app, fica aqui). */
+function EntrarDeNovo({ aoEntrar }: { aoEntrar: () => void }) {
+  const { conta, ocupada } = useConta();
+  return (
+    <div className="painel-alerta">
+      <span>Para apagar ou banir, entre de novo.</span>
+      {(conta?.provedores ?? []).map((provedor: Provedor) => (
+        <button
+          key={provedor}
+          type="button"
+          className="botao botao-secundario botao-pequeno"
+          disabled={ocupada}
+          onClick={() => void entrarCom(provedor).then((ficou) => ficou && aoEntrar())}
+        >
+          Entrar com o {NOME_DO_PROVEDOR[provedor]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Um botão que pede confirmação no lugar, antes de agir. */
+function Confirmar({ rotulo, pergunta, aoConfirmar }: { rotulo: string; pergunta: string; aoConfirmar: () => Promise<void> }) {
+  const [perguntando, setPerguntando] = useState(false);
+  const [fazendo, setFazendo] = useState(false);
+  if (!perguntando) {
+    return (
+      <button type="button" className="botao botao-fantasma botao-pequeno" onClick={() => setPerguntando(true)}>
+        {rotulo}
+      </button>
+    );
+  }
+  return (
+    <span className="painel-confirmar">
+      <span>{pergunta}</span>
+      <button
+        type="button"
+        className="botao botao-perigo botao-pequeno"
+        disabled={fazendo}
+        onClick={() => {
+          setFazendo(true);
+          void aoConfirmar().finally(() => {
+            setFazendo(false);
+            setPerguntando(false);
+          });
+        }}
+      >
+        {rotulo}
+      </button>
+      <button type="button" className="botao botao-fantasma botao-pequeno" onClick={() => setPerguntando(false)}>
+        Cancelar
+      </button>
+    </span>
   );
 }
 
@@ -218,7 +325,7 @@ function useBusca<T>(itens: T[], texto: (item: T) => string) {
 const textoDoServidor = (s: ServidorNoPainel) => `${s.nome} ${s.codigo} ${s.nomeDoDono ?? ''}`;
 const textoDaConta = (c: ContaNoPainel) => `${c.nome} ${c.id}`;
 
-function Servidores({ dados }: { dados: Dados }) {
+function Servidores({ dados, agir }: { dados: Dados; agir: Agir }) {
   const naSala = useMemo(() => new Map(dados.salas.map((s) => [s.codigo, s.pessoas.length])), [dados.salas]);
   const { filtrados, campo } = useBusca(dados.servidores, textoDoServidor);
   return (
@@ -238,6 +345,11 @@ function Servidores({ dados }: { dados: Dados }) {
               </small>
             </span>
             {naSala.has(s.codigo) && <span className="painel-etiqueta">{naSala.get(s.codigo)} na sala</span>}
+            <Confirmar
+              rotulo="Apagar"
+              pergunta={`Apagar "${s.nome}" para todos?`}
+              aoConfirmar={() => agir('DELETE', `/api/painel/servidores/${s.codigo}`, { confirmar: true })}
+            />
           </li>
         ))}
       </ul>
@@ -245,7 +357,8 @@ function Servidores({ dados }: { dados: Dados }) {
   );
 }
 
-function Contas({ dados }: { dados: Dados }) {
+function Contas({ dados, agir }: { dados: Dados; agir: Agir }) {
+  const { conta: eu } = useConta();
   const salaDe = useMemo(() => {
     const mapa = new Map<string, string>();
     dados.salas.forEach((sala) => sala.pessoas.forEach((p) => p.conta && mapa.set(p.conta, sala.nome)));
@@ -274,6 +387,13 @@ function Contas({ dados }: { dados: Dados }) {
               <small className="painel-id">{c.id}</small>
             </span>
             {salaDe.has(c.id) && <span className="painel-etiqueta">em {salaDe.get(c.id)}</span>}
+            {c.banida ? (
+              <span className="painel-etiqueta painel-banida">banida</span>
+            ) : (
+              c.id !== eu?.id && (
+                <Confirmar rotulo="Banir" pergunta={`Banir ${c.nome}?`} aoConfirmar={() => agir('POST', `/api/painel/contas/${c.id}/banir`, { confirmar: true })} />
+              )
+            )}
           </li>
         ))}
       </ul>
@@ -321,5 +441,48 @@ function Consumo({ dados }: { dados: Dados }) {
         ))}
       </ul>
     </>
+  );
+}
+
+function Banidos({ dados, agir }: { dados: Dados; agir: Agir }) {
+  if (dados.banimentos.length === 0) return <p className="ajuda">Ninguém banido.</p>;
+  return (
+    <ul className="painel-lista painel-cartao">
+      {dados.banimentos.map((b) => (
+        <li key={`${b.provedor}:${b.idExterno}`}>
+          <span className="painel-texto">
+            <strong>{b.nome}</strong>
+            <small>
+              {NOME_DO_PROVEDOR[b.provedor as Provedor] ?? b.provedor} · banida em {quando(b.banidoEm)}
+              {b.porQuem && ` por ${b.porQuem}`}
+              {!b.conta && ' · a conta foi apagada'}
+            </small>
+          </span>
+          <Confirmar
+            rotulo="Desbanir"
+            pergunta={`Desbanir ${b.nome}?`}
+            aoConfirmar={() => agir('POST', '/api/painel/desbanir', { provedor: b.provedor, idExterno: b.idExterno })}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Registro({ dados }: { dados: Dados }) {
+  if (dados.registro.length === 0) return <p className="ajuda">Nenhuma ação ainda.</p>;
+  return (
+    <ul className="painel-lista painel-cartao">
+      {dados.registro.map((a, i) => (
+        <li key={i}>
+          <span className="painel-texto">
+            <strong>
+              {a.quem ?? 'Alguém'} {TEXTO_DA_ACAO[a.acao]} {a.nomeDoAlvo}
+            </strong>
+            <small>{quando(a.quando)}</small>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

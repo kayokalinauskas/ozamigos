@@ -15,14 +15,17 @@ import javax.sql.DataSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * O painel do dono do Ozamigos (pedido do dono, 28/10/2026): os números do banco, os servidores e as contas. Quem é
  * dono vem de {@code OZAMIGOS_DONOS} (ids de conta, separados por vírgula), e é o servidor quem confere, a cada
  * pedido (PainelApi): sem a variável, o painel não existe para ninguém.
  *
- * <p>Só leitura. Listas até {@link #LISTAS_ATE} itens, dos vistos por último para os mais antigos.
+ * <p>As ações (apagar um servidor, banir e desbanir) ficam no registro {@code acoes_do_painel}. Listas até
+ * {@link #LISTAS_ATE} itens, dos vistos por último para os mais antigos.
  */
 @Component
 public class Painel {
@@ -37,11 +40,17 @@ public class Painel {
             long convitesValendo, Instant criadoEm) {}
 
     public record ContaNoPainel(String id, String nome, String foto, List<String> provedores, Instant criadaEm,
-            Instant vistaEm, long donaDe, long membroDe, long sessoes) {}
+            Instant vistaEm, long donaDe, long membroDe, long sessoes, boolean banida) {}
+
+    /** Uma conta do Google ou do Discord banida; {@code conta} null se a conta já foi apagada. */
+    public record Banimento(String provedor, String idExterno, String conta, String nome, Instant banidoEm, String porQuem) {}
+
+    public record Acao(Instant quando, String quem, String acao, String alvo, String nomeDoAlvo) {}
 
     /** Quem é dono (OZAMIGOS_DONOS); os testes trocam. */
     volatile Set<UUID> donos;
     private final JdbcClient banco;
+    private final TransactionTemplate transacao;
 
     public Painel(ObjectProvider<DataSource> fonte, @Value("${ozamigos.donos:}") String donos) {
         this.donos = Arrays.stream(donos.split(","))
@@ -51,6 +60,7 @@ public class Painel {
                 .collect(Collectors.toUnmodifiableSet());
         DataSource dados = fonte.getIfAvailable();
         this.banco = dados == null ? null : JdbcClient.create(dados);
+        this.transacao = dados == null ? null : new TransactionTemplate(new DataSourceTransactionManager(dados));
     }
 
     /** Esta conta é dona do Ozamigos (está em OZAMIGOS_DONOS). */
@@ -110,7 +120,8 @@ public class Painel {
                   coalesce((select string_agg(i.provedor, ',' order by i.provedor) from identidades i where i.usuario_id = u.id), '') as provedores,
                   (select count(*) from membros m where m.usuario_id = u.id and m.papel = 'dono') as dona_de,
                   (select count(*) from membros m where m.usuario_id = u.id) as membro_de,
-                  (select count(*) from sessoes s where s.usuario_id = u.id and s.expira_em > now()) as sessoes
+                  (select count(*) from sessoes s where s.usuario_id = u.id and s.expira_em > now()) as sessoes,
+                  exists (select 1 from banimentos b where b.usuario_id = u.id) as banida
                 from usuarios u order by u.visto_em desc limit :ate""")
                 .param("ate", LISTAS_ATE)
                 .query((l, n) -> {
@@ -120,7 +131,7 @@ public class Painel {
                             ContaApi.enderecoDaFoto(id, l.getBoolean("tem_foto"), l.getInt("foto_versao")),
                             provedores.isEmpty() ? List.of() : List.of(provedores.split(",")),
                             l.getTimestamp("criado_em").toInstant(), l.getTimestamp("visto_em").toInstant(),
-                            l.getLong("dona_de"), l.getLong("membro_de"), l.getLong("sessoes"));
+                            l.getLong("dona_de"), l.getLong("membro_de"), l.getLong("sessoes"), l.getBoolean("banida"));
                 })
                 .list();
     }
@@ -137,5 +148,72 @@ public class Painel {
                     nomes.put(l.getString("codigo"), l.getString("nome"));
                 });
         return nomes;
+    }
+
+    /**
+     * Bane a conta: as identidades dela (Google, Discord) não entram mais, e as sessões acabam. Devolve o nome, ou vazio
+     * se a conta não existe. Quem chama tira a pessoa das salas (SinalizacaoHandler.tirarDosServidores).
+     */
+    public Optional<String> banir(UUID quem, UUID conta) {
+        return transacao.execute(estado -> {
+            Optional<String> nome = banco.sql("select nome from usuarios where id = :u").param("u", conta).query(String.class).optional();
+            if (nome.isEmpty()) {
+                return nome;
+            }
+            banco.sql("""
+                    insert into banimentos (provedor, id_externo, usuario_id, nome, banido_por)
+                    select provedor, id_externo, usuario_id, :nome, :quem from identidades where usuario_id = :u
+                    on conflict do nothing""")
+                    .param("nome", nome.get()).param("quem", quem).param("u", conta).update();
+            banco.sql("delete from sessoes where usuario_id = :u").param("u", conta).update();
+            registrar(quem, "banir", conta.toString(), nome.get());
+            return nome;
+        });
+    }
+
+    /**
+     * Desfaz o banimento dessa identidade e das outras da mesma conta. Devolve o nome de quem foi desbanido, ou vazio se
+     * não estava banido.
+     */
+    public Optional<String> desbanir(UUID quem, String provedor, String idExterno) {
+        return transacao.execute(estado -> {
+            List<String> nomes = banco.sql("""
+                    delete from banimentos where (provedor = :p and id_externo = :e)
+                      or usuario_id = (select usuario_id from banimentos where provedor = :p and id_externo = :e)
+                    returning nome""")
+                    .param("p", provedor).param("e", idExterno).query(String.class).list();
+            if (nomes.isEmpty()) {
+                return Optional.<String>empty();
+            }
+            registrar(quem, "desbanir", provedor + ":" + idExterno, nomes.getFirst());
+            return Optional.of(nomes.getFirst());
+        });
+    }
+
+    public List<Banimento> banimentos() {
+        return banco.sql("""
+                select b.provedor, b.id_externo, b.usuario_id, b.nome, b.banido_em, q.nome as por_quem
+                from banimentos b left join usuarios q on q.id = b.banido_por
+                order by b.banido_em desc limit :ate""")
+                .param("ate", LISTAS_ATE)
+                .query((l, n) -> new Banimento(l.getString("provedor"), l.getString("id_externo"), l.getString("usuario_id"),
+                        l.getString("nome"), l.getTimestamp("banido_em").toInstant(), l.getString("por_quem")))
+                .list();
+    }
+
+    /** O que o painel fez, das mais novas para as mais antigas. */
+    public List<Acao> registro() {
+        return banco.sql("""
+                select a.quando, q.nome as quem, a.acao, a.alvo, a.nome_do_alvo
+                from acoes_do_painel a left join usuarios q on q.id = a.quem
+                order by a.id desc limit 200""")
+                .query((l, n) -> new Acao(l.getTimestamp("quando").toInstant(), l.getString("quem"), l.getString("acao"),
+                        l.getString("alvo"), l.getString("nome_do_alvo")))
+                .list();
+    }
+
+    void registrar(UUID quem, String acao, String alvo, String nomeDoAlvo) {
+        banco.sql("insert into acoes_do_painel (quem, acao, alvo, nome_do_alvo) values (:q, :a, :alvo, :nome)")
+                .param("q", quem).param("a", acao).param("alvo", alvo).param("nome", nomeDoAlvo).update();
     }
 }

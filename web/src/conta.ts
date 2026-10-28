@@ -28,6 +28,7 @@ const MOTIVOS: Record<string, string> = {
   recusado: 'O login não foi concluído. Tente de novo.',
   'muitas-tentativas': 'Muitas tentativas de entrar em pouco tempo. Espere alguns minutos e tente de novo.',
   'contas-novas-demais': 'Muitas contas novas no Ozamigos agora. Tente de novo daqui a uma hora.',
+  banida: 'Esta conta não pode mais entrar no Ozamigos.',
   // Quem testou os dois logins separados tem duas contas: o texto diz como juntar (sem mesclar contas no servidor).
   'de-outra-pessoa':
     'Essa conta já entrou no Ozamigos sozinha, como outra conta. Para juntar as duas: saia, entre com ela, apague-a em Configurações → Conta, e ligue de novo aqui.',
