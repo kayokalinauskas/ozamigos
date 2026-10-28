@@ -30,7 +30,6 @@ import tools.jackson.databind.json.JsonMapper;
  * simulada), a sessão no cookie, a API e a conta dentro da sala.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT, properties = {
-        "ozamigos.senha=teste",
         "ozamigos.google.id=id-de-teste", "ozamigos.google.segredo=segredo-de-teste",
         "ozamigos.discord.id=id-do-discord", "ozamigos.discord.segredo=segredo-do-discord"})
 @Import(SinalizacaoTest.SemInternet.class)
@@ -49,6 +48,8 @@ class ContasTest extends ComBanco {
     private CodigosDoApp codigos;
     @Autowired
     private AoEntrar aoEntrar;
+    @Autowired
+    private Servidores servidores;
     @Autowired
     private JsonMapper json;
 
@@ -194,25 +195,16 @@ class ContasTest extends ComBanco {
     }
 
     @Test
-    void naSalaQuemTemContaEntraComONomeDelaERecebeARetransmissao() throws Exception {
+    void naSalaONomeEhODaContaEElaRecebeARetransmissao() throws Exception {
         UUID ana = novaConta("Ana da Conta");
-        String sala = "conta" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+        String servidor = servidores.criar(ana, "Servidor da Ana");
         ClienteDaSala comConta = ClienteDaSala.conectar(porta, Sessoes.COOKIE + "=" + sessoes.criar(ana, "app"), "203.0.113.7");
-        comConta.enviar("{\"tipo\":\"entrar\",\"sala\":\"" + sala + "\",\"senha\":\"teste\",\"nome\":\"Nome Forjado\"}");
+        comConta.enviar("{\"tipo\":\"entrar\",\"servidor\":\"" + servidor + "\",\"nome\":\"Nome Forjado\"}");
 
         JsonNode boasVindas = comConta.esperar("bem-vindo");
         assertThat(boasVindas.path("nome").asString()).isEqualTo("Ana da Conta");
         assertThat(boasVindas.path("conta").asString()).isEqualTo(ana.toString());
         assertThat(boasVindas.path("retransmissao").isEmpty()).isFalse();
-        assertThat(boasVindas.has("retransmissaoSoComConta")).isFalse();
-
-        ClienteDaSala convidado = ClienteDaSala.conectar(porta, null, "203.0.113.8");
-        convidado.enviar("{\"tipo\":\"entrar\",\"sala\":\"" + sala + "\",\"senha\":\"teste\",\"nome\":\"Beto\"}");
-        JsonNode doConvidado = convidado.esperar("bem-vindo");
-        assertThat(doConvidado.has("retransmissao")).isFalse();
-        assertThat(doConvidado.path("retransmissaoSoComConta").asBoolean()).isTrue();
-        assertThat(doConvidado.path("outros").get(0).path("conta").asString()).isEqualTo(ana.toString());
-        assertThat(comConta.esperar("entrou").has("conta")).isFalse();
     }
 
     private UUID novaConta(String nome) {

@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +34,6 @@ import tools.jackson.databind.node.ObjectNode;
 public class SinalizacaoHandler extends TextWebSocketHandler {
 
     private static final Logger log = LoggerFactory.getLogger(SinalizacaoHandler.class);
-    private static final Pattern CODIGO_VALIDO = Pattern.compile("[A-Za-z0-9]{6,20}");
     /** O chat da sala: até tantos caracteres por mensagem, e no máximo CHAT_RAJADA mensagens a cada CHAT_JANELA_MS. */
     static final int CHAT_MAXIMO = 500;
     static final int CHAT_RAJADA = 5;
@@ -48,11 +46,8 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     static final long CHAMADAS_JANELA_MS = 60_000;
 
     private final Salas salas;
-    private final SenhaDoGrupo senhaDoGrupo;
-    private final TentativasDeSenha tentativas;
     private final JsonMapper json;
     private final PreviasDeLinks previas;
-    private final Grupos grupos;
     private final Retransmissao retransmissao;
     private final Servidores servidores;
     private final Contas contas;
@@ -63,8 +58,8 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
      */
     private final Object[] travasDosServidores = new Object[64];
 
-    public SinalizacaoHandler(Salas salas, SenhaDoGrupo senhaDoGrupo, TentativasDeSenha tentativas, JsonMapper json, PreviasDeLinks previas,
-            Grupos grupos, Retransmissao retransmissao, Servidores servidores, Contas contas) {
+    public SinalizacaoHandler(Salas salas, JsonMapper json, PreviasDeLinks previas, Retransmissao retransmissao,
+            Servidores servidores, Contas contas) {
         this.salas = salas;
         this.servidores = servidores;
         this.contas = contas;
@@ -72,9 +67,6 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             travasDosServidores[i] = new Object();
         }
         this.retransmissao = retransmissao;
-        this.grupos = grupos;
-        this.senhaDoGrupo = senhaDoGrupo;
-        this.tentativas = tentativas;
         this.json = json;
         this.previas = previas;
     }
@@ -110,9 +102,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             return;
         }
         switch (tipo) {
-            case "entrar" -> entrar(sessao, id, msg.path("sala").asString(""), msg.path("senha").asString(""),
-                    nomeLimpo(msg.path("nome").asString("")), msg.path("ficha").asString(""),
-                    msg.path("grupo").asString(""), msg.path("criar").asBoolean(false), msg.path("servidor").asString(""));
+            case "entrar" -> entrar(sessao, id, msg.path("servidor").asString(""), msg.path("ficha").asString(""));
             case "comecei" -> comecei(sessao, id, sala);
             case "parei" -> parei(id, sala);
             case "assistir" -> assistir(id, sala, msg.path("para").asString(""));
@@ -129,19 +119,14 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     }
 
     /**
-     * Sem {@code grupo}, é o grupo fixo (a senha OZAMIGOS_SENHA e a sala pelo código). Com ele, um grupo criado na hora
-     * (Grupos): a senha é a dele, a sala é a única do grupo, e {@code criar} o cria se não existe. Quem já está num
-     * grupo manda {@code criar} ao reconectar: se o servidor reiniciou, o grupo volta com a mesma senha. Com
-     * {@code servidor}, um servidor salvo (Servidores): sem senha, só para os membros, que entram com a conta.
+     * Entra na sala de um servidor salvo (Servidores): só com a conta (o cookie da sessão, lido na abertura do WebSocket:
+     * ContaNoWebSocket) e sendo membro. Sem senha: quem entra é decidido pelos convites (decisão do dono, 28/10/2026:
+     * as salas com senha, o grupo fixo e os grupos criados na hora saíram). A conferência e a entrada na sala acontecem
+     * segurando a trava do servidor, a mesma da expulsão (tirarDoServidor).
      */
-    private void entrar(WebSocketSession sessao, String id, String codigo, String senha, String nome,
-            String fichaAnterior, String grupo, boolean criar, String servidor) throws IOException {
-        if (servidor.isEmpty()) {
-            entrarJa(sessao, id, codigo, senha, nome, fichaAnterior, grupo, criar, servidor);
-            return;
-        }
+    private void entrar(WebSocketSession sessao, String id, String servidor, String fichaAnterior) throws IOException {
         synchronized (trava(servidor)) {
-            entrarJa(sessao, id, codigo, senha, nome, fichaAnterior, grupo, criar, servidor);
+            entrarJa(sessao, id, servidor, fichaAnterior);
         }
     }
 
@@ -149,72 +134,21 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         return travasDosServidores[Math.floorMod(servidor.hashCode(), travasDosServidores.length)];
     }
 
-    private void entrarJa(WebSocketSession sessao, String id, String codigo, String senha, String nome,
-            String fichaAnterior, String grupo, boolean criar, String servidor) throws IOException {
-        // Com conta (o cookie da sessão, lido na abertura do WebSocket: ContaNoWebSocket), o nome é o dela, e não o
-        // que a página mandou: ninguém entra com o nome de outra pessoa que tem conta.
+    private void entrarJa(WebSocketSession sessao, String id, String servidor, String fichaAnterior) throws IOException {
         Salas.Conta conta = (Salas.Conta) sessao.getAttributes().get(ContaNoWebSocket.CONTA);
-        if (conta != null) {
-            nome = (String) sessao.getAttributes().get(ContaNoWebSocket.NOME);
-        }
-        // A senha vem antes de tudo: sem ela, a pessoa não descobre nada sobre a sala.
-        String endereco = Enderecos.de(sessao.getHandshakeHeaders(), sessao.getRemoteAddress());
-        if (tentativas.bloqueado(endereco)) {
-            log.warn("{} bloqueado: senhas erradas demais de {}", id, endereco);
-            recusar(sessao, "muitas-tentativas");
+        String recusa = recusaDoServidor(servidor, conta);
+        if (recusa != null) {
+            recusar(sessao, recusa);
             return;
-        }
-        if (!servidor.isEmpty()) {
-            String recusa = recusaDoServidor(servidor, conta);
-            if (recusa != null) {
-                recusar(sessao, recusa);
-                return;
-            }
-        } else if (grupo.isEmpty()) {
-            if (!senhaDoGrupo.confere(senha)) {
-                log.info("{} errou a senha", id);
-                tentativas.errou(endereco);
-                recusar(sessao, "senha-errada");
-                return;
-            }
-        } else {
-            Grupos.Resultado resultado = grupos.entrar(grupo, senha, criar, endereco);
-            String recusa = switch (resultado) {
-                case ENTRA, CRIADO -> null;
-                case SENHA_ERRADA -> "senha-errada";
-                case EM_USO -> "grupo-em-uso";
-                case NAO_EXISTE -> "grupo-nao-existe";
-                case NOME_INVALIDO -> "grupo-invalido";
-                case SENHA_CURTA -> "senha-curta";
-                case CRIOU_DEMAIS -> "muitos-grupos";
-                case GRUPOS_DEMAIS -> "grupos-demais";
-            };
-            if (resultado == Grupos.Resultado.SENHA_ERRADA || resultado == Grupos.Resultado.EM_USO) {
-                // Criar com um nome que existe também conta: senão, seria um jeito de chutar a senha sem o freio.
-                log.info("{} errou a senha de um grupo", id);
-                tentativas.errou(endereco);
-            }
-            if (recusa != null) {
-                recusar(sessao, recusa);
-                return;
-            }
-            if (resultado == Grupos.Resultado.CRIADO) {
-                // O nome do grupo é escolhido pelas pessoas: não vai para o log.
-                log.info("{} criou um grupo ({} agora)", id, grupos.quantos());
-            }
         }
         if (sessao.getAttributes().containsKey("sala")) {
             erro(sessao, "ja-esta-numa-sala");
             return;
         }
-        if (!servidor.isEmpty()) {
-            codigo = Servidores.sala(servidor);
-        } else if (!grupo.isEmpty()) {
-            codigo = Grupos.sala(grupo);
-        } else if (!CODIGO_VALIDO.matcher(codigo).matches()) {
-            erro(sessao, "codigo-invalido");
-            return;
-        }
+        // O nome é o da conta: ninguém entra com o nome de outra pessoa.
+        String nome = (String) sessao.getAttributes().get(ContaNoWebSocket.NOME);
+        String endereco = Enderecos.de(sessao.getHandshakeHeaders(), sessao.getRemoteAddress());
+        String codigo = Servidores.sala(servidor);
         // Reconexão: se a conexão antiga da mesma pessoa ainda consta na sala, ela sai agora
         // (senão ficaria uma pessoa fantasma ocupando lugar até o servidor perceber a queda).
         String anterior = salas.donoDaFicha(codigo, fichaAnterior);
@@ -231,24 +165,14 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             return;
         }
         sessao.getAttributes().put("sala", codigo);
-        if (!servidor.isEmpty()) {
-            log.info("{} ({}) entrou num servidor", id, nome); // o nome do servidor é escolhido pelas pessoas, como o do grupo
-        } else if (!grupo.isEmpty()) {
-            sessao.getAttributes().put("grupo", grupo);
-            grupos.ocupado(grupo);
-            log.info("{} ({}) entrou num grupo", id, nome);
-        } else {
-            log.info("{} ({}) entrou na sala {}", id, nome, codigo);
-        }
+        log.info("{} ({}) entrou num servidor", id, nome); // o nome do servidor é escolhido pelas pessoas: não vai para o log
 
         ObjectNode boasVindas = json.createObjectNode()
                 .put("tipo", "bem-vindo")
                 .put("id", id)
                 .put("ficha", ficha)
                 .put("nome", nome);
-        if (conta != null) {
-            contaEm(boasVindas, conta);
-        }
+        contaEm(boasVindas, conta);
         ArrayNode outros = boasVindas.putArray("outros");
         entrada.outros().forEach((outroId, outro) -> {
             ObjectNode pessoa = outros.addObject().put("id", outroId).put("nome", outro.nome());
@@ -263,12 +187,8 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         // A retransmissão vem já no bem-vindo: a pessoa liga a voz para todos logo que o recebe.
         // "retransmissao" é a do vídeo: a página de antes (aberta antes do deploy) a usa também na voz, como antes.
         WebSocketSession segura = segura(sessao);
-        Retransmissao.Credenciais credenciais = retransmissao.entrou(id, nome, endereco, conta == null ? null : conta.id(),
+        Retransmissao.Credenciais credenciais = retransmissao.entrou(id, nome, endereco, conta.id(),
                 novas -> enviar(segura, mensagemDaRetransmissao(novas)));
-        if (conta == null && retransmissao.ligada()) {
-            // A página diz a quem não conecta direto que entrar com a conta resolve (decisão do dono, 27/10/2026).
-            boasVindas.put("retransmissaoSoComConta", true);
-        }
         if (credenciais != null) {
             boasVindas.set("retransmissao", credenciais.video());
             boasVindas.set("retransmissaoDaVoz", credenciais.voz());
@@ -284,9 +204,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         // Só quem já estava quando entrei: quem entrou depois (ao mesmo tempo, como todos voltando depois de um
         // deploy) já me recebeu na lista do "bem-vindo", e com o "entrou" também me via duas vezes.
         ObjectNode entrou = json.createObjectNode().put("tipo", "entrou").put("id", id).put("nome", nome);
-        if (conta != null) {
-            contaEm(entrou, conta);
-        }
+        contaEm(entrou, conta);
         for (WebSocketSession outro : entrada.avisar()) {
             enviar(outro, entrou);
         }
@@ -587,16 +505,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         if (saida == null) {
             return;
         }
-        if (sala.startsWith("grupo:")) {
-            if (saida.restantes().isEmpty()) {
-                grupos.vazio(sala.substring("grupo:".length()));
-            }
-            log.info("{} ({}) saiu de um grupo", id, nome);
-        } else if (sala.startsWith("servidor:")) {
-            log.info("{} ({}) saiu de um servidor", id, nome);
-        } else {
-            log.info("{} ({}) saiu da sala {}", id, nome, sala);
-        }
+        log.info("{} ({}) saiu de um servidor", id, nome);
         ObjectNode saiu = json.createObjectNode().put("tipo", "saiu").put("id", id);
         for (WebSocketSession restante : saida.restantes()) {
             enviar(restante, saiu);
