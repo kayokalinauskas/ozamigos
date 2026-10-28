@@ -8,8 +8,15 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+### Novo
+- **Servidores, como no Discord:** entre com o Google ou o Discord e crie o servidor do seu grupo, com nome e ícone. Ele fica guardado, e os amigos entram com um clique. Convide pelo botão Convidar (ou em Configurações do servidor, com validade e limite de usos); quem abre o convite entra com a conta e vira membro. O dono escolhe os admins, passa a posse e decide se os membros também convidam; o dono e os admins expulsam quem precisar, e quem é expulso não volta por convite até ser desbloqueado. O app abre na lista dos seus servidores.
+
+### Mudado
+- **Sem senhas:** as salas com senha, o grupo `/ozamigos` e os grupos criados na hora deram lugar aos servidores. Entrar pede a conta do Google ou do Discord, e os links antigos levam à entrada. O app não entra mais sozinho na última sala.
+- **Entrou uma vez, não precisa entrar de novo:** a conta continua conectada enquanto você usar o Ozamigos (antes, o login vencia 60 dias depois de feito, mesmo com uso todo dia).
+
 ### Corrigido
-- O app que entra sozinho na última sala agora para na entrada quando dá para entrar com o Google ou o Discord e você ainda não escolheu entrar como convidado: antes, quem atualizou para a 1.3.0 caía direto na sala e nem via os botões.
+- A entrada não passa mais da largura da tela no celular (a página ficava um pouco afastada, com o texto menor).
 
 ## [1.3.0] - 2026-10-27
 

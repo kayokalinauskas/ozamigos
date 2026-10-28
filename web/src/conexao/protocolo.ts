@@ -21,8 +21,8 @@ type Candidato = { candidato: RTCIceCandidateInit; canal: Canal | 'voz' };
 // ===== Do navegador para o servidor =====
 
 export type MensagemParaOServidor =
-  // Com `grupo`, um grupo criado na hora (a sala é a dele, e `sala` vai vazia); `criar` o cria se não existe.
-  | { tipo: 'entrar'; sala: string; senha: string; nome: string; ficha: string; grupo?: string; criar?: boolean }
+  // A sala de um servidor salvo, pelo código: quem entra é a conta (o cookie da sessão), sendo membro, sem senha.
+  | { tipo: 'entrar'; servidor: string; ficha: string }
   | { tipo: 'comecei' }
   | { tipo: 'parei' }
   | { tipo: 'assistir'; para: string }
@@ -44,16 +44,16 @@ export type SinalDeVozParaEnviar = Extract<MensagemParaOServidor, { tipo: 'ofert
 // ===== Do servidor para o navegador =====
 
 export type MotivoDoErro =
+  // Na entrada: sem conta, não é membro (ou o servidor não existe), banco fora do ar; e, já na sala, tirado dela.
+  | 'sem-conta'
+  | 'servidor-nao-existe'
+  | 'servidores-indisponiveis'
+  | 'expulso'
+  | 'servidor-apagado'
+  | 'fora-do-servidor'
+  // Só para as páginas de antes de 28/10/2026 (com senha), ainda abertas no deploy: a recusa que elas conhecem.
   | 'senha-errada'
-  | 'grupo-nao-existe'
-  | 'grupo-em-uso'
-  | 'grupo-invalido'
-  | 'senha-curta'
-  | 'muitos-grupos'
-  | 'grupos-demais'
-  | 'muitas-tentativas'
   | 'sala-cheia'
-  | 'codigo-invalido'
   | 'ja-esta-numa-sala'
   | 'entre-numa-sala-primeiro'
   | 'destinatario-nao-esta-na-sala'
@@ -81,8 +81,6 @@ export type MensagemDoServidor =
       retransmissao?: RTCIceServer[];
       retransmissaoDaVoz?: RTCIceServer[];
       limiteDoVideo?: LimiteDoVideo;
-      // Convidado num servidor com a retransmissão ligada: entrando com a conta, ela vem (Retransmissao.java).
-      retransmissaoSoComConta?: true;
     }
   | ({ tipo: 'entrou' } & Pessoa)
   | { tipo: 'saiu'; id: string }

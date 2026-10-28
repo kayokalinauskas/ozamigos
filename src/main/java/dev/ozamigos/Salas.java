@@ -215,6 +215,33 @@ public class Salas {
         return sala == null ? null : sala.participantes.get(id);
     }
 
+    /** As conexões de uma conta na sala (às vezes mais de uma: o app e o navegador); com {@code conta} null, todas. */
+    public synchronized List<WebSocketSession> daConta(String codigo, String conta) {
+        Sala sala = salas.get(codigo);
+        if (sala == null) {
+            return List.of();
+        }
+        List<WebSocketSession> achadas = new ArrayList<>();
+        sala.participantes.forEach((id, sessao) -> {
+            Conta dela = sala.contas.get(id);
+            if (conta == null || (dela != null && dela.id().equals(conta))) {
+                achadas.add(sessao);
+            }
+        });
+        return achadas;
+    }
+
+    /** As salas, de chave começando por {@code prefixo}, em que uma conta está. */
+    public synchronized List<String> salasDaConta(String conta, String prefixo) {
+        List<String> achadas = new ArrayList<>();
+        salas.forEach((codigo, sala) -> {
+            if (codigo.startsWith(prefixo) && sala.contas.values().stream().anyMatch(dela -> dela.id().equals(conta))) {
+                achadas.add(codigo);
+            }
+        });
+        return achadas;
+    }
+
     /** Todo mundo da sala, inclusive quem pediu. */
     public synchronized List<WebSocketSession> todos(String codigo) {
         Sala sala = salas.get(codigo);

@@ -20,7 +20,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import com.zaxxer.hikari.HikariDataSource;
 
 /** O banco num Postgres de verdade, e o servidor sem ele. */
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT, properties = "ozamigos.senha=teste")
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class BancoTest extends ComBanco {
 
     @LocalServerPort

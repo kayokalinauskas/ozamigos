@@ -22,8 +22,11 @@ acompanharGravacaoDaSala();
 manterTelaAcordada();
 // No app: mensagens do chat não vistas viram um ponto (e uma piscada) no ícone da barra de tarefas.
 avisarNaBarraDeTarefas();
-// No app: um convite (link ozamigos://) aberto com o app já aberto.
-ponte?.aoAbrirSala?.((sala) => cliente.abrirConvite(sala));
+// No app: um link de sala (ozamigos://sala/...) aberto com o app aberto. As salas por código saíram (28/10/2026):
+// em vez de não acontecer nada, a pessoa fica sabendo o que pedir.
+ponte?.aoAbrirSala?.(() =>
+  cliente.avisar('Os links de sala não valem mais: peça a quem te chamou um convite para o servidor do grupo.', 'erro'),
+);
 // Os atalhos de voz (mudo, som desligado e apertar para falar); no app, valem com o jogo na frente. Só numa sala:
 // na entrada, um Ctrl+Shift+M não muda nada sem a pessoa ver.
 atalhos.ligar((qual, apertado) => {

@@ -166,7 +166,7 @@ do app. Um app antigo não tem o botão de login (a página confere se a ponte t
 
 - Entrada: "Entrar com Google", "Entrar com Discord" e "Entrar como convidado".
 - Configurações → **Conta**: nome, foto (a do provedor, ou só as iniciais), contas ligadas, **sair**, **apagar a conta**
-  (apaga tudo na hora; os servidores de que a pessoa é dona passam para o admin mais antigo, ou somem).
+  (apaga tudo na hora; os servidores de que a pessoa é dona passam para o admin mais antigo, senão para o membro mais antigo; vazios, somem).
 
 ### Segurança
 
@@ -220,6 +220,11 @@ convites   (codigo text, servidor_id, criado_por, expira_em null, usos_maximos n
 - Papéis: o **dono** apaga o servidor e passa a posse; o **admin** convida, expulsa membros, cria e renomeia salas; o
   **membro** entra e convida (se o dono deixar).
 - Ícone: como a foto, reduzido no servidor.
+- Decidido na implementação (28/10/2026): o dono é o membro de papel `dono` (sem coluna própria); renomear e trocar o
+  ícone são do dono e dos admins; apagar a conta passa o servidor ao admin mais antigo, **senão ao membro mais antigo**
+  (some só se ficar vazio); um convite gasto ainda leva ao servidor quem já é membro.
+- **Expulsar também bloqueia** (decisão do dono, 28/10/2026): quem foi expulso não volta por convite nenhum até o dono ou
+  um admin desbloquear, numa lista de bloqueados nas configurações do servidor.
 
 ### Entrada
 
@@ -276,6 +281,20 @@ das regras de papel (quem pode o quê) no servidor.
   mostra "Conectando…".
 - **Vazamento do banco:** sem senhas, sem e-mails, sem IPs; o que vazaria são nomes, fotos e quem é membro de quê.
 - **LGPD:** a pessoa apaga a própria conta na hora, sem pedir a ninguém.
+
+## Só servidores, com conta (decisão do dono, 28/10/2026)
+
+"Igual ao Discord": a senha sai de vez. Entrar no Ozamigos pede o Google ou o Discord, e as salas são as dos servidores
+salvos. Isto substitui o princípio 4 ("o modo de hoje continua") e a decisão 3 abaixo.
+
+- **Saem:** a senha do servidor (`OZAMIGOS_SENHA`), o grupo fixo `/ozamigos` como grupo com senha, os grupos criados na
+  hora (`/nome`), as salas por código (`?sala=`), o freio de senhas (e o único log com IP), a entrada automática numa
+  sala e a pergunta "abrir no app" dos links de sala.
+- **Entrada:** sem conta, só o login; com conta, só "Seus servidores" e criar um. O app abre na lista.
+- **O `/ozamigos`:** deixa de existir. O dono cria o servidor do grupo pela interface e convida os amigos. Os links
+  antigos (`/ozamigos`, `/nome-de-grupo`, `?sala=`) levam à entrada.
+- **Quem não tem conta** entra por um convite e faz o login ali.
+- **Testes:** todos entram com conta (banco e o mock-oauth2-server em Docker, como o `contas.e2e.ts`).
 
 ## Decisões do dono (27/10/2026)
 

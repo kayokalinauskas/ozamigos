@@ -56,10 +56,8 @@ export type EstadoDaVoz = {
 export type LigacaoComOCliente = {
   enviar(msg: SinalDeVozParaEnviar): void;
   nomeDe(id: string): string;
-  /** O que reconhece a pessoa entre salas e reconexões (a conta, ou o nome): a chave do volume e do silenciado. */
+  /** O que reconhece a pessoa entre salas e reconexões (a conta): a chave do volume e do silenciado. */
   chaveDe(id: string): string;
-  /** O fim dos avisos de "não conectou": convidado, entrar com a conta traz a conexão de reserva. */
-  dicaDaReserva(): string;
   avisar(texto: string, tipo?: 'info' | 'erro'): void;
   registrar(evento: string): void;
 };
@@ -627,7 +625,7 @@ class Voz {
       if (!this.avisouSemVoz.has(c.id)) {
         this.avisouSemVoz.add(c.id);
         this.cliente?.avisar(
-          `Não foi possível ligar a voz com ${this.nomeDe(c.id)}. A rede de um de vocês pode estar bloqueando a conexão.${this.cliente.dicaDaReserva()}`,
+          `Não foi possível ligar a voz com ${this.nomeDe(c.id)}. A rede de um de vocês pode estar bloqueando a conexão.`,
           'erro',
         );
       }

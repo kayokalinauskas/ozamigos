@@ -1,10 +1,8 @@
 // Testes de ponta a ponta: navegadores de verdade contra o servidor de verdade (npm run test:e2e).
-// Antes, a interface precisa estar compilada (npm run build), porque quem a entrega é o servidor.
-import { fileURLToPath } from 'node:url';
+// Antes, a interface precisa estar compilada (npm run build), porque quem a entrega é o servidor. O servidor, o banco
+// e o login de teste sobem uma vez para todos (e2e/infra.ts), e precisam do Docker.
 import { defineConfig } from '@playwright/test';
-
-const RAIZ = fileURLToPath(new URL('..', import.meta.url));
-const PORTA = 8090; // a 8080 fica livre para o servidor de quem desenvolve
+import { PORTA } from './e2e/infra';
 
 export default defineConfig({
   testDir: 'e2e',
@@ -13,6 +11,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 1, // cada teste já abre vários navegadores; em paralelo, a máquina vira o gargalo
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
+  globalSetup: './e2e/infra.ts',
   use: {
     baseURL: `http://localhost:${PORTA}`,
     trace: 'retain-on-failure',
@@ -23,13 +22,5 @@ export default defineConfig({
         '--autoplay-policy=no-user-gesture-required',
       ],
     },
-  },
-  webServer: {
-    command: process.platform === 'win32' ? '.\\mvnw.cmd -q spring-boot:run' : './mvnw -q spring-boot:run',
-    cwd: RAIZ,
-    env: { PORT: String(PORTA), OZAMIGOS_SENHA: 'teste' },
-    url: `http://localhost:${PORTA}`,
-    timeout: 180_000,
-    reuseExistingServer: !process.env.CI,
   },
 });

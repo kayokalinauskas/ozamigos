@@ -43,11 +43,14 @@ public class ContaApi {
     private final Sessoes sessoes;
     private final ProvedoresDeLogin provedores;
     private final CodigosDoApp codigos;
+    private final SinalizacaoHandler sinalizacao;
     /** Trocas de código por endereço: uma por login de verdade, então 20 a cada 10 minutos sobram. */
     private final Freio trocas = new Freio(20, Duration.ofMinutes(10));
 
-    public ContaApi(Contas contas, Sessoes sessoes, ProvedoresDeLogin provedores, CodigosDoApp codigos) {
+    public ContaApi(Contas contas, Sessoes sessoes, ProvedoresDeLogin provedores, CodigosDoApp codigos,
+            SinalizacaoHandler sinalizacao) {
         this.contas = contas;
+        this.sinalizacao = sinalizacao;
         this.sessoes = sessoes;
         this.provedores = provedores;
         this.codigos = codigos;
@@ -61,8 +64,15 @@ public class ContaApi {
     public ResponseEntity<Map<String, Object>> eu(HttpServletRequest pedido) {
         Map<String, Object> corpo = new LinkedHashMap<>();
         corpo.put("login", contas.disponivel() ? provedores.disponiveis() : List.of());
-        corpo.put("conta", usuario(pedido).flatMap(contas::usuario).map(ContaApi::emJson).orElse(null));
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(corpo);
+        Object conta = usuario(pedido).flatMap(contas::usuario).map(ContaApi::emJson).orElse(null);
+        corpo.put("conta", conta);
+        var resposta = ResponseEntity.ok().cacheControl(CacheControl.noStore());
+        if (conta != null) {
+            // O cookie também vence 60 dias depois do último uso, e não do login: a página pergunta isto a cada abertura,
+            // e quem usa o Ozamigos não precisa entrar de novo nunca (como no Discord). O banco já renova a sessão.
+            resposta.header(HttpHeaders.SET_COOKIE, Sessoes.cookie(Sessoes.segredoDe(pedido)).toString());
+        }
+        return resposta.body(corpo);
     }
 
     @PatchMapping("/api/eu")
@@ -94,6 +104,7 @@ public class ContaApi {
             return erro(HttpStatus.BAD_REQUEST, "confirme");
         }
         contas.apagar(usuario.get());
+        sinalizacao.tirarDosServidores(usuario.get(), "fora-do-servidor"); // já não é membro de nenhum
         return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, Sessoes.cookieApagado().toString()).build();
     }
 
@@ -164,7 +175,11 @@ public class ContaApi {
 
     /** O endereço da foto de uma conta, com a versão; null sem foto. */
     static String enderecoDaFoto(Contas.Usuario usuario) {
-        return usuario.temFoto() ? "/api/fotos/" + usuario.id() + "?v=" + usuario.fotoVersao() : null;
+        return enderecoDaFoto(usuario.id(), usuario.temFoto(), usuario.fotoVersao());
+    }
+
+    static String enderecoDaFoto(UUID conta, boolean temFoto, int versao) {
+        return temFoto ? "/api/fotos/" + conta + "?v=" + versao : null;
     }
 
     private static Map<String, Object> emJson(Contas.Usuario usuario) {
@@ -181,11 +196,19 @@ public class ContaApi {
     }
 
     private ResponseEntity<Map<String, String>> semConta() {
+        return semConta(contas);
+    }
+
+    /**
+     * Sem a conta da sessão: 401, ou 503 se foi o banco que não respondeu (Sessoes.conta devolve vazio também nesse caso,
+     * e deixa o banco de fora): a página não acha que a pessoa saiu da conta.
+     */
+    static ResponseEntity<Map<String, String>> semConta(Contas contas) {
         return contas.disponivel() ? erro(HttpStatus.UNAUTHORIZED, "sem-conta")
                 : erro(HttpStatus.SERVICE_UNAVAILABLE, "contas-indisponiveis");
     }
 
-    private static ResponseEntity<Map<String, String>> erro(HttpStatus status, String motivo) {
+    static ResponseEntity<Map<String, String>> erro(HttpStatus status, String motivo) {
         return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(Map.of("erro", motivo));
     }
 }
