@@ -13,9 +13,9 @@ import { AbaDaConta } from './Conta';
 import { SITE } from './RodapeDaEntrada';
 
 const SUPRESSOES: { valor: Supressao; titulo: string; texto: string }[] = [
-  { valor: 'rnnoise', titulo: 'Inteligente (recomendado)', texto: 'Tira teclado, ventilador e barulho de fundo, e deixa só a voz.' },
+  { valor: 'rnnoise', titulo: 'Inteligente (recomendado)', texto: 'Tira teclado, ventilador e barulho de fundo.' },
   { valor: 'navegador', titulo: 'Básica', texto: 'Mais leve, tira menos ruído.' },
-  { valor: 'nenhuma', titulo: 'Desligada', texto: 'O microfone vai como está. Bom para microfones de estúdio em lugar silencioso.' },
+  { valor: 'nenhuma', titulo: 'Desligada', texto: 'O microfone vai como está.' },
 ];
 
 /** dB (−100 a 0) para a posição na barra (0 a 100%). */
@@ -147,9 +147,9 @@ function AbaDeVoz() {
         <p className="ajuda">
           {ajustes.sensibilidadeAutomatica
             ? rnnoise
-              ? 'O microfone abre quando reconhece voz acima do barulho do ambiente: teclado, mouse e ventilador não abrem.'
+              ? 'O microfone abre quando reconhece voz.'
               : 'O microfone abre quando o som passa do barulho do ambiente.'
-            : 'Arraste o limite: o microfone abre quando a barra passa dele. Fale normalmente e deixe o limite logo acima do barulho de quando você está quieto.'}
+            : 'O microfone abre quando a barra passa do limite. Deixe o limite logo acima do barulho de quando você está quieto.'}
         </p>
         <Medidor automatica={ajustes.sensibilidadeAutomatica} limiarDb={ajustes.limiarDb} aoMudarLimiar={(db) => mudar({ limiarDb: db })} />
         <div className="configuracoes-linha">
@@ -218,7 +218,7 @@ function AbaDeNotificacoes() {
 
       <section className="configuracoes-secao" aria-labelledby="titulo-notificacoes">
         <h3 id="titulo-notificacoes">Notificações {onde}</h3>
-        <p className="ajuda">Aparecem só com o Ozamigos atrás de outra janela, o jogo por exemplo. Com ele na frente, o aviso na tela basta.</p>
+        <p className="ajuda">Só aparecem com o Ozamigos atrás de outra janela.</p>
         {permissao === 'denied' && (
           <p className="configuracoes-alerta" role="status">
             {ponte
@@ -343,7 +343,7 @@ function SecaoDaQualidade() {
           {altura > 720 && fps > 30
             ? 'Usa quase o triplo da sua internet de envio para cada amigo assistindo, e bem mais da placa de vídeo.'
             : 'Usa quase o dobro da sua internet de envio para cada amigo assistindo, e mais da placa de vídeo.'}{' '}
-          {fps > 30 && 'Em jogo pesado, a imagem pode não chegar a 60 fps (as estatísticas mostram quanto chega). '}
+          {fps > 30 && 'Em jogo pesado, a imagem pode não chegar a 60 fps. '}
           Com vários amigos assistindo ou uma internet mais fraca, a imagem pode perder nitidez ou travar: nesse caso, volte para o 720p · 30 fps.
         </p>
       )}

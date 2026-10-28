@@ -80,7 +80,7 @@ export function AbrirNoApp({ convite, aoContinuar }: { convite: string; aoContin
           <p className="convite-titulo">Convite para um servidor do Ozamigos</p>
           <p className="subtitulo">
             {etapa === 'nao-abriu'
-              ? 'O app não abriu. Se o navegador perguntou, escolha Abrir; se você ainda não tem o app, baixe para Windows.'
+              ? 'O app não abriu. Se o navegador perguntar, escolha Abrir.'
               : 'Abra no app ou continue no navegador.'}
           </p>
           {etapa === 'nao-abriu' ? (

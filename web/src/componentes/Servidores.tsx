@@ -90,7 +90,6 @@ export function MeusServidores() {
               {salvando ? <LoaderCircle size={16} className="girando" /> : 'Criar'}
             </button>
           </span>
-          <small className="ajuda">O servidor fica guardado: quem você convidar entra com a conta, quando quiser.</small>
         </label>
       ) : (
         <button type="button" className="botao botao-secundario" onClick={() => setCriando(true)}>

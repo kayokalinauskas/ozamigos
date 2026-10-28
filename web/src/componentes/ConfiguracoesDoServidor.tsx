@@ -307,7 +307,7 @@ function AbaDeConvites({ servidor, fazer }: { servidor: Servidor; fazer: Fazer }
     <>
       <section className="configuracoes-secao" aria-labelledby="titulo-novo-convite">
         <h3 id="titulo-novo-convite">Convidar</h3>
-        <p className="ajuda">Quem abrir o link entra com o Google ou o Discord e vira membro: depois, entra quando quiser.</p>
+        <p className="ajuda">Quem abrir o link vira membro do servidor.</p>
         <div className="configuracoes-duas">
           <label className="campo">
             <span>Vence em</span>

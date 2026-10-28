@@ -196,7 +196,7 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
           type="button"
           className="botao-icone"
           aria-label={emTelaCheia ? `Sair da tela cheia: ${nome}` : `Tela cheia: ${nome}`}
-          title={emTelaCheia ? 'Sair da tela cheia (ou Esc, ou dois cliques no vídeo)' : 'Tela cheia (ou dois cliques no vídeo)'}
+          title={emTelaCheia ? 'Sair da tela cheia (Esc)' : 'Tela cheia'}
           onClick={telaCheia}
         >
           {emTelaCheia ? <Minimize size={18} /> : <Maximize size={18} />}

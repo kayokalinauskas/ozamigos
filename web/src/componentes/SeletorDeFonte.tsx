@@ -130,7 +130,7 @@ export function SeletorDeFonte() {
               <input type="checkbox" checked={audio} onChange={(e) => setAudio(e.target.checked)} />
               <span>
                 Transmitir o som do PC
-                <small>Vai o som do jogo e dos outros programas. A voz dos amigos e o som das transmissões que você assiste ficam de fora.</small>
+                <small>Vai o som do PC, sem a voz dos amigos.</small>
               </span>
             </label>
             <div className="botoes">

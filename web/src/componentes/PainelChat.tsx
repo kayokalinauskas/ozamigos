@@ -117,7 +117,7 @@ export function PainelChat() {
           noFim.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
         }}
       >
-        {chat.length === 0 && <li className="chat-vazio">Nenhuma mensagem ainda. As mensagens não ficam guardadas: quem entrar depois não vê o que foi dito antes.</li>}
+        {chat.length === 0 && <li className="chat-vazio">Nenhuma mensagem ainda.</li>}
         {chat.map((m, i) => (
           <Mensagem key={m.numero} m={m} junto={juntaComAnterior(chat[i - 1], m)} aoAbrir={setAberta} />
         ))}

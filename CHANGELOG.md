@@ -8,6 +8,12 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.3.3] - 2026-10-28
+
+### Mudado
+- Textos mais curtos no app e no site: sem explicação entre parênteses depois de cada botão e sem frase repetindo o que a tela já diz.
+- A tela de "Conectando…" do app não fala mais em sala, e a de endereço do servidor não manda mais procurar um ícone que não existe.
+
 ## [1.3.2] - 2026-10-28
 
 ### Novo

@@ -35,7 +35,7 @@ function SeloDeGravacao() {
       title={
         minha
           ? 'As medidas de todos chegam aqui e são salvas sozinhas a cada 30 s em Documentos\\Ozamigos\\Estatísticas. Ctrl+Shift+G para parar.'
-          : 'O Ozamigos manda para essa pessoa como as transmissões chegam aqui. Você não precisa fazer nada.'
+          : 'O Ozamigos manda para essa pessoa como as transmissões chegam aqui.'
       }
     >
       <span className="ponto" />
@@ -152,7 +152,7 @@ function Vazio({ sozinho, temAlguemNoAr }: { sozinho: boolean; temAlguemNoAr: bo
       <div className="vazio">
         <Eye size={40} strokeWidth={1.5} />
         <h2>Escolha quem assistir</h2>
-        <p>Clique em Assistir em quem está no ar. Dá para assistir várias transmissões ao mesmo tempo.</p>
+        <p>Clique em Assistir em quem está no ar.</p>
       </div>
     );
   }
@@ -160,7 +160,7 @@ function Vazio({ sozinho, temAlguemNoAr }: { sozinho: boolean; temAlguemNoAr: bo
     <div className="vazio">
       <MonitorUp size={40} strokeWidth={1.5} />
       <h2>Ninguém está transmitindo</h2>
-      <p>Clique em Transmitir, embaixo, para mostrar o seu jogo. Os amigos escolhem se querem assistir.</p>
+      <p>Clique em Transmitir para mostrar o seu jogo.</p>
       {sozinho && (
         <p className="vazio-link">
           <UserPlus size={14} aria-hidden="true" /> Convide os amigos pelo botão Convidar, ao lado do nome do servidor.

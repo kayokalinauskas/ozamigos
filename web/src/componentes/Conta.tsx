@@ -19,7 +19,7 @@ import { useCliente } from '../useCliente';
 import { Avatar } from './Avatar';
 
 /** Por que entrar, dito uma vez, onde a pessoa decide. Sem senha nem cadastro: a conta é a do Google ou a do Discord. */
-const PARA_QUE = 'Entre com o Google ou o Discord para ver os seus servidores, criar um e entrar nos convites dos amigos.';
+const PARA_QUE = 'Entre com o Google ou o Discord para ver os seus servidores.';
 
 /**
  * Os botões de cada provedor seguem a marca dele, com o logo oficial (web/public/marcas, sem redesenhar nem mudar a cor):
@@ -66,7 +66,7 @@ export function BotoesDeLogin() {
           <span>{MARCA[provedor].texto}</span>
         </button>
       ))}
-      {noApp && qual && <p className="ajuda">Continue no navegador que abriu. Depois, é só voltar para cá.</p>}
+      {noApp && qual && <p className="ajuda">Continue no navegador que abriu.</p>}
     </div>
   );
 }

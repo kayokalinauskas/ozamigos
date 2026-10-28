@@ -1061,7 +1061,7 @@ function avisarDaBandejaUmaVez() {
   salvarConfiguracao({ avisouDaBandeja: true });
   const aviso = new Notification({
     title: 'O Ozamigos continua aberto',
-    body: 'Ele fica na bandeja, perto do relógio, e a conversa continua. Para sair, clique com o botão direito no ícone e escolha Sair.',
+    body: 'Para sair, clique com o botão direito no ícone da bandeja e escolha Sair.',
     icon: ICONE,
   });
   aviso.on('click', mostrarJanela);

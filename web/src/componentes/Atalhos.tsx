@@ -66,7 +66,7 @@ export function AbaDeAtalhos() {
             <input type="radio" name="modo-do-microfone" checked={!ajustes.apertarParaFalar} onChange={() => voz.mudarAjustes({ apertarParaFalar: false })} />
             <span>
               <strong>Detecção de voz</strong>
-              <small>O microfone abre sozinho quando você fala (a sensibilidade fica na aba Voz e áudio).</small>
+              <small>O microfone abre sozinho quando você fala.</small>
             </span>
           </label>
           <label className={ajustes.apertarParaFalar ? 'opcao escolhida' : 'opcao'}>
@@ -90,7 +90,7 @@ export function AbaDeAtalhos() {
           {globais
             ? 'Funcionam com o jogo na frente, sem tirar a tecla do jogo.'
             : ponte
-              ? 'Por enquanto, só com o Ozamigos em foco: atualize o app (ele se atualiza ao abrir) para funcionarem com o jogo na frente.'
+              ? 'Por enquanto, só com o Ozamigos em foco. Feche e abra o app para atualizar.'
               : 'No navegador, só funcionam com esta aba em foco. No app para Windows, funcionam com o jogo na frente.'}
         </p>
         <div className="atalhos">

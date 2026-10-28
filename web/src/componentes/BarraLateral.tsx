@@ -225,7 +225,7 @@ function Voce({ nome, plateia, nomesDe }: { nome: string; plateia: string[] | nu
               <Eye size={14} aria-hidden="true" /> Assistindo você: {nomesDe(plateia)}
             </>
           ) : (
-            'Ninguém assiste você ainda: o vídeo só sai do seu PC quando alguém clica em Assistir.'
+            'Ninguém assiste você ainda.'
           )}
         </p>
       )}

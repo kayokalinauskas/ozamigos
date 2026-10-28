@@ -696,7 +696,7 @@ class Cliente {
         if (msg.ligada) {
           this.mudar({ gravacaoDaSala: { id: msg.id, nome: msg.nome ?? this.nomeDe(msg.id) } });
           if (!minha && e.gravacaoDaSala?.id !== msg.id) {
-            this.avisar(`${this.nomeDe(msg.id)} começou a gravar as estatísticas da sala: o Ozamigos manda para essa pessoa como as transmissões chegam aqui. Você não precisa fazer nada.`);
+            this.avisar(`${this.nomeDe(msg.id)} começou a gravar as estatísticas da sala: o Ozamigos manda para essa pessoa como as transmissões chegam aqui.`);
           }
         } else if (e.gravacaoDaSala?.id === msg.id) {
           this.mudar({ gravacaoDaSala: null });
