@@ -1,13 +1,13 @@
 // O caminho principal do app, com navegadores de verdade: entrar, transmitir, assistir, falar e sair.
-// Cada pessoa é um contexto separado do navegador (como dois PCs), com microfone falso e um "jogo" desenhado.
+// Cada pessoa é um contexto separado do navegador (como dois PCs), logada (conta.ts), com microfone falso e um "jogo"
+// desenhado.
 import { expect, test, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
+import { entrarNaSala as entrarComConta, novaSala, type Sala } from './conta';
 
 /** Roda na página antes do app: o jogo falso no lugar da captura de tela e um analisador na saída de som. */
 function prepararPagina() {
   // Microfone sem porta: o bipe do microfone falso não é voz, e a sensibilidade automática o seguraria.
   localStorage.setItem('ozamigos-voz', JSON.stringify({ sensibilidadeAutomatica: false, limiarDb: -100 }));
-  // No Windows, o link da sala perguntaria antes se é para abrir no app (o teste do convite cuida disso).
-  localStorage.setItem('ozamigos-fica-no-navegador', '1');
 
   // Escuta a voz que vai para a caixa de som: o que sai do limitador também passa por um analisador.
   const analisadores: AnalyserNode[] = [];
@@ -81,18 +81,12 @@ function prepararPagina() {
   };
 }
 
-async function entrarNaSala(browser: Browser, sala: string, nome: string, senha = 'teste', opcoes: BrowserContextOptions = {}): Promise<Page> {
-  const contexto = await browser.newContext(opcoes);
-  const pagina = await contexto.newPage();
-  await pagina.addInitScript(prepararPagina);
-  await pagina.goto(`/?sala=${sala}`);
-  await pagina.getByLabel('Seu nome').fill(nome);
-  await pagina.getByLabel('Senha do grupo').fill(senha);
-  await pagina.getByRole('button', { name: 'Entrar na sala' }).click();
-  return pagina;
-}
-
-const novaSala = () => `e2e${Math.random().toString(36).slice(2, 10)}`;
+/**
+ * Uma pessoa logada, na sala (o servidor salvo do teste: conta.ts), com o jogo falso e os medidores na página; `extras`
+ * rodam na página depois deles.
+ */
+const entrarNaSala = (browser: Browser, sala: Sala, nome: string, opcoes: BrowserContextOptions = {}, ...extras: (() => void)[]): Promise<Page> =>
+  entrarComConta(browser, sala, nome, opcoes, [prepararPagina, ...extras]);
 
 /** Os bytes de vídeo que saem (ou chegam) por cada conexão aberta da página: quantas conexões levam vídeo, e quanto. */
 const video = (pagina: Page, sentido: 'outbound-rtp' | 'inbound-rtp') =>
@@ -127,153 +121,6 @@ const volumeNaSaida = (pagina: Page, ms = 1500) =>
     }
     return maior;
   }, ms);
-
-test('no navegador do Windows, o link da sala oferece o app, o download ou continuar no navegador', async ({ browser }) => {
-  const sala = novaSala();
-  const contexto = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/150.0.0.0' });
-  const pagina = await contexto.newPage();
-  await pagina.goto(`/?sala=${sala}`);
-  await expect(pagina.getByText(`Convite para a sala ${sala}`)).toBeVisible();
-  await expect(pagina.getByRole('link', { name: /baixar para Windows/ })).toBeVisible();
-
-  // Sem o app (aqui nada abre o ozamigos://), a janela não perde o foco: depois do prazo, o download vira o principal.
-  await pagina.getByRole('button', { name: 'Abrir no app' }).click();
-  await expect(pagina.getByText('O app não abriu')).toBeVisible({ timeout: 5000 });
-  // Com o app, o Windows passa o foco para ele: a página entende que abriu e lembra para os próximos links.
-  await pagina.evaluate(() => window.dispatchEvent(new Event('blur')));
-  await expect(pagina.getByText(`Sala ${sala} aberta no app`)).toBeVisible();
-  expect(await pagina.evaluate(() => localStorage.getItem('ozamigos-tem-o-app'))).toBe('1');
-
-  // Continuar no navegador leva para a entrada da sala do link, e os próximos links vão direto para ela.
-  await pagina.getByRole('button', { name: /continuar no navegador/ }).click();
-  await expect(pagina.getByRole('textbox', { name: /^Sala/ })).toHaveValue(sala);
-  await pagina.reload();
-  await expect(pagina.getByLabel('Seu nome')).toBeVisible();
-  await expect(pagina.getByText('Convite para a sala')).toHaveCount(0);
-  await contexto.close();
-});
-
-test('a entrada já vem com a última sala em que a pessoa entrou, e o botão ainda cria uma nova', async ({ browser }) => {
-  const sala = novaSala();
-  const ana = await entrarNaSala(browser, sala, 'Ana');
-  await expect(ana.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
-
-  // Abrir de novo sem link (o app abre sempre na raiz): a mesma sala, sem colar o código.
-  const deNovo = await ana.context().newPage();
-  await deNovo.goto('/');
-  await expect(deNovo.getByRole('textbox', { name: /^Sala/ })).toHaveValue(sala);
-  await expect(deNovo.getByText('A última sala em que você entrou')).toBeVisible();
-  await deNovo.getByRole('button', { name: 'Criar uma sala nova' }).click();
-  await expect(deNovo.getByRole('textbox', { name: /^Sala/ })).not.toHaveValue(sala);
-  await ana.context().close();
-});
-
-test('a raiz volta ao último lugar em que a pessoa entrou: o grupo, com a senha lembrada, até ela entrar numa sala por código', async ({ browser }) => {
-  const grupo = `e2e-${Math.random().toString(36).slice(2, 10)}`;
-  const contexto = await browser.newContext();
-  const ana = await contexto.newPage();
-  await ana.addInitScript(prepararPagina);
-  await ana.goto(`/${grupo}`);
-  await ana.getByLabel('Seu nome').fill('Ana');
-  await ana.getByLabel('Senha do grupo').fill('segredo');
-  await ana.getByRole('button', { name: 'Entrar no grupo' }).click();
-  await expect(ana.getByRole('alert')).toContainText('Esse grupo não existe mais'); // é novo: cria com esta senha
-  await ana.getByRole('button', { name: 'Criar o grupo de novo com esta senha' }).click();
-  await expect(ana.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
-
-  // Abrir de novo na raiz (o app abre sempre nela): o grupo, com o endereço dele e a senha já preenchida.
-  const deNovo = await contexto.newPage();
-  await deNovo.goto('/');
-  await expect(deNovo).toHaveURL(new RegExp(`/${grupo}$`));
-  await expect(deNovo.getByText(`Grupo ${grupo}`)).toBeVisible();
-  await expect(deNovo.getByLabel('Senha do grupo')).toHaveValue('segredo');
-
-  // No navegador, não entra sozinho (outra aba entraria de novo com o mesmo nome): só no app.
-  await expect(deNovo.getByRole('button', { name: 'Entrar no grupo' })).toBeEnabled();
-
-  // A entrada do Ozamigos não volta para o grupo; entrar numa sala por código passa a ser o último lugar.
-  await deNovo.getByRole('link', { name: 'Ir para a entrada do Ozamigos' }).click();
-  const campo = deNovo.getByRole('textbox', { name: /^Sala/ });
-  await expect(campo).toBeVisible();
-  const sala = novaSala();
-  await campo.fill(sala);
-  await deNovo.getByLabel('Seu nome').fill('Ana');
-  await deNovo.getByLabel('Senha do grupo').fill('teste');
-  await deNovo.getByRole('button', { name: 'Entrar na sala' }).click();
-  await expect(deNovo.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
-  const terceira = await contexto.newPage();
-  await terceira.goto('/');
-  await expect(terceira.getByRole('textbox', { name: /^Sala/ })).toHaveValue(sala);
-  await contexto.close();
-});
-
-test('senha errada não entra e explica o motivo', async ({ browser }) => {
-  const pagina = await entrarNaSala(browser, novaSala(), 'Intruso', 'chute');
-
-  await expect(pagina.getByRole('alert')).toContainText('Senha errada');
-  await expect(pagina.getByRole('button', { name: 'Sair da sala' })).toHaveCount(0);
-});
-
-test('quem cria um grupo com nome e senha próprios manda o link, e o amigo só entra com a senha do grupo', async ({ browser }) => {
-  const grupo = `e2e-${Math.random().toString(36).slice(2, 10)}`;
-  const contexto = await browser.newContext();
-  const ana = await contexto.newPage();
-  await ana.addInitScript(prepararPagina);
-  await ana.goto('/');
-  await ana.getByRole('button', { name: 'Criar um grupo com outra senha' }).click();
-  await ana.getByLabel('Nome do grupo').fill(grupo);
-  await ana.getByLabel('Seu nome').fill('Ana');
-  await ana.getByLabel('Senha do grupo').fill('nossa');
-  await ana.getByLabel('Confirme a senha').fill('nossa');
-  await ana.getByRole('button', { name: 'Criar e entrar' }).click();
-  await expect(ana.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
-  await expect(ana).toHaveURL(new RegExp(`/${grupo}$`)); // o endereço já é o link do grupo
-
-  // O amigo abre o link: a senha do grupo fixo não abre o grupo.
-  const beto = await (await browser.newContext()).newPage();
-  await beto.addInitScript(prepararPagina);
-  await beto.goto(`/${grupo}`);
-  await expect(beto.getByText(`Grupo ${grupo}`)).toBeVisible();
-  await beto.getByLabel('Seu nome').fill('Beto');
-  await beto.getByLabel('Senha do grupo').fill('teste');
-  await beto.getByRole('button', { name: 'Entrar no grupo' }).click();
-  await expect(beto.getByRole('alert')).toContainText('Senha errada');
-  await beto.getByLabel('Senha do grupo').fill('nossa');
-  await beto.getByRole('button', { name: 'Entrar no grupo' }).click();
-  await expect(beto.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
-  await expect(beto.getByRole('complementary', { name: 'Sala e pessoas' })).toContainText('Ana');
-
-  // Um grupo que não existe (ou já sumiu) oferece criar de novo.
-  const caio = await (await browser.newContext()).newPage();
-  await caio.addInitScript(prepararPagina);
-  await caio.goto(`/${grupo}-x`);
-  await caio.getByLabel('Seu nome').fill('Caio');
-  await caio.getByLabel('Senha do grupo').fill('outra');
-  await caio.getByRole('button', { name: 'Entrar no grupo' }).click();
-  await caio.getByRole('button', { name: 'Criar o grupo de novo com esta senha' }).click();
-  await expect(caio.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
-  await expect(caio.getByRole('complementary', { name: 'Sala e pessoas' })).not.toContainText('Ana');
-  // Três pessoas a mais com voz ligada pesavam nos testes seguintes (o do chat passava do tempo na suíte inteira).
-  for (const pagina of [ana, beto, caio]) await pagina.context().close();
-});
-
-test('/ozamigos é o grupo fixo, sempre na mesma sala, com a senha do servidor', async ({ browser }) => {
-  const ana = await (await browser.newContext()).newPage();
-  await ana.addInitScript(prepararPagina);
-  await ana.goto('/ozamigos');
-  await expect(ana.getByText('Grupo ozamigos')).toBeVisible();
-  await expect(ana.getByLabel('Sala', { exact: true })).toHaveCount(0); // sem código de sala para escolher
-  await ana.getByLabel('Seu nome').fill('Ana');
-  await ana.getByLabel('Senha do grupo').fill('teste');
-  await ana.getByRole('button', { name: 'Entrar no grupo' }).click();
-  await expect(ana.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
-  await expect(ana).toHaveURL(/\/ozamigos$/); // nada de sala sorteada no endereço
-
-  // Quem entra pela sala de código "ozamigos" (o app antigo, por exemplo) está na mesma sala.
-  const beto = await entrarNaSala(browser, 'ozamigos', 'Beto');
-  await expect(beto.getByRole('complementary', { name: 'Sala e pessoas' })).toContainText('Ana');
-  for (const pagina of [ana, beto]) await pagina.context().close();
-});
 
 test('chamar a atenção toca para o amigo mesmo com o som e os sons de aviso desligados, até 5 vezes por minuto', async ({ browser }) => {
   const sala = novaSala();
@@ -386,10 +233,7 @@ test('a voz que fica parada em "conectando" (a ligação se perdeu) é refeita s
   const sala = novaSala();
   const ana = await entrarNaSala(browser, sala, 'Ana');
   // Quem chega liga: a primeira ligação de voz do Beto para a Ana some no caminho (como numa reconexão do servidor).
-  const contexto = await browser.newContext();
-  const beto = await contexto.newPage();
-  await beto.addInitScript(prepararPagina);
-  await beto.addInitScript(() => {
+  const beto = await entrarNaSala(browser, sala, 'Beto', {}, () => {
     let perdeu = false;
     const mandar = WebSocket.prototype.send;
     WebSocket.prototype.send = function (this: WebSocket, dados: string) {
@@ -400,10 +244,6 @@ test('a voz que fica parada em "conectando" (a ligação se perdeu) é refeita s
       return mandar.call(this, dados);
     } as typeof WebSocket.prototype.send;
   });
-  await beto.goto(`/?sala=${sala}`);
-  await beto.getByLabel('Seu nome').fill('Beto');
-  await beto.getByLabel('Senha do grupo').fill('teste');
-  await beto.getByRole('button', { name: 'Entrar na sala' }).click();
 
   // O vigia (20 s, mais o sorteio de até 5 s) liga de novo, e o bipe do microfone de cada um chega ao outro.
   await expect.poll(() => volumeNaSaida(ana), { timeout: 40_000, intervals: [2000] }).toBeGreaterThan(0.01);
@@ -439,7 +279,7 @@ test('apertar para falar: a voz só vai com a tecla apertada, e o atalho de mudo
   const beto = await entrarNaSala(browser, sala, 'Beto');
   await expect.poll(() => volumeNaSaida(beto), { timeout: 30_000 }).toBeGreaterThan(0.01); // a voz da Ana chega
 
-  await ana.getByRole('button', { name: 'Configurações' }).click();
+  await ana.getByRole('button', { name: 'Configurações', exact: true }).click();
   await ana.getByRole('tab', { name: 'Atalhos' }).click();
   await ana.getByRole('radio', { name: /Apertar para falar/ }).check();
   await ana.getByRole('button', { name: /^Apertar para falar: nenhum atalho/ }).click();
@@ -563,7 +403,7 @@ test('um print colado no chat chega comprimido ao amigo, direto entre os PCs, e 
 
 test('no celular, nada passa da largura da tela (sem rolagem de lado), com o chat fechado ou aberto', async ({ browser }) => {
   const celular = { viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true };
-  const pagina = await entrarNaSala(browser, novaSala(), 'Kayo', 'teste', celular);
+  const pagina = await entrarNaSala(browser, novaSala(), 'Kayo', celular);
   await expect(pagina.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
 
   const larguras = () => pagina.evaluate(() => ({ pagina: document.documentElement.scrollWidth, tela: innerWidth }));

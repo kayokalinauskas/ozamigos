@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent } from 'react';
 import { LoaderCircle, LogOut, Trash2 } from 'lucide-react';
 import '@fontsource/google-sans/500.css'; // a fonte do botão do Google, pela diretriz de marca dele
 import { cliente } from '../cliente';
@@ -17,8 +17,8 @@ import { noApp, ponte } from '../ponte';
 import { useCliente } from '../useCliente';
 import { Avatar } from './Avatar';
 
-/** O que a conta traz, dito uma vez, onde a pessoa decide. */
-const VANTAGEM = 'Com a conta, o seu nome e a sua foto aparecem na sala, e a conversa funciona mesmo em redes mais fechadas.';
+/** Por que entrar, dito uma vez, onde a pessoa decide. Sem senha nem cadastro: a conta é a do Google ou a do Discord. */
+const PARA_QUE = 'Entre com o Google ou o Discord para ver os seus servidores, criar um e entrar nos convites dos amigos.';
 
 /**
  * Os botões de cada provedor seguem a marca dele, com o logo oficial (web/public/marcas, sem redesenhar nem mudar a cor):
@@ -82,11 +82,11 @@ export function ErroDaConta() {
 }
 
 /**
- * Na entrada: com conta, quem está entrando (o nome é o dela, mudado na engrenagem); sem conta, os botões de login e,
- * embaixo, o campo do nome de sempre, para entrar como convidado.
+ * Na entrada: com conta, quem está entrando (o nome é o dela, mudado na engrenagem); sem conta, os botões de login. Não
+ * há convidado: as salas são as dos servidores, só para quem tem conta (decisão do dono, 28/10/2026).
  */
-export function ContaNaEntrada({ campoDoNome }: { campoDoNome: ReactNode }) {
-  const { carregada, login, conta, ocupada } = useConta();
+export function ContaNaEntrada() {
+  const { login, conta, ocupada } = useConta();
 
   if (conta) {
     return (
@@ -103,21 +103,25 @@ export function ContaNaEntrada({ campoDoNome }: { campoDoNome: ReactNode }) {
     );
   }
   return (
-    <>
-      {carregada && login.length > 0 && (
-        <div className="conta-convite">
+    <div className="conta-convite">
+      {login.length > 0 ? (
+        <>
+          <p className="ajuda">{PARA_QUE}</p>
           <BotoesDeLogin />
-          <p className="ajuda">{VANTAGEM}</p>
-          <div className="separador-ou" role="separator">
-            <span>ou entre como convidado</span>
-          </div>
-        </div>
+        </>
+      ) : (
+        <p className="ajuda">{SEM_LOGIN}</p>
       )}
       <ErroDaConta />
-      {campoDoNome}
-    </>
+    </div>
   );
 }
+
+/** Sem os botões: um app de antes da 1.3.0 (sem o login pelo navegador), ou o banco fora do ar. */
+const SEM_LOGIN =
+  noApp && !ponte?.conta
+    ? 'Para entrar com a sua conta, atualize o Ozamigos: feche e abra o app de novo.'
+    : 'Entrar com a conta não está disponível agora. Tente de novo daqui a pouco.';
 
 /** Configurações → Conta: o perfil, as formas de entrar, sair e apagar a conta. */
 export function AbaDaConta() {
@@ -136,15 +140,11 @@ export function AbaDaConta() {
         <h3 id="titulo-conta">Conta</h3>
         {login.length > 0 ? (
           <>
-            <p className="ajuda">Entre com o Google ou o Discord. {VANTAGEM}</p>
+            <p className="ajuda">{PARA_QUE}</p>
             <BotoesDeLogin />
           </>
         ) : (
-          <p className="ajuda">
-            {noApp && !ponte?.conta
-              ? 'Para entrar com uma conta, atualize o Ozamigos: feche e abra o app de novo.'
-              : 'Entrar com uma conta não está disponível agora. Você continua usando o Ozamigos como convidado.'}
-          </p>
+          <p className="ajuda">{SEM_LOGIN}</p>
         )}
         <ErroDaConta />
       </section>
@@ -275,8 +275,9 @@ function ApagarConta() {
     <section className="configuracoes-secao" aria-labelledby="titulo-apagar">
       <h3 id="titulo-apagar">Apagar a conta</h3>
       <p className="ajuda">
-        Apaga na hora tudo o que o Ozamigos guarda da sua conta: o nome, a foto e as formas de entrar. Não tem como desfazer.
-        {fase === 'sala' && ' Você continua na sala, como convidado.'}
+        Apaga na hora tudo o que o Ozamigos guarda da sua conta: o nome, a foto, as formas de entrar e o seu lugar nos
+        servidores (os de que você é dono passam para outra pessoa). Não tem como desfazer.
+        {fase === 'sala' && ' Você sai da sala.'}
       </p>
       {confirmando ? (
         <div className="configuracoes-linha">

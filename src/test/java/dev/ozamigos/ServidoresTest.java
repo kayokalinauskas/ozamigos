@@ -28,7 +28,7 @@ import dev.ozamigos.Servidores.Motivo;
 import dev.ozamigos.Servidores.Papel;
 
 /** Os servidores salvos, com o banco de verdade: quem pode o quê, os convites, a posse e a sala sem senha. */
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT, properties = "ozamigos.senha=teste")
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @Import(SinalizacaoTest.SemInternet.class)
 class ServidoresTest extends ComBanco {
 

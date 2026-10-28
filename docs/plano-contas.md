@@ -282,6 +282,20 @@ das regras de papel (quem pode o quê) no servidor.
 - **Vazamento do banco:** sem senhas, sem e-mails, sem IPs; o que vazaria são nomes, fotos e quem é membro de quê.
 - **LGPD:** a pessoa apaga a própria conta na hora, sem pedir a ninguém.
 
+## Só servidores, com conta (decisão do dono, 28/10/2026)
+
+"Igual ao Discord": a senha sai de vez. Entrar no Ozamigos pede o Google ou o Discord, e as salas são as dos servidores
+salvos. Isto substitui o princípio 4 ("o modo de hoje continua") e a decisão 3 abaixo.
+
+- **Saem:** a senha do servidor (`OZAMIGOS_SENHA`), o grupo fixo `/ozamigos` como grupo com senha, os grupos criados na
+  hora (`/nome`), as salas por código (`?sala=`), o freio de senhas (e o único log com IP), a entrada automática numa
+  sala e a pergunta "abrir no app" dos links de sala.
+- **Entrada:** sem conta, só o login; com conta, só "Seus servidores" e criar um. O app abre na lista.
+- **O `/ozamigos`:** deixa de existir. O dono cria o servidor do grupo pela interface e convida os amigos. Os links
+  antigos (`/ozamigos`, `/nome-de-grupo`, `?sala=`) levam à entrada.
+- **Quem não tem conta** entra por um convite e faz o login ali.
+- **Testes:** todos entram com conta (banco e o mock-oauth2-server em Docker, como o `contas.e2e.ts`).
+
 ## Decisões do dono (27/10/2026)
 
 1. O Render está em **Virginia (US East)**: o Supabase vai em East US (North Virginia).

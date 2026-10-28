@@ -24,8 +24,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Os servidores salvos (docs/plano-contas.md, fase 2): criados por quem tem conta, com membros, papéis e convites, no
- * banco. Ao contrário dos grupos criados na hora (Grupos), não somem quando o servidor reinicia, e quem é membro entra
- * sem senha.
+ * banco. São as únicas salas do Ozamigos (decisão do dono, 28/10/2026: as salas com senha saíram), e quem é
+ * membro entra sem senha, com a conta.
  *
  * <p><b>Quem pode o quê</b> (as regras ficam todas aqui, e a API só traduz): o <b>dono</b> faz tudo, e é o único que
  * apaga o servidor, passa a posse, troca papéis e decide se os membros convidam; o <b>admin</b> muda o nome e o ícone,

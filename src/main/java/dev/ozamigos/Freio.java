@@ -10,7 +10,7 @@ import java.util.Map;
 
 /**
  * Até {@code limite} vezes por chave (um endereço, uma conta) a cada {@code janela}, contando só o que passou. É o freio
- * das senhas erradas (TentativasDeSenha) e das ações das contas (começar um login, trocar um código do app).
+ * das ações das contas: começar um login, trocar um código do app, abrir e aceitar convites.
  */
 final class Freio {
 

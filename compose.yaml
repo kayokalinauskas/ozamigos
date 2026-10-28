@@ -1,5 +1,8 @@
 # O Ozamigos inteiro no seu PC, com o banco: `docker compose up --build`, e a página em http://localhost:8090
 # (a 8080 fica livre). O deploy no Render usa o mesmo Dockerfile, com o banco do Supabase (docs/plano-contas.md).
+# Para entrar, o login de teste (mock-oauth2-server, no lugar do Google): "Continuar com o Google", qualquer nome.
+# O servidor do Ozamigos usa a rede do contêiner do login (network_mode): assim, http://localhost:8091 é o mesmo
+# endereço para o navegador (no PC) e para o servidor, e o login confere.
 #
 # As senhas daqui são só deste banco local, que não sai do PC. As de verdade ficam nas variáveis do Render.
 # Para começar o banco do zero: `docker compose down -v`.
@@ -22,18 +25,31 @@ services:
       timeout: 3s
       retries: 15
 
+  google-falso:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    environment:
+      SERVER_PORT: "8091"
+      JSON_CONFIG: '{"interactiveLogin":true}'
+    ports:
+      - "127.0.0.1:8091:8091" # o login de teste
+      - "127.0.0.1:8090:8090" # o Ozamigos, que usa a rede deste contêiner
+
   ozamigos:
     build: .
+    network_mode: "service:google-falso"
     depends_on:
       banco:
         condition: service_healthy
+      google-falso:
+        condition: service_started
     environment:
-      OZAMIGOS_SENHA: teste
+      PORT: "8090"
       OZAMIGOS_BANCO_URL: jdbc:postgresql://banco:5432/ozamigos
       OZAMIGOS_BANCO_USUARIO: ozamigos
       OZAMIGOS_BANCO_SENHA: ozamigos-local
-    ports:
-      - "127.0.0.1:8090:8080"
+      OZAMIGOS_GOOGLE_ID: local
+      OZAMIGOS_GOOGLE_SEGREDO: local
+      OZAMIGOS_GOOGLE_EMISSOR: http://localhost:8091/default
 
 volumes:
   banco:
