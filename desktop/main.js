@@ -1142,7 +1142,10 @@ const ESPERA_DO_LOGIN_MS = 5 * 60_000;
 const CODIGO_DO_LOGIN = /^[A-Za-z0-9_-]{43}$/;
 let loginEmAndamento = null; // { cancelar(motivo) }, enquanto o navegador não volta
 
-/** Resolve { codigo }, { ligou: provedor } ou { erro: motivo }. Só um login por vez: um novo cancela o anterior. */
+/**
+ * Resolve { codigo } ou { erro: motivo }. No login, a página troca o código pela sessão; ligando outro provedor, ela o
+ * manda para confirmar a ligação (a ligação só vale com essa confirmação). Só um login por vez: um novo cancela o anterior.
+ */
 function loginPeloNavegador(provedor, ligacao) {
   loginEmAndamento?.cancelar('outro-login');
   const http = require('node:http');
@@ -1156,12 +1159,9 @@ function loginPeloNavegador(provedor, ligacao) {
         return;
       }
       const codigo = url.searchParams.get('codigo');
-      const ligou = url.searchParams.get('ligou');
       const erro = url.searchParams.get('erro');
       const resultado =
-        codigo && CODIGO_DO_LOGIN.test(codigo) ? { codigo }
-        : ligou && PROVEDORES_DE_LOGIN.has(ligou) ? { ligou }
-        : { erro: erro && /^[a-z-]{1,40}$/.test(erro) ? erro : 'recusado' };
+        codigo && CODIGO_DO_LOGIN.test(codigo) ? { codigo } : { erro: erro && /^[a-z-]{1,40}$/.test(erro) ? erro : 'recusado' };
       resposta.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'close' });
       resposta.end(paginaDaVoltaDoLogin(!resultado.erro));
       terminar(resultado);

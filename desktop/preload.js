@@ -127,7 +127,7 @@ contextBridge.exposeInMainWorld('ozamigos', {
   },
   /**
    * O login pelo navegador do sistema (1.3.0 em diante): o app abre o navegador e espera a volta numa porta local.
-   * Resolve { codigo } (a página troca pela sessão), { ligou: provedor } (com ligacao, o código de ligação) ou { erro }.
+   * Resolve { codigo } (no login, a página troca pela sessão; com ligacao, ela confirma a ligação) ou { erro }.
    */
   conta: {
     loginPeloNavegador: (provedor, ligacao) =>

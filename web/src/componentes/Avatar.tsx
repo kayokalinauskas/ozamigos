@@ -27,7 +27,8 @@ export function Avatar({ nome, foto, tamanho = 36, aoVivo = false, falando = fal
   return (
     <span
       className={['avatar', quadrado && 'quadrado', comFoto && 'com-foto', aoVivo && 'ao-vivo', falando && 'falando'].filter(Boolean).join(' ')}
-      style={{ width: tamanho, height: tamanho, background: corDe(nome), fontSize: tamanho * 0.38 }}
+      // Com foto, sem a cor das iniciais por trás: ela vazava na borda da imagem (o serrilhado do recorte).
+      style={{ width: tamanho, height: tamanho, background: comFoto ? undefined : corDe(nome), fontSize: tamanho * 0.38 }}
       aria-hidden="true"
     >
       {comFoto ? <img src={foto!} alt="" width={tamanho} height={tamanho} draggable={false} onError={() => setFalhou(foto!)} /> : iniciais(nome)}

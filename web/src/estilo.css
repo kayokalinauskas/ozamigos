@@ -284,7 +284,7 @@ code {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 50%;
+  border-radius: inherit; /* redonda na pessoa, quadrada no ícone do servidor: com 50% fixo, a cor das iniciais aparecia nos cantos do ícone */
 }
 
 .avatar.ao-vivo {

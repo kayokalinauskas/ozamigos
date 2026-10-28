@@ -8,15 +8,18 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.3.2] - 2026-10-28
+
 ### Novo
 - **Sair de todos os aparelhos**, em Configurações → Conta: para quem perdeu um aparelho ou entrou no PC de outra pessoa.
 
 ### Corrigido
 - Abrindo o app com o servidor acordando, a entrada podia ficar em "Entrar com a conta não está disponível agora" até reabrir. Agora ela espera e tenta de novo sozinha.
+- O ícone de um servidor aparecia recortado em círculo, com a cor das iniciais nos cantos. Agora aparece inteiro, com os cantos arredondados.
 
 ### Segurança
 - O servidor recusa pedidos grandes demais e pedidos em excesso de um mesmo endereço, antes de qualquer outra coisa: eles podiam derrubar o servidor ou deixar todos sem entrar nos servidores por alguns segundos.
-- Ligar outro provedor pelo app só vale depois que o próprio app confirma: um link de ligação mandado por outra pessoa não liga mais a conta de quem o abre à dela.
+- Ligar outro provedor pelo app só vale depois que o próprio app confirma: um link de ligação mandado por outra pessoa não liga mais a conta de quem o abre à dela. O app 1.3.2 não aceita mais a volta antiga, sem confirmação.
 - Freios por conta (criar e apagar servidores, convites, ícones, nome, sair de todos), um teto de contas novas por hora (por endereço e no servidor todo), e um limite de conexões abertas à sala por endereço.
 - A política de privacidade diz quanto tempo as cópias de segurança do banco guardam o que foi apagado (até 90 dias).
 
