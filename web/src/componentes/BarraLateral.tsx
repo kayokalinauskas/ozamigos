@@ -1,29 +1,44 @@
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { BellRing, Check, Eye, EyeOff, HeadphoneOff, Headphones, Link, LogOut, Mic, MicOff, Settings, SignalLow, SignalMedium, SignalZero, VolumeX } from 'lucide-react';
+import { BellRing, Check, Eye, EyeOff, HeadphoneOff, Headphones, Link, LogOut, Mic, MicOff, Settings, SignalLow, SignalMedium, SignalZero, UserPlus, VolumeX } from 'lucide-react';
 import { cliente } from '../cliente';
-import { LIMITE_POR_SALA } from '../conexao/codigoDaSala';
+import { LIMITE_POR_SALA, linkDoConvite } from '../conexao/codigoDaSala';
+import { pode, servidores, useServidor } from '../servidores';
 import { useCliente, useVoz } from '../useCliente';
 import { atalhos } from '../voz/atalhos';
 import { descrever, type QualidadeDaConexao } from '../voz/qualidade';
 import { EU, voz } from '../voz/voz';
 import { Avatar } from './Avatar';
 import { Configuracoes } from './Configuracoes';
+import { ConfiguracoesDoServidor } from './ConfiguracoesDoServidor';
 import { Logo } from './Logo';
 import { Versao } from './Versao';
 
 export function BarraLateral() {
-  const { sala, grupo, salaFixa, pessoas, meuId, meuNome, transmitindo, plateias, assistindo } = useCliente();
+  const { sala, grupo, salaFixa, servidor, pessoas, meuId, meuNome, transmitindo, plateias, assistindo } = useCliente();
   const { falando, remotos, conexao } = useVoz();
   const [copiado, setCopiado] = useState(false);
+  const doServidor = useServidor(servidor);
+  const [configurandoServidor, setConfigurandoServidor] = useState(false);
+  const podeConvidar = !servidor || (doServidor.servidor !== null && pode(doServidor.servidor).convidar);
   const [menuDe, setMenuDe] = useState<string | null>(null); // o amigo com o menu de voz aberto
   const total = pessoas.length + 1;
 
   async function copiarLink() {
+    let link = cliente.linkDeConvite();
+    if (servidor) {
+      // Num servidor salvo, um convite novo a cada clique: vale 7 dias, sem limite de usos (os outros, nas configurações).
+      const convite = await servidores.convidar(servidor, 24 * 7, null);
+      if (!convite.ok) {
+        cliente.avisar(convite.erro, 'erro');
+        return;
+      }
+      link = linkDoConvite(convite.valor.codigo);
+    }
     try {
-      await navigator.clipboard.writeText(cliente.linkDeConvite());
+      await navigator.clipboard.writeText(link);
     } catch {
       // Sem área de transferência (página sem HTTPS, ou permissão negada): mostra o link para copiar à mão.
-      cliente.avisar(`Copie o link: ${cliente.linkDeConvite()}`);
+      cliente.avisar(`Copie o link: ${link}`);
       return;
     }
     setCopiado(true);
@@ -46,18 +61,60 @@ export function BarraLateral() {
         </button>
       </div>
 
-      <section className="cartao-sala">
-        <div>
-          <span className="rotulo">{grupo || salaFixa ? 'Grupo' : 'Sala'}</span>
-          <code className="codigo-sala" title={sala}>
-            {sala}
-          </code>
-        </div>
-        <button type="button" className="botao botao-secundario botao-pequeno" onClick={copiarLink}>
-          {copiado ? <Check size={14} /> : <Link size={14} />}
-          {copiado ? 'Copiado' : 'Copiar link'}
-        </button>
-      </section>
+      {servidor ? (
+        // O servidor: o ícone, o nome inteiro e a engrenagem em cima; o "Convidar" embaixo, com a largura toda.
+        <section className="cartao-sala cartao-do-servidor">
+          <div className="cartao-sala-servidor">
+            <Avatar nome={doServidor.servidor?.nome ?? '…'} foto={doServidor.servidor?.icone} tamanho={32} quadrado />
+            <span className="cartao-sala-servidor-texto">
+              <span className="rotulo">Servidor</span>
+              <strong className="nome-do-servidor" title={doServidor.servidor?.nome}>
+                {doServidor.servidor?.nome ?? '…'}
+              </strong>
+            </span>
+            {doServidor.servidor && (
+              <button
+                type="button"
+                className="botao-icone"
+                aria-label="Configurações do servidor"
+                title="Configurações do servidor"
+                onClick={() => setConfigurandoServidor(true)}
+              >
+                <Settings size={16} />
+              </button>
+            )}
+          </div>
+          {podeConvidar && (
+            <button type="button" className="botao botao-secundario botao-pequeno" onClick={() => void copiarLink()}>
+              {copiado ? <Check size={14} /> : <UserPlus size={14} />}
+              {copiado ? 'Copiado' : 'Convidar'}
+            </button>
+          )}
+        </section>
+      ) : (
+        <section className="cartao-sala">
+          <div>
+            <span className="rotulo">{grupo || salaFixa ? 'Grupo' : 'Sala'}</span>
+            <code className="codigo-sala" title={sala}>
+              {sala}
+            </code>
+          </div>
+          <button type="button" className="botao botao-secundario botao-pequeno" onClick={() => void copiarLink()}>
+            {copiado ? <Check size={14} /> : <Link size={14} />}
+            {copiado ? 'Copiado' : 'Copiar link'}
+          </button>
+        </section>
+      )}
+      {configurandoServidor && doServidor.servidor && (
+        <ConfiguracoesDoServidor
+          servidor={doServidor.servidor}
+          aoMudar={doServidor.setServidor}
+          aoFechar={() => {
+            setConfigurandoServidor(false);
+            void doServidor.recarregar();
+          }}
+        />
+      )}
 
       <section className="pessoas" aria-labelledby="titulo-pessoas">
         <h2 id="titulo-pessoas" className="rotulo">
@@ -130,7 +187,13 @@ export function BarraLateral() {
           })}
           {pessoas.length === 0 && (
             <li className="pessoa-vazia">
-              Só você por aqui. Copie o link e mande para os amigos, com a senha <strong>separada</strong> do link.
+              {servidor ? (
+                'Só você por aqui. Clique em Convidar e mande o link para os amigos: eles entram com a conta, sem senha.'
+              ) : (
+                <>
+                  Só você por aqui. Copie o link e mande para os amigos, com a senha <strong>separada</strong> do link.
+                </>
+              )}
             </li>
           )}
         </ul>

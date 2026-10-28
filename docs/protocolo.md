@@ -49,7 +49,7 @@ O login e a conta não passam pelo WebSocket: são páginas e uma API JSON no me
 | `GET /conta/ligar/{provedor}?voltar=/caminho` | Liga mais um provedor à conta logada. Erros a mais: `sem-conta`, `de-outra-pessoa`, `ja-tem-desse-provedor` |
 | `GET /conta/ligar/{provedor}?app=<porta>&estado=<estado>&ligacao=<código>` | O mesmo, no app: a sessão é da janela do app, e o navegador do sistema leva o código de ligação. No fim, `http://127.0.0.1:<porta>/login?ligou=<provedor>&estado=` |
 | `POST /api/eu/ligacao` | `{ligacao}`: o código de ligação (2 minutos, uma vez só; não vira sessão) |
-| `GET /api/eu` | `{login: ["google", "discord"], conta: {id, nome, foto, provedores[]} \| null}`. `login` vazio: sem banco ou sem provedores |
+| `GET /api/eu` | `{login: ["google", "discord"], conta: {id, nome, foto, provedores[]} \| null}`. `login` vazio: sem banco ou sem provedores. Com conta, devolve o cookie de novo: ele vence 60 dias depois do último uso, e não do login |
 | `PATCH /api/eu` | `{nome}` → o nome novo, limpo como o da sala |
 | `POST /api/eu/sair` | Encerra a sessão e apaga o cookie |
 | `DELETE /api/eu` | `{confirmar: true}`: apaga a conta e tudo dela, na hora |

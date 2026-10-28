@@ -76,7 +76,9 @@ class ContasTest extends ComBanco {
         UUID ana = novaConta("Ana");
         String cookie = Sessoes.COOKIE + "=" + sessoes.criar(ana, "navegador");
 
-        JsonNode eu = json.readTree(get("/api/eu", cookie).body());
+        HttpResponse<String> quemSou = get("/api/eu", cookie);
+        assertThat(quemSou.headers().firstValue("Set-Cookie").orElseThrow()).startsWith(cookie + ";"); // renovado a cada abertura
+        JsonNode eu = json.readTree(quemSou.body());
         assertThat(eu.path("conta").path("nome").asString()).isEqualTo("Ana");
         assertThat(eu.path("conta").path("provedores").get(0).asString()).isEqualTo("google");
         assertThat(eu.path("login").toString()).isEqualTo("[\"google\",\"discord\"]");

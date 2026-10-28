@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { AppWindow, Download, Eye, EyeOff, LoaderCircle, Plus, RefreshCw, Server } from 'lucide-react';
 import { ULTIMA_SALA, cliente } from '../cliente';
-import { codigoDe, codigoValido, grupoDe, grupoReservado, grupoValido, linkDoApp, nomeDeGrupo, novoCodigo } from '../conexao/codigoDaSala';
+import { codigoDe, codigoValido, conviteDoCaminho, grupoDe, grupoReservado, grupoValido, linkDoApp, nomeDeGrupo, novoCodigo } from '../conexao/codigoDaSala';
 import { lembrado, lembrar } from '../armazenamento';
 import { useConta } from '../conta';
 import { ponte } from '../ponte';
@@ -9,6 +9,7 @@ import { useCliente } from '../useCliente';
 import { ContaNaEntrada } from './Conta';
 import { Convite, FICA_NO_NAVEGADOR, SITE } from './Convite';
 import { Logo } from './Logo';
+import { AceitarConvite, EntrarNoServidor, MeusServidores } from './Servidores';
 import { Versao } from './Versao';
 
 /** No navegador do Windows, quem já tem o app pode abrir a sala nele (link ozamigos://, app 1.2.16 em diante). */
@@ -17,8 +18,10 @@ const NO_WINDOWS = /Windows/.test(navigator.userAgent);
 const SENHA_MINIMA = 4;
 
 export function Entrada() {
-  const { sala, grupo, salaFixa } = useCliente();
+  const { sala, grupo, salaFixa, servidor } = useCliente();
   const [criando, setCriando] = useState(false);
+  // Um convite para um servidor salvo (/c/<codigo>). Aceito, o cliente entra no servidor e o endereço muda.
+  const [conviteDoServidor] = useState(() => conviteDoCaminho(location.pathname));
   const { carregada } = useConta();
 
   // O app aberto no último lugar entra sozinho (uma vez; as regras em entradaAutomatica.ts), depois de saber da conta:
@@ -45,7 +48,11 @@ export function Entrada() {
   return (
     <main className="entrada">
       {/* Criando, o grupo já está no estado enquanto o servidor responde: o formulário fica na tela (e com o que foi digitado). */}
-      {criando ? (
+      {servidor ? (
+        <EntrarNoServidor codigo={servidor} key={servidor} />
+      ) : conviteDoServidor ? (
+        <AceitarConvite convite={conviteDoServidor} />
+      ) : criando ? (
         <CriarGrupo aoVoltar={() => setCriando(false)} />
       ) : grupo ? (
         <EntrarNoGrupo grupo={grupo} key={grupo} />
@@ -90,7 +97,15 @@ function EntrarNaSala({ aoCriarGrupo }: { aoCriarGrupo: () => void }) {
       <p className="subtitulo">Transmita seu jogo e converse com os amigos.</p>
 
       <ContaNaEntrada campoDoNome={<CampoDoNome nome={nome} setNome={setNome} />} />
-      <CampoDaSenha rotulo="Senha do grupo" senha={senha} setSenha={setSenha} focar={Boolean(nome || conta)} />
+      {conta && (
+        <>
+          <MeusServidores />
+          <div className="separador-ou" role="separator">
+            <span>ou entre numa sala com a senha do grupo</span>
+          </div>
+        </>
+      )}
+      <CampoDaSenha rotulo="Senha do grupo" senha={senha} setSenha={setSenha} focar={Boolean(nome) && !conta} />
 
       <label className="campo">
         <span>Sala</span>

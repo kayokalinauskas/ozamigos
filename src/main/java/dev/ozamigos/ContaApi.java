@@ -64,8 +64,15 @@ public class ContaApi {
     public ResponseEntity<Map<String, Object>> eu(HttpServletRequest pedido) {
         Map<String, Object> corpo = new LinkedHashMap<>();
         corpo.put("login", contas.disponivel() ? provedores.disponiveis() : List.of());
-        corpo.put("conta", usuario(pedido).flatMap(contas::usuario).map(ContaApi::emJson).orElse(null));
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(corpo);
+        Object conta = usuario(pedido).flatMap(contas::usuario).map(ContaApi::emJson).orElse(null);
+        corpo.put("conta", conta);
+        var resposta = ResponseEntity.ok().cacheControl(CacheControl.noStore());
+        if (conta != null) {
+            // O cookie também vence 60 dias depois do último uso, e não do login: a página pergunta isto a cada abertura,
+            // e quem usa o Ozamigos não precisa entrar de novo nunca (como no Discord). O banco já renova a sessão.
+            resposta.header(HttpHeaders.SET_COOKIE, Sessoes.cookie(Sessoes.segredoDe(pedido)).toString());
+        }
+        return resposta.body(corpo);
     }
 
     @PatchMapping("/api/eu")

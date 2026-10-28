@@ -22,7 +22,7 @@ import { lerConta, voltouDoLogin } from './conta';
 
 /** O history.state dos endereços que a própria página escreve (trocarSala): recarregar não os confunde com um convite. */
 const ESCRITO_AQUI = { ozamigos: 'escrito-aqui' };
-import { LIMITE_POR_SALA, SALA_FIXA, codigoValido, ehASalaFixa, grupoDoCaminho, grupoValido, linkDaSala, linkDoGrupo, novoCodigo } from './conexao/codigoDaSala';
+import { LIMITE_POR_SALA, SALA_FIXA, codigoValido, conviteDoCaminho, ehASalaFixa, grupoDoCaminho, grupoValido, linkDaSala, linkDoGrupo, novoCodigo, servidorDoCaminho } from './conexao/codigoDaSala';
 import {
   FPS_MINIMO_DA_CAPTURA,
   capturarDoNavegador,
@@ -64,6 +64,7 @@ export type Estado = {
   sala: string; // o código da sala, ou o nome do grupo criado na hora
   grupo: string | null; // o grupo criado na hora (Grupos.java), ou null no grupo fixo
   salaFixa: boolean; // o endereço /ozamigos: o grupo fixo, sempre na mesma sala (SALA_FIXA)
+  servidor: string | null; // o código de um servidor salvo (/s/<codigo>, Servidores.java): sem senha, só com a conta
   meuId: string | null;
   meuNome: string;
   minhaConta: string | null; // o id da minha conta, se entrei com uma (o servidor diz no "bem-vindo"); null: convidado
@@ -172,6 +173,12 @@ const RECUSAS: Partial<Record<MotivoDoErro, string>> = {
   'senha-curta': 'A senha do grupo precisa de pelo menos 4 caracteres.',
   'muitos-grupos': 'Muitos grupos criados deste endereço. Espere 10 minutos e tente de novo.',
   'grupos-demais': 'Não dá para criar grupos agora. Tente de novo mais tarde.',
+  'sem-conta': 'Para entrar num servidor, entre com a sua conta.',
+  'servidor-nao-existe': 'Esse servidor não existe, ou você não faz parte dele.',
+  'servidores-indisponiveis': 'Os servidores estão indisponíveis agora. Tente de novo daqui a pouco.',
+  expulso: 'Você foi removido deste servidor.',
+  'servidor-apagado': 'Este servidor foi apagado pelo dono.',
+  'fora-do-servidor': 'Você não faz mais parte deste servidor.',
 };
 
 /** Os ajustes de transmissão desta versão, como estão no código: vão no relatório do teste de desempenho. */
@@ -196,7 +203,8 @@ export const AJUSTES_DA_TRANSMISSAO = {
 export const ULTIMA_SALA = 'ozamigos-ultima-sala';
 /**
  * O último grupo em que a pessoa entrou (um criado na hora, ou "ozamigos" para o /ozamigos), ou vazio se foi uma sala
- * do grupo fixo. A raiz sem link abre direto nele: o app abre sempre na raiz.
+ * do grupo fixo. A raiz sem link abre direto nele: o app abre sempre na raiz. Um servidor salvo fica como "s/<codigo>",
+ * e aí a raiz não vai a lugar nenhum: abre na lista dos servidores, como o Discord (pedido do dono, 28/10/2026).
  */
 export const ULTIMO_GRUPO = 'ozamigos-ultimo-grupo';
 
@@ -262,24 +270,27 @@ class Cliente {
     if (voltaAoGrupo) history.replaceState(null, '', `/${ultimoGrupo}`);
     const grupo = grupoDoCaminho(location.pathname);
     const salaFixa = ehASalaFixa(location.pathname);
+    const servidor = servidorDoCaminho(location.pathname);
     const daUrl = new URLSearchParams(location.search).get('sala');
     // O convite para o app (Convite.tsx) é só das salas do grupo fixo: o app ainda não abre um grupo pelo link.
     // O ?sala= que a própria entrada escreveu (recarregar mantém o history.state) e a volta do login não são convites.
     const escritoAqui = (history.state as { ozamigos?: string } | null)?.ozamigos === ESCRITO_AQUI.ozamigos;
-    this.veioDeUmLink = !grupo && !salaFixa && Boolean(daUrl && codigoValido(daUrl)) && !escritoAqui && !voltouDoLogin();
+    this.veioDeUmLink = !grupo && !salaFixa && !servidor && Boolean(daUrl && codigoValido(daUrl)) && !escritoAqui && !voltouDoLogin();
     // Sem sala no link, a entrada mostra a última em que a pessoa entrou (pedido do dono, 21/10/2026): o app abre
     // sempre na raiz, e era preciso colar o código de novo a cada vez. O botão ao lado do campo ainda sorteia uma nova.
     const ultima = lembrado(ULTIMA_SALA);
     const sala = daUrl && codigoValido(daUrl) ? daUrl : codigoValido(ultima) ? ultima : novoCodigo();
-    this.voltouAoUltimo = voltaAoGrupo || (naRaiz && codigoValido(ultima));
+    // Por último num servidor salvo: a raiz é a lista dos servidores, e o app não entra sozinho numa sala do grupo fixo.
+    this.voltouAoUltimo = voltaAoGrupo || (naRaiz && codigoValido(ultima) && !servidorDoCaminho(ultimoGrupo));
     lembrar('ozamigos-qualidade', ''); // a escolha de qualidade saiu (14/10/2026): o que estava guardado não serve mais
     this.estado = {
       fase: 'entrada',
       erro: '',
       recusa: null,
-      sala: grupo ?? (salaFixa ? SALA_FIXA : sala),
+      sala: servidor ?? grupo ?? (salaFixa ? SALA_FIXA : sala),
       grupo,
       salaFixa,
+      servidor,
       meuId: null,
       meuNome: lembrado('ozamigos-nome'),
       minhaConta: null,
@@ -299,7 +310,8 @@ class Cliente {
       conexaoPerdida: false,
       gravacaoDaSala: null,
     };
-    if (!grupo && !salaFixa) this.trocarSala(sala);
+    // Num convite (/c/<codigo>), o endereço fica como veio: é para onde o login volta.
+    if (!grupo && !salaFixa && !servidor && !conviteDoCaminho(location.pathname)) this.trocarSala(sala);
     aoPararVideoDoApp((aviso) => void this.videoDoAppParou(aviso));
     // Um "estou aqui" a cada 30 s: sem isso, proxies e hospedagens gratuitas fecham a conexão parada.
     setInterval(() => {
@@ -428,7 +440,7 @@ class Cliente {
   relatorio() {
     return {
       geradoEm: new Date().toISOString(),
-      sala: this.estado.grupo ? `grupo ${this.estado.grupo}` : this.estado.sala,
+      sala: this.estado.servidor ? `servidor ${this.estado.servidor}` : this.estado.grupo ? `grupo ${this.estado.grupo}` : this.estado.sala,
       eu: this.estado.meuNome,
       app: noApp ? `app ${ponte?.versao ?? '?'}` : 'navegador',
       navegador: navigator.userAgent,
@@ -453,13 +465,14 @@ class Cliente {
   // ===== Entrada =====
 
   trocarSala(codigo: string) {
-    if (!codigoValido(codigo) || this.estado.grupo || this.estado.salaFixa) return;
+    if (!codigoValido(codigo) || this.estado.grupo || this.estado.salaFixa || this.estado.servidor) return;
     history.replaceState(ESCRITO_AQUI, '', `?sala=${codigo}`);
     this.mudar({ sala: codigo });
   }
 
-  /** O link que se manda aos amigos: o do grupo, ou o da sala. */
+  /** O link que se manda aos amigos: o do grupo, ou o da sala. Num servidor salvo, vazio: lá se convida por um convite. */
   linkDeConvite(): string {
+    if (this.estado.servidor) return '';
     if (this.estado.salaFixa) return linkDoGrupo(SALA_FIXA);
     return this.estado.grupo ? linkDoGrupo(this.estado.grupo) : linkDaSala(this.estado.sala);
   }
@@ -470,8 +483,9 @@ class Cliente {
   }
 
   private pedidoDeEntrada(): MensagemParaOServidor {
-    const { grupo, sala, fase } = this.estado;
+    const { grupo, sala, fase, servidor } = this.estado;
     const pedido = { tipo: 'entrar' as const, senha: this.senha, nome: this.nome, ficha: this.ficha };
+    if (servidor) return { ...pedido, sala: '', senha: '', servidor }; // sem senha: o servidor confere a conta
     if (!grupo) return { ...pedido, sala };
     // Voltando depois de uma queda, cria de novo: se o servidor reiniciou, o grupo volta com a mesma senha.
     return { ...pedido, sala: '', grupo, criar: this.criar || fase === 'sala' };
@@ -509,6 +523,18 @@ class Cliente {
     this.registrar('entrada automática no último lugar');
     this.entrandoSozinho = true;
     this.entrar(nome, senha, this.estado.grupo !== null);
+  }
+
+  /**
+   * Entra na sala de um servidor salvo, da lista da entrada ou da página dele, sem recarregar: o endereço vira o do
+   * servidor (/s/<codigo>). Só com a conta, que é quem entra.
+   */
+  entrarNoServidor(codigo: string) {
+    const { conta } = lerConta();
+    if (this.estado.fase !== 'entrada' || !conta) return;
+    if (location.pathname !== `/s/${codigo}`) history.replaceState(null, '', `/s/${codigo}`);
+    this.mudar({ servidor: codigo, grupo: null, salaFixa: false, sala: codigo });
+    this.entrar(conta.nome, '');
   }
 
   /** Cria um grupo na hora, a partir da entrada do grupo fixo. Dando certo, o endereço vira o do grupo. */
@@ -645,6 +671,7 @@ class Cliente {
     this.sinalizacao.encerrar();
     if (!paraASala) lembrar(NAO_ENTRAR_SOZINHO, 'sim'); // saiu de propósito: a próxima abertura não entra sozinha
     if (paraASala) location.assign(`/?sala=${paraASala}`);
+    else if (this.estado.servidor) location.assign('/'); // de um servidor salvo, de volta à lista dos servidores
     else location.reload(); // volta para a entrada, com a mesma sala no link
   }
 
@@ -654,8 +681,8 @@ class Cliente {
    */
   abrirConvite(codigo: string) {
     if (!codigoValido(codigo)) return;
-    const { fase, sala, grupo, salaFixa } = this.estado;
-    if (fase === 'entrada' && (grupo || salaFixa)) {
+    const { fase, sala, grupo, salaFixa, servidor } = this.estado;
+    if (fase === 'entrada' && (grupo || salaFixa || servidor)) {
       location.assign(`/?sala=${codigo}`); // a sala do convite é do grupo fixo
     } else if (fase === 'entrada') {
       this.trocarSala(codigo);
@@ -680,16 +707,16 @@ class Cliente {
           break;
         }
         this.mudar(this.quemSouEu(msg));
-        this.registrar(`entrei ${e.grupo ? 'no grupo' : 'na sala'} ${this.estado.sala} como ${this.estado.meuNome}${msg.conta ? ' (com conta)' : ''}`);
+        this.registrar(`entrei ${e.servidor ? 'no servidor' : e.grupo ? 'no grupo' : 'na sala'} ${this.estado.sala} como ${this.estado.meuNome}${msg.conta ? ' (com conta)' : ''}`);
         lembrar('ozamigos-nome', this.estado.meuNome);
-        lembrar(this.chaveDaSenha(), this.senha);
-        lembrar(ULTIMO_GRUPO, e.grupo ?? (e.salaFixa ? SALA_FIXA : ''));
+        if (!e.servidor) lembrar(this.chaveDaSenha(), this.senha); // o servidor salvo não tem senha
+        lembrar(ULTIMO_GRUPO, e.servidor ? `s/${e.servidor}` : (e.grupo ?? (e.salaFixa ? SALA_FIXA : '')));
         lembrar(NAO_ENTRAR_SOZINHO, '');
         if (this.entrandoSozinho) {
           this.entrandoSozinho = false;
           this.avisar(`Você voltou ${e.grupo || e.salaFixa ? `para o grupo ${e.grupo ?? SALA_FIXA}` : `para a sala ${e.sala}`}.`);
         }
-        if (!e.grupo) lembrar(ULTIMA_SALA, e.sala);
+        if (!e.grupo && !e.servidor) lembrar(ULTIMA_SALA, e.sala);
         if (e.grupo && location.pathname !== `/${e.grupo}`) history.replaceState(null, '', `/${e.grupo}`); // criado na raiz
         this.mudar({
           fase: 'sala',

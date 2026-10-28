@@ -173,6 +173,45 @@ test.describe('contas', () => {
     await expect(caio.getByRole('button', { name: 'Sair da sala' })).toBeVisible(); // continua na sala, como convidado
   });
 
+  test('um servidor salvo: criar, convidar pelo link, voltar pela lista sem senha, e expulsar', async ({ browser }) => {
+    const eva = await pessoa(browser);
+    await eva.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await eva.goto('/?entrada');
+    await entrarComOGoogle(eva, `eva-${Date.now()}`, 'Eva');
+    await eva.getByRole('button', { name: 'Criar um servidor' }).click();
+    await eva.getByLabel('Nome do servidor').fill('Os Amigos');
+    await eva.getByRole('button', { name: 'Criar', exact: true }).click();
+    await expect(eva.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+    await expect(eva.locator('.nome-do-servidor')).toHaveText('Os Amigos');
+    expect(new URL(eva.url()).pathname).toMatch(/^\/s\/[A-Za-z0-9]{10}$/);
+
+    await eva.getByRole('button', { name: 'Convidar' }).click();
+    await expect(eva.getByRole('button', { name: 'Copiado' })).toBeVisible();
+    const convite = new URL(await eva.evaluate(() => navigator.clipboard.readText()));
+    expect(convite.pathname).toMatch(/^\/c\/[A-Za-z0-9]{10}$/);
+
+    // Sem conta, o convite mostra o servidor e pede o login; a volta do login é o próprio convite.
+    const fabio = await pessoa(browser);
+    await fabio.goto(convite.pathname);
+    await expect(fabio.locator('.servidor-titulo')).toContainText('Os Amigos');
+    await entrarComOGoogle(fabio, `fabio-${Date.now()}`, 'Fábio');
+    await fabio.getByRole('button', { name: 'Aceitar e entrar' }).click();
+    await expect(fabio.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+    await expect(eva.locator('.pessoa-nome-texto', { hasText: 'Fábio' })).toBeVisible();
+
+    // Membro, volta pela lista dos servidores, sem senha nem convite.
+    await fabio.getByRole('button', { name: 'Sair da sala' }).click();
+    await fabio.getByRole('button', { name: /Os Amigos/ }).click();
+    await expect(fabio.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
+
+    await eva.getByRole('button', { name: 'Configurações do servidor' }).click();
+    await eva.getByRole('tab', { name: 'Membros' }).click();
+    await eva.getByRole('button', { name: 'Expulsar' }).click();
+    await eva.getByRole('alertdialog').getByRole('button', { name: 'Expulsar' }).click();
+    await expect(fabio.getByRole('alert')).toContainText('Você foi removido deste servidor.');
+    await expect(fabio.getByRole('button', { name: 'Entrar no servidor' })).toBeDisabled(); // e não volta
+  });
+
   test('o erro do login aparece na entrada e sai do endereço', async ({ browser }) => {
     const p = await pessoa(browser);
     await p.goto('/?entrada&erro-de-login=recusado');
@@ -181,12 +220,14 @@ test.describe('contas', () => {
     expect(new URL(p.url()).searchParams.has('erro-de-login')).toBe(false);
   });
 
-  test('no celular, os botões de login não passam da largura da tela', async ({ browser }) => {
+  test('no celular, a entrada não passa da largura da tela, sem e com conta', async ({ browser }) => {
     const p = await pessoa(browser, true);
     await p.goto('/?entrada');
     await expect(p.getByRole('button', { name: 'Continuar com o Google' })).toBeVisible();
 
-    const larguras = await p.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
-    expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
+    // Contra 375, e não contra o innerWidth: no celular, o Chromium afasta a página que não cabe, e os dois crescem juntos.
+    expect(await p.evaluate(() => [document.documentElement.scrollWidth, innerWidth])).toEqual([375, 375]);
+    await entrarComOGoogle(p, `cel-${Date.now()}`, 'Celular'); // com conta: a lista dos servidores e o separador
+    expect(await p.evaluate(() => [document.documentElement.scrollWidth, innerWidth])).toEqual([375, 375]);
   });
 });
