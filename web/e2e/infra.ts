@@ -40,6 +40,11 @@ export default async function preparar(): Promise<() => Promise<void>> {
   } catch {
     throw new Error('Os testes ponta a ponta precisam do Docker ligado (o banco e o login de teste rodam nele).');
   }
+  // Outro servidor já na 8090 (um rodado à mão, de outro código) faria os testes passarem contra ele, sem avisar.
+  const ocupada = await fetch(`${BASE}/actuator/health`).then(() => true, () => false);
+  if (ocupada) {
+    throw new Error(`A porta ${PORTA} já está em uso: feche o servidor que está nela antes dos testes ponta a ponta.`);
+  }
   const conteineres: string[] = [];
   let servidor: ChildProcess | undefined;
   const desmontar = async () => {

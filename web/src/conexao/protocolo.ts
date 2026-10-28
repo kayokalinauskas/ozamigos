@@ -51,6 +51,8 @@ export type MotivoDoErro =
   | 'expulso'
   | 'servidor-apagado'
   | 'fora-do-servidor'
+  // Só para as páginas de antes de 28/10/2026 (com senha), ainda abertas no deploy: a recusa que elas conhecem.
+  | 'senha-errada'
   | 'sala-cheia'
   | 'ja-esta-numa-sala'
   | 'entre-numa-sala-primeiro'

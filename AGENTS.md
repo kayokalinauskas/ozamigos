@@ -52,7 +52,8 @@ $env:PORT = "8090"                                  # e as variáveis do banco e
 .\mvnw.cmd spring-boot:run                         # servidor local
 .\mvnw.cmd test                                    # testes do servidor
 .\testar.ps1                                       # tudo: servidor, interface, áudio, e2e (8090) e app; -Rapido pula navegadores e app
-docker compose up -d banco                         # o Postgres local (127.0.0.1:5433)
+docker compose up --build                          # tudo: Postgres, login de teste e servidor, em http://localhost:8090
+docker compose up -d banco                         # só o Postgres local (127.0.0.1:5433), para o servidor rodado à mão
 cd desktop; npm install; npm run som; npm run captura; npm start   # app em desenvolvimento (veja o aviso em "Como testar")
 cd desktop; npm run instalador                     # instalador e portátil em desktop\dist
 ```

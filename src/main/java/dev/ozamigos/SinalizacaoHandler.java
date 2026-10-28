@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,11 +53,16 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     private final Servidores servidores;
     private final Contas contas;
     /**
-     * Uma trava por servidor (64 repartidas pelo código): a entrada confere se a pessoa é membro e entra na sala segurando
-     * a trava, e a expulsão tira da sala segurando a mesma. Sem ela, quem fosse expulso entre a conferência e a entrada
-     * ficava na sala.
+     * Uma trava por servidor (64 repartidas pelo código), só para a entrada na sala e a expulsão não se cruzarem; a
+     * consulta ao banco (se a pessoa é membro) fica de fora, para um banco lento não enfileirar as entradas.
      */
     private final Object[] travasDosServidores = new Object[64];
+    /**
+     * Quando cada conta saiu de cada servidor à força (expulsa, saiu, o servidor apagado: a chave sem conta), na hora do
+     * {@code System.nanoTime()}: quem foi conferido como membro antes disso não entra. Só o último minuto.
+     */
+    private final Map<String, Long> tiradosEm = new ConcurrentHashMap<>();
+    private static final long LEMBRAR_TIRADOS_NS = 60_000_000_000L;
 
     public SinalizacaoHandler(Salas salas, JsonMapper json, PreviasDeLinks previas, Retransmissao retransmissao,
             Servidores servidores, Contas contas) {
@@ -102,7 +108,9 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             return;
         }
         switch (tipo) {
-            case "entrar" -> entrar(sessao, id, msg.path("servidor").asString(""), msg.path("ficha").asString(""));
+            // Sem `servidor` e com `senha`: uma página de antes de 28/10/2026, aberta durante o deploy (veja entrar).
+            case "entrar" -> entrar(sessao, id, msg.path("servidor").asString(""), msg.path("ficha").asString(""),
+                    !msg.has("servidor") && msg.has("senha"));
             case "comecei" -> comecei(sessao, id, sala);
             case "parei" -> parei(id, sala);
             case "assistir" -> assistir(id, sala, msg.path("para").asString(""));
@@ -121,26 +129,51 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     /**
      * Entra na sala de um servidor salvo (Servidores): só com a conta (o cookie da sessão, lido na abertura do WebSocket:
      * ContaNoWebSocket) e sendo membro. Sem senha: quem entra é decidido pelos convites (decisão do dono, 28/10/2026:
-     * as salas com senha, o grupo fixo e os grupos criados na hora saíram). A conferência e a entrada na sala acontecem
-     * segurando a trava do servidor, a mesma da expulsão (tirarDoServidor).
+     * as salas com senha, o grupo fixo e os grupos criados na hora saíram). A entrada na sala acontece segurando a trava
+     * do servidor, a mesma da expulsão (tirarDoServidor), e não entra quem foi tirado depois de conferido.
+     *
+     * <p>{@code pedidoAntigo}: a página de antes das contas, ainda aberta, reconectando depois do deploy. Recebe
+     * {@code senha-errada}, a recusa que ela conhece: volta para a entrada dela e para de tentar (com um motivo que ela
+     * não conhece, tentaria de novo a cada 10 s, para sempre). Recarregando, vem a página nova.
      */
-    private void entrar(WebSocketSession sessao, String id, String servidor, String fichaAnterior) throws IOException {
-        synchronized (trava(servidor)) {
-            entrarJa(sessao, id, servidor, fichaAnterior);
+    private void entrar(WebSocketSession sessao, String id, String servidor, String fichaAnterior, boolean pedidoAntigo)
+            throws IOException {
+        if (pedidoAntigo) {
+            recusar(sessao, "senha-errada");
+            return;
         }
+        Salas.Conta conta = (Salas.Conta) sessao.getAttributes().get(ContaNoWebSocket.CONTA);
+        long conferidoEm = System.nanoTime();
+        String recusa = recusaDoServidor(servidor, conta);
+        if (recusa != null) {
+            recusar(sessao, recusa);
+            return;
+        }
+        synchronized (trava(servidor)) {
+            if (tiradoDepois(servidor, conta.id(), conferidoEm)) {
+                recusar(sessao, "servidor-nao-existe");
+                return;
+            }
+            entrarJa(sessao, id, servidor, conta, fichaAnterior);
+        }
+    }
+
+    private boolean tiradoDepois(String servidor, String conta, long conferidoEm) {
+        for (String chave : new String[] {servidor + "|" + conta, servidor + "|*"}) {
+            Long quando = tiradosEm.get(chave);
+            if (quando != null && quando - conferidoEm > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Object trava(String servidor) {
         return travasDosServidores[Math.floorMod(servidor.hashCode(), travasDosServidores.length)];
     }
 
-    private void entrarJa(WebSocketSession sessao, String id, String servidor, String fichaAnterior) throws IOException {
-        Salas.Conta conta = (Salas.Conta) sessao.getAttributes().get(ContaNoWebSocket.CONTA);
-        String recusa = recusaDoServidor(servidor, conta);
-        if (recusa != null) {
-            recusar(sessao, recusa);
-            return;
-        }
+    private void entrarJa(WebSocketSession sessao, String id, String servidor, Salas.Conta conta, String fichaAnterior)
+            throws IOException {
         if (sessao.getAttributes().containsKey("sala")) {
             erro(sessao, "ja-esta-numa-sala");
             return;
@@ -237,6 +270,9 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     public void tirarDoServidor(String servidor, UUID conta, String motivo) {
         ObjectNode aviso = json.createObjectNode().put("tipo", "erro").put("motivo", motivo);
         synchronized (trava(servidor)) {
+            long agora = System.nanoTime();
+            tiradosEm.values().removeIf(quando -> agora - quando > LEMBRAR_TIRADOS_NS);
+            tiradosEm.put(servidor + "|" + (conta == null ? "*" : conta), agora);
             for (WebSocketSession pessoa : salas.daConta(Servidores.sala(servidor), conta == null ? null : conta.toString())) {
                 enviar(pessoa, aviso);
                 try {

@@ -53,7 +53,8 @@ $env:OZAMIGOS_GOOGLE_ID = "local"; $env:OZAMIGOS_GOOGLE_SEGREDO = "local"; $env:
 .\mvnw.cmd spring-boot:run
 ```
 
-Abra `http://localhost:8090`, clique em "Continuar com o Google" e entre no login de teste com qualquer nome.
+Abra `http://localhost:8090`, clique em "Continuar com o Google" e entre no login de teste com qualquer nome. Ou tudo
+pelo Docker, com o banco e o login de teste: `docker compose up --build`, na mesma página.
 
 | Comando | O que faz |
 |---|---|

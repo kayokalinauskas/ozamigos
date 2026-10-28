@@ -4,7 +4,7 @@
 //   captura.ts      a captura da tela e o codificador             webrtc.ts     ajustes do WebRTC
 //   medidor.ts      as estatísticas de cada segundo               relatorio.ts  o relatório da sessão
 
-import { lembrado, lembrar } from './armazenamento';
+import { lembrar } from './armazenamento';
 import { QUALIDADE, QUALIDADES, aceitaHevc, type Qualidade } from './qualidade';
 import { qualidadeEscolhida } from './escolhaDeQualidade';
 import { notificacaoLigada, type TipoDeNotificacao } from './notificacoes';
@@ -238,7 +238,7 @@ class Cliente {
       erro: '',
       servidor: servidorDoCaminho(location.pathname),
       meuId: null,
-      meuNome: lembrado('ozamigos-nome'),
+      meuNome: '', // o da conta, que chega no bem-vindo
       minhaConta: null,
       minhaFoto: null,
       pessoas: [],
@@ -316,13 +316,13 @@ class Cliente {
   }
 
   /**
-   * O que reconhece a pessoa mesmo quando o id da conexão muda (uma reconexão): a conta, se ela entrou com uma; senão,
-   * o nome. Também é a chave dos volumes e do silenciado de cada um: com conta, valem em qualquer sala e com qualquer
-   * nome; os de convidado continuam pelo nome, como antes.
+   * O que reconhece a pessoa mesmo quando o id da conexão muda (uma reconexão): a conta (todos têm uma). Também é a
+   * chave dos volumes e do silenciado de cada um, que valem em qualquer sala e com qualquer nome. Quem não está na
+   * lista (já saiu) fica com uma chave que não é de mais ninguém.
    */
   chaveDe(id: string): string {
-    const pessoa = this.estado.pessoas.find((p) => p.id === id);
-    return pessoa?.conta ? `conta:${pessoa.conta}` : (pessoa?.nome ?? this.nomeDe(id));
+    const conta = this.estado.pessoas.find((p) => p.id === id)?.conta;
+    return conta ? `conta:${conta}` : `id:${id}`;
   }
 
   /** A foto da conta de alguém da sala (a minha também), ou null. */
@@ -401,11 +401,11 @@ class Cliente {
   // ===== Entrada =====
 
   /**
-   * O que as salas com senha guardavam (saíram em 28/10/2026): a senha do grupo fixo e as dos grupos, o último lugar,
+   * O que as salas com senha guardavam (saíram em 28/10/2026): o nome de convidado, as senhas, o último lugar,
    * a última sala e as marcas da entrada automática. Uma vez por abertura, é barato, e ninguém fica com uma senha velha.
    */
   private esquecerOQueSaiu() {
-    for (const chave of ['ozamigos-senha', 'ozamigos-ultima-sala', 'ozamigos-ultimo-grupo', 'ozamigos-nao-entrar-sozinho', 'ozamigos-escolheu-convidado']) {
+    for (const chave of ['ozamigos-nome', 'ozamigos-senha', 'ozamigos-ultima-sala', 'ozamigos-ultimo-grupo', 'ozamigos-nao-entrar-sozinho', 'ozamigos-escolheu-convidado']) {
       lembrar(chave, '');
     }
     try {

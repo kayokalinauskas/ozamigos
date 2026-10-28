@@ -180,6 +180,17 @@ class SinalizacaoTest extends ComBanco {
     }
 
     @Test
+    void aPaginaDeAntesDasContasRecebeARecusaQueConheceEParaDeTentar() throws Exception {
+        // Aberta antes do deploy de 28/10/2026, ela reconecta com o pedido de antes (sala e senha).
+        Cliente antiga = conectar(membro("Antiga", sala));
+
+        antiga.enviar("{\"tipo\":\"entrar\",\"sala\":\"ozamigos\",\"senha\":\"teste\",\"nome\":\"Antiga\"}");
+
+        assertThat(antiga.esperar("erro").path("motivo").asString()).isEqualTo("senha-errada");
+        assertThat(antiga.fechou.poll(5, TimeUnit.SECONDS)).isEqualTo(CloseStatus.POLICY_VIOLATION.getCode());
+    }
+
+    @Test
     void semEntrarNumaSalaNadaEhRepassado() throws Exception {
         Cliente ana = conectar(null);
 

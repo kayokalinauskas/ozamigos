@@ -36,7 +36,7 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `chamado` | `de` | Alguém chamou a sua atenção: a página toca um som mesmo com os sons desligados |
 | `erro` | `motivo` | Na entrada: `sem-conta`, `servidor-nao-existe` (também para quem não é membro), `servidores-indisponiveis` (banco fora do ar), `sala-cheia`, `ja-esta-numa-sala`; já na sala: `expulso`, `servidor-apagado`, `fora-do-servidor` (saiu do servidor, ou apagou a conta, com a sala aberta); e `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `chat-rapido-demais`, `chamar-cedo-demais`, `mensagem-invalida`, `entre-numa-sala-primeiro`, `tipo-desconhecido` |
 
-Com as recusas da entrada e as que tiram da sala (`expulso`, `servidor-apagado`, `fora-do-servidor`), o servidor fecha a conexão logo depois de avisar. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.
+Com as recusas da entrada e as que tiram da sala (`expulso`, `servidor-apagado`, `fora-do-servidor`), o servidor fecha a conexão logo depois de avisar. Um `entrar` do formato de antes (com `senha` e sem `servidor`, de uma página aberta antes de 28/10/2026) recebe `senha-errada`, a recusa que essa página conhece: ela volta para a entrada e para de tentar. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.
 
 ## Contas (HTTP)
 
