@@ -8,7 +8,10 @@ import java.util.UUID;
 
 import javax.sql.DataSource;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Component;
@@ -33,6 +36,15 @@ public class Contas {
 
     public enum Desligamento { DESLIGADA, NAO_TINHA, ULTIMA }
 
+    /** Contas novas demais na última hora, no servidor todo (contasNovasPorHora): esta não é criada. */
+    public static final class NovasDemais extends RuntimeException {
+        NovasDemais() {
+            super("contas novas demais", null, false, false);
+        }
+    }
+
+    private static final Logger log = LoggerFactory.getLogger(Contas.class);
+
     /**
      * O banco não respondeu: por esse tempo, todos entram como convidados sem nem tentar. Sem isso, cada entrada com
      * conta esperaria o prazo da conexão (Banco), e depois de um deploy, com todos voltando juntos, a fila de 5 conexões
@@ -44,12 +56,29 @@ public class Contas {
     private final JdbcClient banco;
     private final TransactionTemplate transacao;
     private volatile Instant foraAte = Instant.MIN;
+    /**
+     * Os tetos de contas novas: cada conta do Google ou do Discord vira uma conta, e quem criasse milhares (cada uma com
+     * foto e até 10 servidores com ícone) encheria o banco grátis (500 MB). Por endereço, por hora (o freio de verdade:
+     * um grupo de amigos na mesma casa cabe), e no servidor todo, por hora (o último recurso, alto: com ele baixo, quem
+     * criasse contas descartáveis fecharia a entrada de todos). Quem já tem conta sempre entra.
+     */
+    volatile int contasNovasPorHora;
+    Freio novasPorEndereco;
 
-    public Contas(ObjectProvider<VidaDoBanco> vida, ObjectProvider<DataSource> fonte) {
+    public Contas(ObjectProvider<VidaDoBanco> vida, ObjectProvider<DataSource> fonte,
+            @Value("${ozamigos.limite.contas-novas-por-hora:200}") int contasNovasPorHora,
+            @Value("${ozamigos.limite.contas-novas-por-endereco:5}") int contasNovasPorEndereco) {
+        this.contasNovasPorHora = contasNovasPorHora;
+        this.novasPorEndereco = new Freio(contasNovasPorEndereco, Duration.ofHours(1));
         this.vida = vida.getIfAvailable();
         DataSource dados = fonte.getIfAvailable();
         this.banco = dados == null ? null : JdbcClient.create(dados);
         this.transacao = dados == null ? null : new TransactionTemplate(new DataSourceTransactionManager(dados));
+    }
+
+    /** Este servidor tem banco (mesmo que fora do ar agora): as contas existem, e voltam quando ele voltar. */
+    public boolean configurado() {
+        return vida != null;
     }
 
     /** O banco existe, as migrações rodaram e ele não falhou há pouco: dá para entrar com conta. */
@@ -68,12 +97,17 @@ public class Contas {
      * segunda, que então acha o primeiro).
      */
     public Entrada entrar(String provedor, String idExterno, String nomeDoProvedor) {
-        Entrada entrada = entrarUmaVez(provedor, idExterno, nomeDoProvedor);
-        return entrada != null ? entrada : entrarUmaVez(provedor, idExterno, nomeDoProvedor);
+        return entrar(provedor, idExterno, nomeDoProvedor, null);
+    }
+
+    /** {@code endereco}: de quem entra, para o teto de contas novas por endereço (null: sem esse teto, nos testes). */
+    public Entrada entrar(String provedor, String idExterno, String nomeDoProvedor, String endereco) {
+        Entrada entrada = entrarUmaVez(provedor, idExterno, nomeDoProvedor, endereco);
+        return entrada != null ? entrada : entrarUmaVez(provedor, idExterno, nomeDoProvedor, endereco);
     }
 
     /** Null: outra entrada criou o usuário dessa identidade no meio desta; a segunda vez o acha. */
-    private Entrada entrarUmaVez(String provedor, String idExterno, String nomeDoProvedor) {
+    private Entrada entrarUmaVez(String provedor, String idExterno, String nomeDoProvedor, String endereco) {
         return transacao.execute(estado -> {
             Optional<Entrada> existente = banco.sql("""
                     update usuarios u set visto_em = now() from identidades i
@@ -85,6 +119,15 @@ public class Contas {
             if (existente.isPresent()) {
                 return existente.get();
             }
+            int naUltimaHora = banco.sql("select count(*) from usuarios where criado_em > now() - interval '1 hour'")
+                    .query(Integer.class).single();
+            if (naUltimaHora >= contasNovasPorHora) {
+                log.warn("Contas novas: o teto de {} por hora chegou; as próximas esperam", contasNovasPorHora);
+                throw new NovasDemais();
+            }
+            if (endereco != null && novasPorEndereco.excedeu(endereco)) {
+                throw new NovasDemais(); // o endereço não vai para o log
+            }
             UUID id = UUID.randomUUID();
             banco.sql("insert into usuarios (id, nome) values (:id, :nome)")
                     .param("id", id).param("nome", SinalizacaoHandler.nomeLimpo(nomeDoProvedor)).update();
@@ -95,6 +138,9 @@ public class Contas {
             if (inseridas == 0) {
                 estado.setRollbackOnly(); // outra entrada criou antes: vale a dela
                 return null;
+            }
+            if (endereco != null) {
+                novasPorEndereco.contar(endereco); // só a conta que nasceu conta (não a que perdeu a corrida para outra aba)
             }
             return new Entrada(id, null);
         });

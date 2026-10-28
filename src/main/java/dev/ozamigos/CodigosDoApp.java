@@ -33,9 +33,16 @@ public class CodigosDoApp {
     /** Mais que isso esperando troca é ataque, não gente: os mais velhos saem. */
     private static final int MAXIMO = 1_000;
 
-    public enum Uso { LOGIN, LIGACAO }
+    /**
+     * {@link #CONFIRMACAO}: a volta de uma ligação pelo app, que a página do app confirma (AoEntrar), com o provedor e
+     * o id da conta lá.
+     */
+    public enum Uso { LOGIN, LIGACAO, CONFIRMACAO }
 
-    private record Pendente(UUID usuario, Uso uso, Instant expira) {}
+    /** Uma ligação esperando a confirmação da página do app: de quem é a conta, e o que ligar a ela. */
+    public record Confirmacao(String provedor, String idExterno) {}
+
+    private record Pendente(UUID usuario, Uso uso, Instant expira, Confirmacao confirmacao) {}
 
     private final Map<String, Pendente> pendentes = new HashMap<>();
     private final SecureRandom aleatorio = new SecureRandom();
@@ -49,7 +56,15 @@ public class CodigosDoApp {
         this.relogio = relogio;
     }
 
-    public synchronized String criar(UUID usuario, Uso uso) {
+    public String criar(UUID usuario, Uso uso) {
+        return criar(usuario, uso, null);
+    }
+
+    public String criarConfirmacao(UUID usuario, String provedor, String idExterno) {
+        return criar(usuario, Uso.CONFIRMACAO, new Confirmacao(provedor, idExterno));
+    }
+
+    private synchronized String criar(UUID usuario, Uso uso, Confirmacao confirmacao) {
         Instant agora = relogio.instant();
         pendentes.values().removeIf(p -> !p.expira().isAfter(agora));
         if (pendentes.size() >= MAXIMO) {
@@ -59,16 +74,25 @@ public class CodigosDoApp {
         byte[] bytes = new byte[32];
         aleatorio.nextBytes(bytes);
         String codigo = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        pendentes.put(codigo, new Pendente(usuario, uso, agora.plus(VALIDADE)));
+        pendentes.put(codigo, new Pendente(usuario, uso, agora.plus(VALIDADE), confirmacao));
         return codigo;
     }
 
     /** De quem é o código, se for deste uso; ele deixa de valer na hora, dando certo ou não. */
-    public synchronized Optional<UUID> trocar(String codigo, Uso uso) {
+    public Optional<UUID> trocar(String codigo, Uso uso) {
+        return retirar(codigo, uso).map(Pendente::usuario);
+    }
+
+    /** A ligação que esse código confirma, se ele for dessa conta; ele deixa de valer na hora, dando certo ou não. */
+    public Optional<Confirmacao> trocarConfirmacao(String codigo, UUID usuario) {
+        return retirar(codigo, Uso.CONFIRMACAO).filter(p -> p.usuario().equals(usuario)).map(Pendente::confirmacao);
+    }
+
+    private synchronized Optional<Pendente> retirar(String codigo, Uso uso) {
         Pendente pendente = codigo == null ? null : pendentes.remove(codigo);
         if (pendente == null || pendente.uso() != uso || !pendente.expira().isAfter(relogio.instant())) {
             return Optional.empty();
         }
-        return Optional.of(pendente.usuario());
+        return Optional.of(pendente);
     }
 }

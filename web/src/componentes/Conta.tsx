@@ -10,6 +10,7 @@ import {
   ligar,
   renomear,
   sairDaConta,
+  sairDeTodos,
   useConta,
   type Provedor,
 } from '../conta';
@@ -157,8 +158,14 @@ export function AbaDaConta() {
       <FormasDeEntrar />
       <section className="configuracoes-secao" aria-labelledby="titulo-sair">
         <h3 id="titulo-sair">Sair</h3>
-        <p className="ajuda">Sai da conta neste aparelho. Nos outros, ela continua.</p>
-        <BotaoSair />
+        <p className="ajuda">
+          Sai da conta neste aparelho. Nos outros, ela continua. Perdeu um aparelho ou entrou num PC de outra pessoa? Saia
+          de todos de uma vez.
+        </p>
+        <div className="configuracoes-linha">
+          <BotaoSair />
+          <BotaoSairDeTodos />
+        </div>
       </section>
       <ApagarConta />
     </>
@@ -262,6 +269,20 @@ function BotaoSair() {
       onClick={() => void sairDaConta().then((saiu) => saiu && cliente.renovarConexao())}
     >
       <LogOut size={16} /> Sair da conta
+    </button>
+  );
+}
+
+function BotaoSairDeTodos() {
+  const { ocupada } = useConta();
+  return (
+    <button
+      type="button"
+      className="botao botao-fantasma"
+      disabled={ocupada}
+      onClick={() => void sairDeTodos().then((saiu) => saiu && cliente.renovarConexao())}
+    >
+      Sair de todos os aparelhos
     </button>
   );
 }

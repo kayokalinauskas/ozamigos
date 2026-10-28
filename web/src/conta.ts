@@ -26,6 +26,7 @@ const MOTIVOS: Record<string, string> = {
   indisponivel: 'Não foi possível entrar com a conta agora. Entre como convidado ou tente de novo daqui a pouco.',
   recusado: 'O login não foi concluído. Tente de novo.',
   'muitas-tentativas': 'Muitas tentativas de entrar em pouco tempo. Espere alguns minutos e tente de novo.',
+  'contas-novas-demais': 'Muitas contas novas no Ozamigos agora. Tente de novo daqui a uma hora.',
   // Quem testou os dois logins separados tem duas contas: o texto diz como juntar (sem mesclar contas no servidor).
   'de-outra-pessoa':
     'Essa conta já entrou no Ozamigos sozinha, como outra conta. Para juntar as duas: saia, entre com ela, apague-a em Configurações → Conta, e ligue de novo aqui.',
@@ -65,16 +66,38 @@ export function lerConta(): EstadoDaConta {
   return estado;
 }
 
-/** Pergunta ao servidor quem é. Sem resposta (servidor antigo, sem internet), a página segue como convidado. */
+/** Sem resposta, ou com o banco ainda não pronto: pergunta de novo nesse ritmo, mais devagar depois de um tempo. */
+const NOVA_TENTATIVA_MS = 3_000;
+const NOVA_TENTATIVA_DEMORADA_MS = 10_000;
+/** Até lá, a entrada mostra "Carregando…"; depois, o aviso de indisponível (e continua tentando por trás). */
+const AVISAR_DEPOIS_MS = 20_000;
+let indisponivelDesde: number | null = null;
+let novaTentativa: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Pergunta ao servidor quem é. Sem resposta (sem internet), ou com o banco ainda não pronto (o servidor acabou de
+ * acordar: ele responde antes do banco), pergunta de novo sozinha, até dar: antes, a entrada ficava em "não está
+ * disponível agora" até a pessoa reabrir o app.
+ */
 export async function carregarConta(): Promise<void> {
+  clearTimeout(novaTentativa);
   try {
     const resposta = await fetch('/api/eu', { cache: 'no-store' });
     if (!resposta.ok) throw new Error(String(resposta.status));
-    const corpo = (await resposta.json()) as { login?: Provedor[]; conta?: Conta | null };
-    mudar({ carregada: true, login: LOGIN_POSSIVEL ? (corpo.login ?? []) : [], conta: corpo.conta ?? null });
+    const corpo = (await resposta.json()) as { login?: Provedor[]; conta?: Conta | null; indisponivel?: boolean };
+    if (!corpo.indisponivel) {
+      indisponivelDesde = null;
+      mudar({ carregada: true, login: LOGIN_POSSIVEL ? (corpo.login ?? []) : [], conta: corpo.conta ?? null });
+      return;
+    }
   } catch {
-    mudar({ carregada: true, login: [], conta: null });
+    // sem resposta: como indisponível
   }
+  indisponivelDesde ??= Date.now();
+  const esperou = Date.now() - indisponivelDesde;
+  // Só na abertura: uma conta já carregada (a releitura depois de ligar ou desligar um provedor) fica como estava.
+  if (esperou >= AVISAR_DEPOIS_MS && !estado.carregada) mudar({ carregada: true, login: [], conta: null });
+  novaTentativa = setTimeout(() => void carregarConta(), esperou >= AVISAR_DEPOIS_MS ? NOVA_TENTATIVA_DEMORADA_MS : NOVA_TENTATIVA_MS);
 }
 
 /**
@@ -162,8 +185,15 @@ export async function ligar(provedor: Provedor): Promise<void> {
   }
   const ligacao = pedido.corpo.ligacao;
   const volta = await pelaPonte(() => ponte!.conta!.loginPeloNavegador(provedor, ligacao));
-  if (!volta.ligou) {
+  if (!volta.codigo) {
     falhou(volta.erro);
+    return;
+  }
+  // A ligação só vale com esta confirmação: o código chegou à porta deste app, e a sessão é a desta janela. Um link
+  // de ligação aberto por outra pessoa não liga nada (ContaApi.confirmarLigacao).
+  const confirmacao = await enviar('POST', '/api/eu/ligacao/confirmar', { codigo: volta.codigo });
+  if (!confirmacao.ok) {
+    falhou(confirmacao.motivo);
     return;
   }
   await carregarConta();
@@ -202,6 +232,15 @@ export async function sairDaConta(): Promise<boolean> {
   return true;
 }
 
+/** Sai da conta em todos os aparelhos, este inclusive (e quem estava numa sala com ela sai). Resolve true se saiu. */
+export async function sairDeTodos(): Promise<boolean> {
+  mudar({ ocupada: true, erro: '' });
+  const resposta = await enviar('POST', '/api/eu/sair-de-todos');
+  if (!resposta.ok) return falhou(resposta.motivo);
+  mudar({ ocupada: false, conta: null });
+  return true;
+}
+
 /** Apaga a conta e tudo dela, na hora. Resolve true se apagou. */
 export async function apagarConta(): Promise<boolean> {
   mudar({ ocupada: true, erro: '' });
@@ -212,7 +251,7 @@ export async function apagarConta(): Promise<boolean> {
 }
 
 /** A ponte do app recusou (a janela recarregou, um erro do processo principal): vira um erro comum, sem travar nada. */
-async function pelaPonte(chamar: () => Promise<{ codigo?: string; ligou?: string; erro?: string }>) {
+async function pelaPonte(chamar: () => Promise<{ codigo?: string; erro?: string }>) {
   try {
     return await chamar();
   } catch {

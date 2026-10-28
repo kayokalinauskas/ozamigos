@@ -115,6 +115,11 @@ public class Sessoes {
         }
     }
 
+    /** Encerra todas as sessões da conta, em todos os aparelhos (um cookie roubado deixa de valer). */
+    public void encerrarTodas(UUID usuario) {
+        banco.sql("delete from sessoes where usuario_id = :u").param("u", usuario).update();
+    }
+
     static ResponseCookie cookie(String segredo) {
         return ResponseCookie.from(COOKIE, segredo).path("/").secure(true).httpOnly(true).sameSite("Lax")
                 .maxAge(VALIDADE).build();

@@ -80,7 +80,8 @@ public class Servidores {
         DONA_DE_DEMAIS(HttpStatus.CONFLICT, "servidores-demais"),
         MEMBRO_DE_DEMAIS(HttpStatus.CONFLICT, "participa-demais"),
         MEMBROS_DEMAIS(HttpStatus.CONFLICT, "membros-demais"),
-        CONVITES_DEMAIS(HttpStatus.CONFLICT, "convites-demais");
+        CONVITES_DEMAIS(HttpStatus.CONFLICT, "convites-demais"),
+        MUITAS_TENTATIVAS(HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
 
         final HttpStatus status;
         final String texto;

@@ -37,12 +37,18 @@ public class ProtecaoDaApi extends OncePerRequestFilter {
             throws ServletException, IOException {
         String origem = pedido.getHeader("Origin");
         if (origem == null || !origem.equals(origemDoServidor(pedido))) {
-            resposta.setStatus(HttpStatus.FORBIDDEN.value());
-            resposta.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            resposta.getWriter().write("{\"erro\":\"origem\"}");
+            recusar(resposta, HttpStatus.FORBIDDEN, "origem");
             return;
         }
         cadeia.doFilter(pedido, resposta);
+    }
+
+    /** A recusa de um filtro, no formato dos erros da API ({@code {erro}}), sem cache. Também a do LimitesDaApi. */
+    static void recusar(HttpServletResponse resposta, HttpStatus status, String motivo) throws IOException {
+        resposta.setStatus(status.value());
+        resposta.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        resposta.setHeader("Cache-Control", "no-store");
+        resposta.getWriter().write("{\"erro\":\"" + motivo + "\"}");
     }
 
     static String origemDoServidor(HttpServletRequest pedido) {

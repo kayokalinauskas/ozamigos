@@ -47,7 +47,7 @@ class OzamigosShareApplicationTests {
         HttpResponse<String> eu = get("/api/eu");
 
         assertThat(eu.statusCode()).isEqualTo(200);
-        assertThat(eu.body()).isEqualTo("{\"login\":[],\"conta\":null}");
+        assertThat(eu.body()).isEqualTo("{\"login\":[],\"conta\":null,\"indisponivel\":false}"); // sem banco, não é "indisponível": não há o que esperar
         assertThat(eu.headers().firstValue("Cache-Control").orElseThrow()).contains("no-store");
     }
 
