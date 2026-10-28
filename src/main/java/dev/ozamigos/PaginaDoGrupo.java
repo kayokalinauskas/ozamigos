@@ -22,4 +22,13 @@ public class PaginaDoGrupo {
         }
         return "forward:/index.html";
     }
+
+    /**
+     * Um servidor salvo ({@code /s/<codigo>}) e um convite ({@code /c/<codigo>}) também abrem a interface: quem confere
+     * se a pessoa é membro, ou se o convite vale, é a API (ServidoresApi), pedida pela página.
+     */
+    @GetMapping({"/s/{codigo:[A-Za-z0-9]{10}}", "/c/{codigo:[A-Za-z0-9]{10}}"})
+    public String servidorOuConvite(@PathVariable String codigo) {
+        return "forward:/index.html";
+    }
 }

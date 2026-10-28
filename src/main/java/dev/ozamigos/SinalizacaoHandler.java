@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -53,10 +54,14 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     private final PreviasDeLinks previas;
     private final Grupos grupos;
     private final Retransmissao retransmissao;
+    private final Servidores servidores;
+    private final Contas contas;
 
     public SinalizacaoHandler(Salas salas, SenhaDoGrupo senhaDoGrupo, TentativasDeSenha tentativas, JsonMapper json, PreviasDeLinks previas,
-            Grupos grupos, Retransmissao retransmissao) {
+            Grupos grupos, Retransmissao retransmissao, Servidores servidores, Contas contas) {
         this.salas = salas;
+        this.servidores = servidores;
+        this.contas = contas;
         this.retransmissao = retransmissao;
         this.grupos = grupos;
         this.senhaDoGrupo = senhaDoGrupo;
@@ -98,7 +103,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         switch (tipo) {
             case "entrar" -> entrar(sessao, id, msg.path("sala").asString(""), msg.path("senha").asString(""),
                     nomeLimpo(msg.path("nome").asString("")), msg.path("ficha").asString(""),
-                    msg.path("grupo").asString(""), msg.path("criar").asBoolean(false));
+                    msg.path("grupo").asString(""), msg.path("criar").asBoolean(false), msg.path("servidor").asString(""));
             case "comecei" -> comecei(sessao, id, sala);
             case "parei" -> parei(id, sala);
             case "assistir" -> assistir(id, sala, msg.path("para").asString(""));
@@ -117,10 +122,11 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     /**
      * Sem {@code grupo}, é o grupo fixo (a senha OZAMIGOS_SENHA e a sala pelo código). Com ele, um grupo criado na hora
      * (Grupos): a senha é a dele, a sala é a única do grupo, e {@code criar} o cria se não existe. Quem já está num
-     * grupo manda {@code criar} ao reconectar: se o servidor reiniciou, o grupo volta com a mesma senha.
+     * grupo manda {@code criar} ao reconectar: se o servidor reiniciou, o grupo volta com a mesma senha. Com
+     * {@code servidor}, um servidor salvo (Servidores): sem senha, só para os membros, que entram com a conta.
      */
     private void entrar(WebSocketSession sessao, String id, String codigo, String senha, String nome,
-            String fichaAnterior, String grupo, boolean criar) throws IOException {
+            String fichaAnterior, String grupo, boolean criar, String servidor) throws IOException {
         // Com conta (o cookie da sessão, lido na abertura do WebSocket: ContaNoWebSocket), o nome é o dela, e não o
         // que a página mandou: ninguém entra com o nome de outra pessoa que tem conta.
         Salas.Conta conta = (Salas.Conta) sessao.getAttributes().get(ContaNoWebSocket.CONTA);
@@ -134,7 +140,13 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             recusar(sessao, "muitas-tentativas");
             return;
         }
-        if (grupo.isEmpty()) {
+        if (!servidor.isEmpty()) {
+            String recusa = recusaDoServidor(servidor, conta);
+            if (recusa != null) {
+                recusar(sessao, recusa);
+                return;
+            }
+        } else if (grupo.isEmpty()) {
             if (!senhaDoGrupo.confere(senha)) {
                 log.info("{} errou a senha", id);
                 tentativas.errou(endereco);
@@ -171,7 +183,9 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             erro(sessao, "ja-esta-numa-sala");
             return;
         }
-        if (!grupo.isEmpty()) {
+        if (!servidor.isEmpty()) {
+            codigo = Servidores.sala(servidor);
+        } else if (!grupo.isEmpty()) {
             codigo = Grupos.sala(grupo);
         } else if (!CODIGO_VALIDO.matcher(codigo).matches()) {
             erro(sessao, "codigo-invalido");
@@ -193,7 +207,9 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             return;
         }
         sessao.getAttributes().put("sala", codigo);
-        if (!grupo.isEmpty()) {
+        if (!servidor.isEmpty()) {
+            log.info("{} ({}) entrou num servidor", id, nome); // o nome do servidor é escolhido pelas pessoas, como o do grupo
+        } else if (!grupo.isEmpty()) {
             sessao.getAttributes().put("grupo", grupo);
             grupos.ocupado(grupo);
             log.info("{} ({}) entrou num grupo", id, nome);
@@ -249,6 +265,42 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         }
         for (WebSocketSession outro : entrada.avisar()) {
             enviar(outro, entrou);
+        }
+    }
+
+    /**
+     * Por que a pessoa não entra na sala do servidor salvo, ou null: entra. Quem não é membro recebe o mesmo de um
+     * servidor que não existe. Com o banco fora do ar, ninguém entra (os grupos e o grupo fixo continuam funcionando).
+     */
+    private String recusaDoServidor(String servidor, Salas.Conta conta) {
+        if (conta == null) {
+            return "sem-conta";
+        }
+        if (!contas.disponivel()) {
+            return "servidores-indisponiveis";
+        }
+        try {
+            return servidores.papel(servidor, UUID.fromString(conta.id())).isPresent() ? null : "servidor-nao-existe";
+        } catch (DataAccessException e) {
+            contas.bancoFalhou();
+            log.warn("Servidores: o banco não respondeu ({})", e.getMostSpecificCause().getMessage());
+            return "servidores-indisponiveis";
+        }
+    }
+
+    /**
+     * Tira da sala de um servidor salvo as conexões de uma conta (expulsa), ou todas ({@code conta} null: o servidor
+     * foi apagado). Cada uma recebe o motivo e fecha; a saída segue o caminho de sempre (afterConnectionClosed).
+     */
+    public void tirarDoServidor(String servidor, UUID conta, String motivo) {
+        ObjectNode aviso = json.createObjectNode().put("tipo", "erro").put("motivo", motivo);
+        for (WebSocketSession pessoa : salas.daConta(Servidores.sala(servidor), conta == null ? null : conta.toString())) {
+            enviar(pessoa, aviso);
+            try {
+                pessoa.close(CloseStatus.POLICY_VIOLATION);
+            } catch (IOException | RuntimeException e) {
+                // já tinha fechado: era o que queríamos
+            }
         }
     }
 
@@ -501,6 +553,8 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
                 grupos.vazio(sala.substring("grupo:".length()));
             }
             log.info("{} ({}) saiu de um grupo", id, nome);
+        } else if (sala.startsWith("servidor:")) {
+            log.info("{} ({}) saiu de um servidor", id, nome);
         } else {
             log.info("{} ({}) saiu da sala {}", id, nome, sala);
         }

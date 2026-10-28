@@ -6,7 +6,7 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 
 | `tipo` | Campos | Efeito |
 |---|---|---|
-| `entrar` | `sala`, `senha`, `nome`, `ficha` (opcional), `grupo` e `criar` (opcionais) | Confere a senha e entra na sala. Com conta (o cookie da sessão na abertura do WebSocket), o `nome` mandado é ignorado: vale o da conta. Na reconexão, a `ficha` recebida no `bem-vindo` anterior tira da sala a conexão antiga, se o servidor ainda não percebeu a queda. Com `grupo`, é um grupo criado na hora (`Grupos.java`): a senha é a dele, a sala é a única do grupo (`sala` vai vazia), e `criar: true` o cria se não existe (o cliente manda `criar` também ao reconectar, para o grupo voltar se o servidor reiniciou) |
+| `entrar` | `sala`, `senha`, `nome`, `ficha` (opcional), `grupo` e `criar` (opcionais) | Confere a senha e entra na sala. Com conta (o cookie da sessão na abertura do WebSocket), o `nome` mandado é ignorado: vale o da conta. Na reconexão, a `ficha` recebida no `bem-vindo` anterior tira da sala a conexão antiga, se o servidor ainda não percebeu a queda. Com `grupo`, é um grupo criado na hora (`Grupos.java`): a senha é a dele, a sala é a única do grupo (`sala` vai vazia), e `criar: true` o cria se não existe (o cliente manda `criar` também ao reconectar, para o grupo voltar se o servidor reiniciou). Com `servidor` (o código), é um servidor salvo (`Servidores.java`): sem senha, só para quem entrou com a conta e é membro (`sala` e `senha` vão vazias) |
 | `comecei` / `parei` | — | Começa ou para de transmitir |
 | `assistir` / `deixar` | `para` | Entra ou sai da plateia de quem transmite |
 | `oferta` / `resposta` / `candidato` | `para`, `sdp` ou `candidato`, `canal` (`envio`, `recebimento` ou `voz`) | Repassado só ao destinatário, na mesma sala |
@@ -34,9 +34,9 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `chat` | `de`, `texto` | Uma mensagem do chat, para todos da sala (inclusive quem mandou, que assim sabe que chegou). O servidor não guarda nada: quem entra depois não vê as anteriores |
 | `previa` | `url`, `site`, `titulo`?, `autor`?, `miniatura`?, `aoVivo`? | A prévia do primeiro link de vídeo ou de canal de uma mensagem do chat (`aoVivo` num canal transmitindo agora), para todos da sala, logo depois da mensagem. O servidor busca no site e guarda na memória por 1 hora; a `miniatura` é um JPEG pequeno embutido (`data:`) |
 | `chamado` | `de` | Alguém chamou a sua atenção: a página toca um som mesmo com os sons desligados |
-| `erro` | `motivo` | `senha-errada`, `muitas-tentativas`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `chat-rapido-demais`, `chamar-cedo-demais`, `mensagem-invalida`; dos grupos: `grupo-nao-existe`, `grupo-em-uso` (criar com um nome que existe, com outra senha), `grupo-invalido`, `senha-curta` (menos de 4 caracteres), `muitos-grupos` (3 criados pelo mesmo endereço em 10 minutos), `grupos-demais` (200 ao mesmo tempo, todos com gente dentro) |
+| `erro` | `motivo` | `senha-errada`, `muitas-tentativas`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `chat-rapido-demais`, `chamar-cedo-demais`, `mensagem-invalida`; dos grupos: `grupo-nao-existe`, `grupo-em-uso` (criar com um nome que existe, com outra senha), `grupo-invalido`, `senha-curta` (menos de 4 caracteres), `muitos-grupos` (3 criados pelo mesmo endereço em 10 minutos), `grupos-demais` (200 ao mesmo tempo, todos com gente dentro); dos servidores salvos: `sem-conta`, `servidor-nao-existe` (também para quem não é membro), `servidores-indisponiveis` (banco fora do ar), e, já na sala, `expulso` e `servidor-apagado` |
 
-Com `senha-errada`, `muitas-tentativas` (10 senhas erradas do mesmo endereço em 5 minutos), `sala-cheia` e as recusas dos grupos, o servidor fecha a conexão logo depois de avisar. A senha errada de um grupo (e o `grupo-em-uso`) contam no mesmo freio. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.
+Com `senha-errada`, `muitas-tentativas` (10 senhas erradas do mesmo endereço em 5 minutos), `sala-cheia`, as recusas dos grupos e as dos servidores salvos (inclusive `expulso` e `servidor-apagado`, que tiram da sala quem já estava), o servidor fecha a conexão logo depois de avisar. A senha errada de um grupo (e o `grupo-em-uso`) contam no mesmo freio. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.
 
 ## Contas (HTTP)
 
@@ -58,3 +58,27 @@ O login e a conta não passam pelo WebSocket: são páginas e uma API JSON no me
 | `GET /api/fotos/{conta}?v=<versão>` | A foto (JPEG de 128 px), com cache de um ano |
 
 Erros da API: `{erro: <motivo>}`, com 401 `sem-conta`, 503 `contas-indisponiveis`, 403 `origem`, 429 `muitas-tentativas`.
+
+## Servidores salvos (HTTP)
+
+`ServidoresApi.java`, com as regras em `Servidores.java`. Tudo pede conta, menos a prévia de um convite e o ícone. Para quem não é membro, um servidor que existe dá o mesmo 404 de um que não existe. Papéis: `dono`, `admin`, `membro`.
+
+| Caminho | Quem | Efeito |
+|---|---|---|
+| `GET /api/servidores` | — | `{servidores: [{codigo, nome, icone, papel, membros}]}`, do que entrou por último para o primeiro |
+| `POST /api/servidores` | — | `{nome}` → `{codigo}`. Até 10 servidores como dono e 100 no total por pessoa |
+| `GET /api/servidores/{codigo}` | membros | `{codigo, nome, icone, papel, membrosConvidam, membros: [{conta, nome, foto, papel}]}` |
+| `PATCH /api/servidores/{codigo}` | dono, admin | `{nome?, membrosConvidam?}` (o segundo, só o dono) → o servidor |
+| `DELETE /api/servidores/{codigo}` | dono | `{confirmar: true}`: apaga com membros e convites; quem está na sala sai com `servidor-apagado` |
+| `PUT /api/servidores/{codigo}/icone` | dono, admin | A imagem no corpo (até 2 MB) → `{icone}`, já reduzida a 128 px. `DELETE` tira o ícone |
+| `GET /api/servidores/{codigo}/icone?v=<versão>` | todos | O ícone (JPEG), com cache de um ano |
+| `POST /api/servidores/{codigo}/dono` | dono | `{para: <conta>}`: passa a posse; quem era dono vira admin |
+| `PATCH /api/servidores/{codigo}/membros/{conta}` | dono | `{papel: "admin" \| "membro"}` |
+| `DELETE /api/servidores/{codigo}/membros/{conta}` | todos, dono, admin | A própria conta: sair (o dono não sai, 409 `dono-nao-sai`). Outra: expulsar (o admin só tira membros), e ela sai da sala com `expulso` |
+| `GET /api/servidores/{codigo}/convites` | dono, admin | `{convites: [{codigo, expiraEm, usosMaximos, usos, criadoPor}]}`, só os que ainda valem |
+| `POST /api/servidores/{codigo}/convites` | dono, admin, membros (se `membrosConvidam`) | `{horas?, usos?}` (até 720 horas e 100 usos; sem eles, sem limite) → `{codigo}`. Até 20 ativos por servidor |
+| `DELETE /api/servidores/{codigo}/convites/{convite}` | dono, admin | O link deixa de valer |
+| `GET /api/convites/{convite}` | todos | A prévia: `{nome, icone, membros}`, ou 404 `convite-invalido` (não existe, venceu ou gastou os usos) |
+| `POST /api/convites/{convite}` | — | Aceita: vira membro → `{servidor: <codigo>}`. Quem já é membro só recebe o código, mesmo com o convite gasto |
+
+As páginas `/s/<codigo>` (o servidor) e `/c/<convite>` (o convite) abrem a interface. Erros a mais: 403 `sem-permissao`, 404 `servidor-nao-existe`, `membro-nao-existe` e `convite-invalido`, 400 `nome-invalido`, `icone-invalido`, `pedido-invalido` e `confirme`, 409 `dono-nao-sai`, `servidores-demais`, `participa-demais`, `membros-demais` e `convites-demais`. A prévia e o aceite de convites têm um freio de 30 a cada 10 minutos por endereço.

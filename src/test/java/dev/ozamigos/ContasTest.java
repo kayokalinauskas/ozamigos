@@ -8,9 +8,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,11 +21,6 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
-import org.springframework.web.socket.TextMessage;
-import org.springframework.web.socket.WebSocketHttpHeaders;
-import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.client.standard.StandardWebSocketClient;
-import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -203,7 +195,7 @@ class ContasTest extends ComBanco {
     void naSalaQuemTemContaEntraComONomeDelaERecebeARetransmissao() throws Exception {
         UUID ana = novaConta("Ana da Conta");
         String sala = "conta" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
-        Cliente comConta = conectar(Sessoes.COOKIE + "=" + sessoes.criar(ana, "app"), "203.0.113.7");
+        ClienteDaSala comConta = ClienteDaSala.conectar(porta, Sessoes.COOKIE + "=" + sessoes.criar(ana, "app"), "203.0.113.7");
         comConta.enviar("{\"tipo\":\"entrar\",\"sala\":\"" + sala + "\",\"senha\":\"teste\",\"nome\":\"Nome Forjado\"}");
 
         JsonNode boasVindas = comConta.esperar("bem-vindo");
@@ -212,7 +204,7 @@ class ContasTest extends ComBanco {
         assertThat(boasVindas.path("retransmissao").isEmpty()).isFalse();
         assertThat(boasVindas.has("retransmissaoSoComConta")).isFalse();
 
-        Cliente convidado = conectar(null, "203.0.113.8");
+        ClienteDaSala convidado = ClienteDaSala.conectar(porta, null, "203.0.113.8");
         convidado.enviar("{\"tipo\":\"entrar\",\"sala\":\"" + sala + "\",\"senha\":\"teste\",\"nome\":\"Beto\"}");
         JsonNode doConvidado = convidado.esperar("bem-vindo");
         assertThat(doConvidado.has("retransmissao")).isFalse();
@@ -259,43 +251,5 @@ class ContasTest extends ComBanco {
             pedido.header("Origin", origem);
         }
         return http.send(pedido.build(), HttpResponse.BodyHandlers.ofString());
-    }
-
-    private Cliente conectar(String cookie, String endereco) throws Exception {
-        WebSocketHttpHeaders cabecalhos = new WebSocketHttpHeaders();
-        cabecalhos.add("CF-Connecting-IP", endereco);
-        if (cookie != null) {
-            cabecalhos.add("Cookie", cookie);
-        }
-        Cliente cliente = new Cliente();
-        cliente.sessao = new StandardWebSocketClient()
-                .execute(cliente, cabecalhos, URI.create("ws://localhost:" + porta + "/sinal"))
-                .get(5, TimeUnit.SECONDS);
-        return cliente;
-    }
-
-    private class Cliente extends TextWebSocketHandler {
-        final BlockingQueue<JsonNode> recebidas = new LinkedBlockingQueue<>();
-        WebSocketSession sessao;
-
-        @Override
-        protected void handleTextMessage(WebSocketSession s, TextMessage m) {
-            recebidas.add(json.readTree(m.getPayload()));
-        }
-
-        void enviar(String texto) throws Exception {
-            sessao.sendMessage(new TextMessage(texto));
-        }
-
-        JsonNode esperar(String tipo) throws InterruptedException {
-            long limite = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-            while (System.nanoTime() < limite) {
-                JsonNode m = recebidas.poll(100, TimeUnit.MILLISECONDS);
-                if (m != null && m.path("tipo").asString().equals(tipo)) {
-                    return m;
-                }
-            }
-            throw new AssertionError("não chegou mensagem do tipo " + tipo);
-        }
     }
 }

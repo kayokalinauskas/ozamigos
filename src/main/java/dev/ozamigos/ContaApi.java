@@ -185,7 +185,7 @@ public class ContaApi {
                 : erro(HttpStatus.SERVICE_UNAVAILABLE, "contas-indisponiveis");
     }
 
-    private static ResponseEntity<Map<String, String>> erro(HttpStatus status, String motivo) {
+    static ResponseEntity<Map<String, String>> erro(HttpStatus status, String motivo) {
         return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(Map.of("erro", motivo));
     }
 }
