@@ -43,6 +43,13 @@ public class Contas {
         }
     }
 
+    /** Essa conta do Google ou do Discord foi banida pelo dono do Ozamigos (Painel): não entra, nem numa conta nova. */
+    public static final class Banida extends RuntimeException {
+        Banida() {
+            super("banida", null, false, false);
+        }
+    }
+
     private static final Logger log = LoggerFactory.getLogger(Contas.class);
 
     /**
@@ -109,6 +116,9 @@ public class Contas {
     /** Null: outra entrada criou o usuário dessa identidade no meio desta; a segunda vez o acha. */
     private Entrada entrarUmaVez(String provedor, String idExterno, String nomeDoProvedor, String endereco) {
         return transacao.execute(estado -> {
+            if (banida(provedor, idExterno)) {
+                throw new Banida();
+            }
             Optional<Entrada> existente = banco.sql("""
                     update usuarios u set visto_em = now() from identidades i
                     where i.provedor = :provedor and i.id_externo = :id and u.id = i.usuario_id
@@ -148,6 +158,9 @@ public class Contas {
 
     /** Liga mais um provedor a quem já tem conta (Configurações → Conta). */
     public Ligacao ligar(UUID usuario, String provedor, String idExterno) {
+        if (banida(provedor, idExterno)) {
+            return Ligacao.DE_OUTRA_PESSOA; // banida: ninguém a usa, nem ligada a outra conta
+        }
         Optional<UUID> dono = banco.sql("select usuario_id from identidades where provedor = :p and id_externo = :e")
                 .param("p", provedor).param("e", idExterno).query(UUID.class).optional();
         if (dono.isPresent()) {
@@ -158,6 +171,11 @@ public class Contas {
                 on conflict do nothing""")
                 .param("p", provedor).param("e", idExterno).param("u", usuario).update();
         return inseridas == 1 ? Ligacao.LIGADA : Ligacao.JA_TEM_DESSE_PROVEDOR;
+    }
+
+    private boolean banida(String provedor, String idExterno) {
+        return banco.sql("select exists (select 1 from banimentos where provedor = :p and id_externo = :e)")
+                .param("p", provedor).param("e", idExterno).query(Boolean.class).single();
     }
 
     /** Tira um provedor da conta; o último não sai (a pessoa não teria mais como entrar: para isso, apagar a conta). */

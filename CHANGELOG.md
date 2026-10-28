@@ -10,6 +10,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ### Novo
 - **Painel do dono** (só no servidor e na interface, sem versão nova do app): as salas abertas com quem está nelas, o consumo da retransmissão, o banco, os servidores e as contas, em `/painel`. Só a conta do dono vê; para as outras, a página não existe.
+- **Ações no painel:** apagar qualquer servidor, banir e desbanir uma conta, com login recente obrigatório e registro de cada ação. Quem é banido sai das salas na hora e não entra mais com a mesma conta do Google ou do Discord.
 
 ### Corrigido
 - No celular, um nome de servidor longo e sem espaços alargava a sala e as configurações do servidor além da tela.

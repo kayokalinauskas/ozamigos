@@ -58,7 +58,10 @@ O login e a conta não passam pelo WebSocket: são páginas e uma API JSON no me
 | `DELETE /api/eu/provedores/{provedor}` | Desliga um provedor; o último não sai (409 `ultima`) |
 | `POST /api/conta/codigo` | `{codigo}`: o app troca o código de uso único pela sessão, no cookie da janela dele (400 `codigo-invalido`) |
 | `GET /api/fotos/{conta}?v=<versão>` | A foto (JPEG de 128 px), com cache de um ano |
-| `GET /api/painel` | Só para o dono (`OZAMIGOS_DONOS`): `{agora, salas: [{codigo, nome, pessoas: [{nome, conta, transmitindo, assistindo[]}]}], retransmissao: {ligada, lidoEm?, periodo?, hoje?, hojeVideo?, hojeVoz?, esgotada?, videoEsgotado?, porConta?, limites}, banco: {bytesDoBanco, bytesPorTabela, contas, ...}, servidores: [...], contas: [...]}`. Para os outros (com ou sem conta), 404 `nao-existe` |
+| `GET /api/painel` | Só para o dono (`OZAMIGOS_DONOS`): `{agora, salas: [{codigo, nome, pessoas: [{nome, conta, transmitindo, assistindo[]}]}], retransmissao: {ligada, lidoEm?, periodo?, hoje?, hojeVideo?, hojeVoz?, esgotada?, videoEsgotado?, porConta?, limites}, banco: {bytesDoBanco, bytesPorTabela, contas, ...}, servidores: [...], contas: [...]}`. Também `banimentos`, `registro` e `loginRecente`. Para os outros (com ou sem conta), 404 `nao-existe` |
+| `DELETE /api/painel/servidores/{codigo}` | Só o dono, com login recente: `{confirmar: true}` apaga o servidor de qualquer pessoa; quem está na sala sai com `servidor-apagado`. Erros: 403 `login-antigo` (a sessão tem mais de 10 minutos: entrar de novo), 404 `servidor-nao-existe` |
+| `POST /api/painel/contas/{id}/banir` | Só o dono, com login recente: `{confirmar: true}` bane a conta (as identidades do Google e do Discord dela), encerra as sessões e a tira das salas (`sem-conta`). O login dela volta com `erro-de-login=banida`. Erros: 400 `dono-nao-se-bane`, 404 `conta-nao-existe` |
+| `POST /api/painel/desbanir` | Só o dono, com login recente: `{provedor, idExterno}` desfaz o banimento dessa identidade e das outras da mesma conta (404 `nao-banida`) |
 
 Erros da API: `{erro: <motivo>}`, com 401 `sem-conta`, 503 `contas-indisponiveis`, 403 `origem`, 429 `muitas-tentativas`, 413 `grande-demais`, 400 `pedido-invalido` (corpo que não dá para ler).
 

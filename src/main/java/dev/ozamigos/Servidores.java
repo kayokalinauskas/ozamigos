@@ -266,6 +266,14 @@ public class Servidores {
         banco.sql("delete from servidores where id = :s").param("s", acesso.id()).update();
     }
 
+    /**
+     * Apaga o servidor pelo painel do dono do Ozamigos (PainelApi confere quem é), sem conferir papel nele. Devolve o
+     * nome, ou vazio se ele não existe.
+     */
+    public Optional<String> apagarPeloPainel(String codigo) {
+        return banco.sql("delete from servidores where codigo = :c returning nome").param("c", codigo).query(String.class).optional();
+    }
+
     /** Passa a posse a outro membro (só o dono); quem era dono vira admin. */
     public void passarPosse(String codigo, UUID usuario, UUID novoDono) {
         transacao.executeWithoutResult(estado -> {
