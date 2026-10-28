@@ -35,8 +35,9 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
   const stream = videos[id];
   const video = useRef<HTMLVideoElement>(null);
   const bloco = useRef<HTMLElement>(null);
-  // O volume de cada amigo fica guardado pelo nome: na próxima vez, ele já vem do jeito que você deixou.
-  const [volume, setVolume] = useNumeroLembrado(`ozamigos-volume:${nome}`, 100);
+  // O volume de cada amigo fica guardado (pela conta, ou pelo nome de um convidado): na próxima vez, ele já vem do
+  // jeito que você deixou.
+  const [volume, setVolume] = useNumeroLembrado(`ozamigos-volume:${cliente.chaveDe(id)}`, 100);
   const [mudo, setMudoLocal] = useState(() => silenciados.has(id));
   const setMudo = (valor: boolean) => {
     if (valor) silenciados.add(id);
@@ -130,7 +131,7 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
 
       <figcaption className="transmissao-topo">
         <span className="transmissao-nome">
-          <Avatar nome={nome} tamanho={24} />
+          <Avatar nome={nome} foto={cliente.fotoDe(id)} tamanho={24} />
           <span className="transmissao-nome-texto">{nome}</span>
           <span className="selo-ao-vivo">Ao vivo</span>
         </span>

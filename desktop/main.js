@@ -1117,6 +1117,86 @@ ipcMain.on('chamar-atencao', (evento) => {
   janela.flashFrame(true);
 });
 
+// ===== Login pelo navegador do sistema (contas, 1.3.0 em diante) =====
+
+/*
+ * O Google não deixa entrar dentro de uma janela embutida (disallowed_useragent). Como recomenda a RFC 8252 para apps
+ * nativos, o app abre uma porta só no 127.0.0.1 e o navegador do sistema faz o login; no fim, o servidor manda o
+ * navegador para essa porta com um código de uso único, e a página troca o código pela sessão (POST /api/conta/codigo),
+ * no cookie desta janela. O estado sorteado aqui garante que a volta é do login que este app começou: um link de login
+ * forjado por outra pessoa não chega a nada. Ligar mais um provedor é igual, com o código de ligação que a página pediu.
+ * Funciona no instalado e na portátil (não depende do ozamigos://).
+ */
+const PROVEDORES_DE_LOGIN = new Set(['google', 'discord']);
+const ESPERA_DO_LOGIN_MS = 5 * 60_000;
+const CODIGO_DO_LOGIN = /^[A-Za-z0-9_-]{43}$/;
+let loginEmAndamento = null; // { cancelar(motivo) }, enquanto o navegador não volta
+
+/** Resolve { codigo }, { ligou: provedor } ou { erro: motivo }. Só um login por vez: um novo cancela o anterior. */
+function loginPeloNavegador(provedor, ligacao) {
+  loginEmAndamento?.cancelar('outro-login');
+  const http = require('node:http');
+  const estado = require('node:crypto').randomBytes(24).toString('base64url');
+  return new Promise((resolver) => {
+    let terminou = false;
+    const local = http.createServer((pedido, resposta) => {
+      const url = new URL(pedido.url ?? '/', 'http://127.0.0.1');
+      if (pedido.method !== 'GET' || url.pathname !== '/login' || url.searchParams.get('estado') !== estado) {
+        resposta.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Não encontrado');
+        return;
+      }
+      const codigo = url.searchParams.get('codigo');
+      const ligou = url.searchParams.get('ligou');
+      const erro = url.searchParams.get('erro');
+      const resultado =
+        codigo && CODIGO_DO_LOGIN.test(codigo) ? { codigo }
+        : ligou && PROVEDORES_DE_LOGIN.has(ligou) ? { ligou }
+        : { erro: erro && /^[a-z-]{1,40}$/.test(erro) ? erro : 'recusado' };
+      resposta.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'close' });
+      resposta.end(paginaDaVoltaDoLogin(!resultado.erro));
+      terminar(resultado);
+    });
+    const prazo = setTimeout(() => terminar({ erro: 'tempo' }), ESPERA_DO_LOGIN_MS);
+    function terminar(resultado) {
+      if (terminou) return;
+      terminou = true;
+      clearTimeout(prazo);
+      local.close();
+      loginEmAndamento = null;
+      if (!resultado.erro) mostrarJanela(); // a pessoa está no navegador: o app volta para a frente
+      resolver(resultado);
+    }
+    loginEmAndamento = { cancelar: (motivo) => terminar({ erro: motivo }) };
+    local.on('error', () => terminar({ erro: 'porta' }));
+    local.listen(0, '127.0.0.1', () => {
+      const destino = new URL(`/conta/${ligacao ? 'ligar' : 'entrar'}/${provedor}`, origemDoServidor());
+      destino.searchParams.set('app', String(local.address().port));
+      destino.searchParams.set('estado', estado);
+      if (ligacao) destino.searchParams.set('ligacao', ligacao);
+      shell.openExternal(destino.toString()).catch(() => terminar({ erro: 'navegador' }));
+    });
+  });
+}
+
+/** O que o navegador mostra no fim: a pessoa volta para o app (que já veio para a frente). */
+function paginaDaVoltaDoLogin(deuCerto) {
+  const titulo = deuCerto ? 'Pronto!' : 'O login não terminou';
+  const texto = deuCerto
+    ? 'Pode fechar esta aba e voltar para o Ozamigos.'
+    : 'Volte para o Ozamigos e tente de novo. Esta aba pode ser fechada.';
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ozamigos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0e0a;color:#e8ede4;font:16px/1.5 system-ui,sans-serif;text-align:center}
+main{padding:24px}h1{color:#b6f24a;font-size:24px;margin:0 0 8px}p{margin:0;color:#a9b3a3}</style></head>
+<body><main><h1>${titulo}</h1><p>${texto}</p></main></body></html>`;
+}
+
+ipcMain.handle('login-pelo-navegador', (evento, provedor, ligacao) => {
+  if (!vindoDaPagina(evento) || !PROVEDORES_DE_LOGIN.has(provedor)) return { erro: 'pedido-invalido' };
+  if (ligacao !== undefined && !CODIGO_DO_LOGIN.test(String(ligacao))) return { erro: 'pedido-invalido' };
+  return loginPeloNavegador(provedor, ligacao === undefined ? undefined : String(ligacao));
+});
+
 // ===== Menu (sem barra de título, ele não aparece: fica pelos atalhos de teclado) =====
 
 function configurarMenu() {

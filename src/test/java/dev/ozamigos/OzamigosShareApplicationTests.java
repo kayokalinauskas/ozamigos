@@ -38,6 +38,15 @@ class OzamigosShareApplicationTests {
         assertThat(get("/sinal").statusCode()).isEqualTo(400);
     }
 
+    @Test
+    void semBancoTodosSaoConvidadosESemLogin() throws Exception {
+        HttpResponse<String> eu = get("/api/eu");
+
+        assertThat(eu.statusCode()).isEqualTo(200);
+        assertThat(eu.body()).isEqualTo("{\"login\":[],\"conta\":null}");
+        assertThat(eu.headers().firstValue("Cache-Control").orElseThrow()).contains("no-store");
+    }
+
     private HttpResponse<String> get(String caminho) throws Exception {
         try (HttpClient http = HttpClient.newHttpClient()) {
             return http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + porta + caminho)).build(),

@@ -13,12 +13,15 @@ Ozamigos: voz e transmissão de jogos entre amigos, **P2P por WebRTC**. Três pe
 | `desktop/` | Electron 44 + auxiliares C# (.NET 10) em `desktop/som/` e `desktop/captura/` | App Windows: carrega a interface **do servidor** (`loadURL`) e acrescenta seletor, captura própria, som do PC sem eco, atalhos globais, bandeja e atualização |
 | `site/` | HTML, CSS e JS puros | Site de apresentação (PT e EN), no GitHub Pages |
 
-O deploy é uma imagem Docker (`Dockerfile`: Node monta `web/`, o JDK compila, o JRE roda). Hoje roda no Render, que publica a cada push na `main`.
+O deploy é uma imagem Docker (`Dockerfile`: Node monta `web/`, o JDK compila, o JRE roda). Hoje roda no Render, que publica a cada push na `main`. O `compose.yaml` sobe a mesma imagem com um Postgres local.
+
+**Em andamento:** contas (Google e Discord), banco e servidores salvos, em fases. O plano, as decisões do dono e o que fica de fora estão em `docs/plano-contas.md`; leia antes de mexer em login, banco ou servidores.
 
 ## Regras (siga sempre)
 
 - **Idioma:** código, identificadores, comentários, commits e textos em **português do Brasil**. Comentários explicam o *porquê*.
 - **Git:** `git add` com **caminhos explícitos**, nunca `-A` ou `.`. Push só quando pedirem. Commits com o e-mail noreply do GitHub.
+- **Mudanças grandes em branch, não na `main`** (decisão do dono, 27/10/2026): cada push na `main` vai para o ar no Render, e nada pela metade pode ir. As contas vivem no branch `contas`, com um PR em rascunho para a `main`; partes menores entram no `contas` por PRs próprios, e o `contas` só entra na `main` com uma fase inteira pronta para quem usa (a 0 e a 1 juntas). Correções pequenas continuam direto na `main`; traga-as para o `contas` com merge da `main`.
 - **Terminal do dono:** PowerShell 5.1, **sem `&&`**. Nas instruções para ele, use `;` ou um comando por linha.
 - **Testes:** poucos e essenciais, um por comportamento que importa. Rode `.\testar.ps1` antes de commitar. O resto se confere rodando o app (veja "Como testar").
 - **Porta 8080:** o dono costuma ter outra coisa nela. Teste na **8090** e **não mate processos que você não abriu** (nem o Ozamigos instalado).
@@ -49,6 +52,7 @@ $env:OZAMIGOS_SENHA = "teste"; $env:PORT = "8090"
 .\mvnw.cmd spring-boot:run                         # servidor local
 .\mvnw.cmd test                                    # testes do servidor
 .\testar.ps1                                       # tudo: servidor, interface, áudio, e2e (8090) e app; -Rapido pula navegadores e app
+docker compose up --build                          # servidor + Postgres local, em http://localhost:8090 (senha teste)
 cd desktop; npm install; npm run som; npm run captura; npm start   # app em desenvolvimento (veja o aviso em "Como testar")
 cd desktop; npm run instalador                     # instalador e portátil em desktop\dist
 ```
@@ -67,13 +71,16 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 | `YOUTUBE_API_KEY` | não | API de dados do YouTube v3, para as prévias. Sem ela, oEmbed e página do vídeo, que às vezes recusam IPs de datacenter |
 | `OZAMIGOS_TURN_ID`, `OZAMIGOS_TURN_TOKEN` | não | Chave do TURN da Cloudflare (*Realtime → TURN Server*) |
 | `OZAMIGOS_CLOUDFLARE_CONTA`, `OZAMIGOS_CLOUDFLARE_LEITURA` | não | Account ID e token só com *Account Analytics: Read*, para ler o consumo. **A retransmissão só liga com as quatro** |
+| `OZAMIGOS_BANCO_URL`, `OZAMIGOS_BANCO_USUARIO`, `OZAMIGOS_BANCO_SENHA` | não | O Postgres (`jdbc:postgresql://...`). Sem a URL, o servidor sobe sem banco |
+| `OZAMIGOS_GOOGLE_ID`, `OZAMIGOS_GOOGLE_SEGREDO`, `OZAMIGOS_DISCORD_ID`, `OZAMIGOS_DISCORD_SEGREDO` | não | Os clientes OAuth do login. Cada provedor só aparece com os dois; o login só funciona com o banco |
+| `OZAMIGOS_GOOGLE_EMISSOR` | não | **Só para testes:** troca o Google por um emissor OpenID Connect falso (mock-oauth2-server) |
 
 ## Servidor (`src/main/java/dev/ozamigos/`)
 
 - **`Salas`:** estado em memória, métodos `synchronized`. Cada sala tem `participantes`, `nomes` e `plateias` (quem transmite → quem assiste). **Ter chave em `plateias` é o que significa "está transmitindo".** `LIMITE_POR_SALA = 8`: o gargalo é o upload de quem transmite (~4 Mbps por pessoa assistindo em 720p · 30).
 - **`SinalizacaoHandler`:**
   - **a senha é conferida antes de tudo**; errada → `senha-errada` e a conexão fecha. `SenhaDoGrupo` compara pelo resumo SHA-256 (comparar as senhas direto vazava o tamanho pelo tempo);
-  - **freio de senhas** (`TentativasDeSenha`): 10 erros do mesmo endereço em 5 min → `muitas-tentativas`. O endereço é o `CF-Connecting-IP` (a Cloudflare na frente do Render o escreve; o visitante não forja), senão o remoto. **Não volte para o `X-Forwarded-For`** (forjável; o teste `forjarOXForwardedForNaoEscapaDoFreioDeSenhas` cobre). Se o servidor sair de trás da Cloudflare, troque a regra;
+  - **freio de senhas** (`TentativasDeSenha`): 10 erros do mesmo endereço em 5 min → `muitas-tentativas`. O endereço é o `CF-Connecting-IP` (a Cloudflare na frente do Render o escreve; o visitante não forja), senão o remoto: a regra está em `Enderecos`, a mesma para o WebSocket e para as páginas (os freios do login). **Não volte para o `X-Forwarded-For`** (forjável; o teste `forjarOXForwardedForNaoEscapaDoFreioDeSenhas` cobre). Se o servidor sair de trás da Cloudflare, troque a regra;
   - o `entrou` vai só para quem já estava, tirado junto com a lista do `bem-vindo` dentro do `synchronized` (`Entrada.avisar`); fora dele, duas entradas juntas se duplicavam;
   - o servidor **carimba `de`** em tudo o que repassa e só repassa dentro da mesma sala; envios por `ConcurrentWebSocketSessionDecorator`;
   - **chat:** repassa para todos (inclusive quem mandou, como confirmação) e **não guarda nada**. Texto limpo por `textoDoChat` (sem controle nem direção de texto, até 500), freio de 5 a cada 3 s. **O texto do chat nunca vai para o log.** **O nome da pessoa vai** no log de entrada e saída e no do consumo da retransmissão (pedido do dono, 26/10/2026; a política de privacidade fala dele), já limpo por `nomeLimpo` (sem quebra de linha, ninguém forja linhas no log).
@@ -84,10 +91,25 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - Cada grupo tem uma sala só, de chave `grupo:<nome>`. **O nome do grupo não vai para o log.**
   - `/ozamigos` é o grupo fixo com uma sala só (`SALA_FIXA` em `codigoDaSala.ts`), com a senha do servidor; `/?sala=ozamigos` cai na mesma.
   - `PaginaDoGrupo` vem antes do WebSocket e exclui `sinal`, `actuator` e `assets` do padrão.
+- **Banco** (`Banco`, `VidaDoBanco`, migrações em `src/main/resources/db/migracao/`): PostgreSQL, **opcional** (sem `OZAMIGOS_BANCO_URL`, nada dele existe). No Render, o Supabase grátis em East US (a região do Render), pelo *Session pooler* (a conexão direta do Supabase grátis é só IPv6).
+  - **O banco fora do ar nunca derruba as salas:** a fonte de dados é montada pelo `Banco` (o `DataSourceAutoConfiguration` fica excluído no `application.properties`) e não conecta ao nascer; as migrações do Flyway rodam pelo `VidaDoBanco`, numa thread própria, de novo a cada 30 s até dar certo. **Não troque pelo Flyway do Spring**: com o banco fora, o servidor não subiria. O que depende do banco confere `VidaDoBanco.pronto()`.
+  - A saúde (`/actuator/health`) **não inclui o banco** (`management.health.db.enabled=false`): senão, o Render reiniciaria o servidor e o app ficaria em "Conectando..." com o banco fora.
+  - Um sinal de vida por dia (`sinais_de_vida`): o Supabase grátis pausa o projeto depois de 7 dias sem uso.
+  - **Migração aplicada nunca muda**: corrija com uma nova (`V2__...sql`). Acesso pelo `JdbcClient`, com SQL escrito à mão.
+  - Backup semanal criptografado pelo `backup.yml` (o repositório é público). Testes: `BancoTest`, num Postgres de verdade pelo Testcontainers (precisa do Docker ligado; sem ele, pula).
+- **Contas** (`Contas`, `Sessoes`, `Login`, `AoEntrar`, `ContaApi`, `FotosDoPerfil`, `CodigosDoApp`; migração `V2__contas.sql`; HTTP em `docs/protocolo.md`): login com o Google e o Discord.
+  - **O mínimo de dados:** do provedor, só o id da conta, o nome e a foto. Os escopos (`openid profile`, `identify`) **não pedem o e-mail**; não peça sem o dono decidir (e a privacidade mudar junto). Sem senha, sem IP no banco.
+  - **O Spring Security só faz o fluxo OAuth** (`SegurancaConfig`: estado, PKCE, token do Google conferido). Todo o resto fica `permitAll`, sem o CSRF e o Cache-Control dele (o `CacheConfig` vale), e a autenticação do Spring não fica na sessão HTTP. **A sessão é do Ozamigos** (`Sessoes`, no banco): cookie `__Host-ozamigos` com 256 bits aleatórios, o banco guarda só o SHA-256, 60 dias desde o último uso. O `AoEntrar` descarta a sessão HTTP do login (com o token do provedor): **nenhum token do Google ou do Discord é guardado**.
+  - **Banco fora do ar = todo mundo convidado**, nunca um erro na entrada (`Sessoes.conta` devolve vazio), e nunca uma espera longa: a conexão tem prazo de 3 s (`Banco`), e uma falha deixa o banco de fora por 30 s (`Contas.bancoFalhou`), sem tentar. A entrada numa sala com conta faz uma consulta só. A sala, o grupo fixo e os grupos criados na hora não dependem de conta.
+  - **Ações da API só com o `Origin` do servidor** (`ProtecaoDaApi`, contra CSRF; o cookie Lax é a outra camada). `voltar` só aceita caminhos deste servidor (contra redirecionamento aberto).
+  - **Login do app pelo navegador do sistema** (RFC 8252; o Google bloqueia login em janela embutida): o app abre uma porta no `127.0.0.1`, o servidor manda o navegador para lá com um código de uso único (2 min, só na memória) e a página do app o troca pela sessão (`POST /api/conta/codigo`). Um link de login forjado não serve a ninguém: o código vai para o PC de quem logou, e o app confere o `estado` que ele sorteou.
+  - **Na sala:** com conta, o nome é o dela (o que a página manda é ignorado), e `bem-vindo`, `outros` e `entrou` levam `conta` e `foto`. A foto é baixada só dos servidores de imagens do provedor (`FotosDoPerfil.HOSTS`) e reduzida (128 px, até 16 KB); a sala a vê por `/api/fotos`, nunca pelo provedor.
+  - O log diz o id da conta no login, nunca token nem id externo. Testes: `ContasTest` (Postgres de verdade; a volta do provedor simulada no `AoEntrar`).
 - **Retransmissão** (`Retransmissao`, `CloudflareHttp`): TURN da Cloudflare para quem não conecta direto. **A Cloudflare não tem teto de gastos; o teto é desta classe, que falha fechada** (sem ler o consumo há 15 min, ninguém recebe credencial nova).
   - **Duas credenciais por pessoa, uma para a voz (com as imagens do chat) e outra para o vídeo** (26/10/2026, pedido do dono): a Cloudflare mede cada uma, e quem gasta muito perde só o vídeo e continua conversando, com um aviso dizendo que foi o uso dela (`avisarDoLimiteDoVideo` em `cliente.ts`). No `bem-vindo`, `retransmissao` (vídeo, o nome de antes: a página aberta antes do deploy a usa para tudo) e `retransmissaoDaVoz`; na interface, `novaPeerConnection('voz' | 'video')`. Válidas por 12 h, renovadas a cada 6 h (`retransmissao`), canceladas 2 min depois de a pessoa sair.
   - **O dono tem cartão cadastrado na Cloudflare (26/10/2026): passar da franquia seria cobrado.** Limites: vídeo, 10 GB por endereço no dia; voz, 3 GB por endereço no dia (passar disso não é conversa: corta as duas); no total, o vídeo para em 45 GB no dia ou 450 GB em 31 dias, e tudo para em 50 GB no dia ou 500 GB em 31 dias (metade da franquia, para a folga cobrir o que escapa entre as leituras); 10 pedidos de credenciais por endereço a cada 10 min. O log diz o consumo (vídeo e voz) de hora em hora e a cada 1 GB a mais no dia, junto com quanto cada pessoa usou hoje (`Retransmissão de Kayo (1e0331af) hoje: vídeo 2.4 GB, voz 12 MB`), e os cortes dizem o nome de quem passou do limite. Consumo lido a cada 5 min pelo GraphQL (`egressBytes`), **também logo ao subir e com a sala vazia** enquanto alguma credencial emitida ainda vale. Credencial usada hoje que este servidor não emitiu (de antes de um reinício) é cancelada; cancelamento que falha é tentado de novo a cada 30 s. **A leitura nunca bloqueia a entrada** (roda na thread da retransmissão, com prazo de 30 s): quem entra antes da primeira leitura recebe a credencial depois, pela mensagem `retransmissao`. Lida no meio da entrada, a primeira pessoa depois de um deploy esperava a consulta, que passou de 6 s no servidor recém-acordado (26/10/2026).
-  - **Ainda desligada no Render** e nunca conferida contra a Cloudflare de verdade (passo a passo no `TODO.md`). O endereço não vai para o log. Testes: `RetransmissaoTest`, com uma Cloudflare falsa.
+  - **Ligada no Render desde 26/10/2026.** O endereço não vai para o log. Testes: `RetransmissaoTest`, com uma Cloudflare falsa.
+  - **Só quem entrou com conta recebe credenciais** (decisão do dono, 27/10/2026). Convidado recebe `retransmissaoSoComConta` no `bem-vindo`, para a página dizer que entrar com a conta resolve. Os limites "por endereço" valem também por conta (`Pessoa.chaves`): trocar de rede não renova o limite da pessoa.
 - **Prévias de links** (`PreviasDeLinks`): o servidor busca a prévia do primeiro link de vídeo ou canal e manda `previa` para a sala; ninguém da sala acessa o site.
   - **Lista fechada, contra SSRF:** `reconhecer` só aceita os caminhos conhecidos de cada site; redirecionamentos seguidos à mão só para `PAGINAS`, imagens só de `IMAGENS`. **Nunca busque um endereço vindo do chat sem passar por essa lista.**
   - Miniatura reduzida no servidor (até 400 px, JPEG ≤ 48 KB, `data:`), lida já reduzida (`setSourceSubsampling`); acima de 40 MP nem abre. WebP pelo `imageio-webp`.
@@ -100,6 +122,8 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 ### Núcleo
 
 - `cliente.ts` é o núcleo, sem React: um *store* (`inscrever`/`ler`) lido por `useSyncExternalStore`. Os componentes só leem e chamam ações.
+- **Botões de login com os logos oficiais** (`web/public/marcas`, `MARCA` em `Conta.tsx`): o do Google segue a diretriz dele (tema escuro, Google Sans 500, "Continuar com o Google"); o do Discord, Blurple com o símbolo branco. **Não redesenhe, não mude as cores nem o texto do Google**: a aprovação do app no Google depende disso.
+- `conta.ts` é o *store* da conta (`useConta`): `/api/eu` ao abrir, e as ações (entrar, ligar, desligar, renomear, sair, apagar). **Quem manda é o servidor:** a sessão vai no cookie `HttpOnly` (a página nem o enxerga), e na sala o nome e a foto vêm do `bem-vindo` (`minhaConta`, `minhaFoto`). No navegador, o login sai da página e volta (`?erro-de-login=` vira aviso e some do endereço; `voltouDoLogin` evita que a volta pareça um convite); no app, vai pelo navegador do sistema (`ponte.conta`, veja "Login pelo navegador"). App antigo sem a ponte: sem os botões.
 - `conexao/` tem as peças sem estado da sala: `protocolo.ts`, `sinalizacao.ts` (WebSocket, fila e esperas da reconexão), `captura.ts`, `medidor.ts`, `relatorio.ts`, `webrtc.ts` (STUN, Opus no SDP, preferência de codec) e `codigoDaSala.ts`.
 - O `localStorage` está sempre em `try/catch` (`armazenamento.ts`).
 
@@ -140,6 +164,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 
 ### Sala
 
+- **Conta na sala:** `chaveDe(id)` reconhece a pessoa (`conta:<id>`, ou o nome de um convidado): é a chave da volta depois de uma queda (`saidas`), do freio de chamar, e dos volumes e do silenciado guardados (os de convidado continuam pelo nome, como antes). Mudou a conta com a sala aberta (login no app, sair, apagar): `renovarConexao()` abre outra conexão com o servidor, que lê a sessão nova (as conexões com os amigos são refeitas). **O nome novo vale só na próxima entrada**: refazer a conexão no meio da conversa cortava a voz de todos. Convidado com a retransmissão só para contas: os avisos de "não conectou" dizem que entrar com a conta resolve (`dicaDaReserva`). **Sem selo de "convidado"** na lista: com quase todos convidados no começo, seria ruído.
 - **Reconexão** (`perderConexao` → `agendarReconexao` → `conectar`):
   - queda pelo `onclose` ou pelo silêncio: `ping` a cada 30 s, e 70 s sem mensagem (`SILENCIO_MAXIMO`) derrubam; com a página voltando a ficar visível depois de 35 s, já conta como caída;
   - esperas de 1, 2, 5 e depois 10 s, para sempre; o evento `online` força uma tentativa;
@@ -201,6 +226,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - Sem o auxiliar (Windows antigo), vai o som do sistema inteiro (`audio: 'loopback'`).
   - Os COM também são chamados **por índice da vtable** (`Com.Metodo(obj, i)`), para o `.exe` poder ser *trimmed*.
 - **Relógio fino** (`honrarRelogioFino`, `OzamigosSom.exe --relogio <pid>`): marca o processo principal com `PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION`. Sem isso, com a janela tapada ou minimizada, o Windows 11 tirava o relógio fino e a captura do Chromium caía para ~21 fps. **Não tire sem medir de novo** (a bancada: minimizar o app por 40 s capturando).
+- **Login pelo navegador** (1.3.0; `loginPeloNavegador` no `main.js`, RFC 8252): o Google não deixa entrar em janela embutida. O app abre uma porta só no `127.0.0.1` (porta livre), sorteia um `estado` e abre `/conta/entrar/{provedor}?app=<porta>&estado=` no navegador do sistema; a volta só vale com o `estado` certo (senão 404), e a página troca o `codigo` pela sessão (`POST /api/conta/codigo`), no cookie da janela. Ligar outro provedor é igual, com `ligacao` (o código que a página pede em `POST /api/eu/ligacao`). Um login por vez, 5 min de prazo; dando certo, a janela vem para a frente. Funciona na portátil. **Não troque por login dentro da janela** (o Google recusa) nem pelo `ozamigos://` (a portátil não se registra). O teste no app de verdade troca o `shell.openExternal` por um "navegador" que segue o login.
 - **Bandeja:** o X só esconde a janela (desliga em Configurações → Geral). **`saindo` é o que deixa a janela fechar** (`before-quit`, `session-end`): sem ele, a atualização e o desligamento do Windows ficam presos.
 - **Não lidas:** número sobre o ícone da barra de tarefas (`setOverlayIcon`) e da bandeja (`marcaDoChat.js`, que precisa estar nos `files` do `package.json`), e o ícone pisca com a janela fora de foco.
 - **Atualização automática** (`electron-updater`): ao abrir, confere o `latest.yml` da última release (6 s de prazo), mostra `atualizando.html`, baixa e `quitAndInstall(true, true)`. Só no app instalado. **Não feche o aviso antes de criar a janela principal** (o app encerraria). O app não é assinado: **não configure `publisherName`**, ou toda atualização falha.
@@ -219,6 +245,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 - **Electron em teste:** **nunca abra o app do repositório com a pasta de dados do dono** (é a mesma do app instalado: fecharia na hora, ou gravaria por cima de nome, senha e posição). Abra por um script que troca `userData` antes de `require('<repo>/desktop/main.js')`, e troque também o AppUserModelID (`dev.ozamigos.teste`); apague o `Electron.lnk` que sobrar. Controle pelo CDP (`--remote-debugging-port=9333`).
 - **Medir a transmissão:** `getStats` a cada segundo nas duas pontas. Para ver o `encoderImplementation`, a página precisa de um microfone em uso. **Não use `--use-fake-ui-for-media-stream` ao medir captura** (troca a tela por uma falsa de 20 fps).
 - **Som sem eco:** tons diferentes em processos diferentes (`Media.SoundPlayer` no PowerShell); para simular um app de chamada, uma cópia renomeada do `powershell.exe`. Silencie a aba de teste, senão o som recebido volta para a transmissão.
+- **Contas:** o `contas.e2e.ts` sobe em Docker um Postgres e o "Google" falso (mock-oauth2-server, `OZAMIGOS_GOOGLE_EMISSOR`) e um servidor só dele na **8092**; sem o Docker, pula. Para olhar à mão: `docker compose up -d banco`, o mock (`docker run --rm -p 127.0.0.1:8091:8080 -e JSON_CONFIG='{"interactiveLogin":true}' ghcr.io/navikt/mock-oauth2-server:2.1.10`) e o servidor com as variáveis do banco e `OZAMIGOS_GOOGLE_ID`/`_SEGREDO`/`_EMISSOR=http://localhost:8091/default`. O login do app (porta no `127.0.0.1`) tem fumaça própria no `desktop/teste/app.e2e.js`.
 - **Simular o deploy:** clone limpo, `npm ci` e `npm run build` em `web`, `mvnw -DskipTests package`, jar com `PORT=10000`. O WebSocket dá 101 com a mesma origem e 403 com outra.
 
 ## Imagens

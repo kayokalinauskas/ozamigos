@@ -276,6 +276,17 @@ code {
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
 }
 
+.avatar.com-foto {
+  overflow: hidden;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
 .avatar.ao-vivo {
   box-shadow:
     0 0 0 2px var(--painel),
@@ -388,6 +399,147 @@ code {
 
 .ajuda-erro {
   color: #ff8297;
+}
+
+/* ===== Conta (login pelo Google ou pelo Discord) ===== */
+
+.botoes-de-login {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.botao-login {
+  display: inline-flex;
+  flex: 1 1 200px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--raio-pequeno);
+  font: 500 14px/20px 'Google Sans', 'Inter Variable', system-ui, sans-serif;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.botao-login span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.botao-login img {
+  flex: none;
+}
+
+.botao-login:not(:disabled):hover {
+  filter: brightness(1.15);
+}
+
+.botao-login:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* A diretriz do botão do Google, tema escuro (Conta.tsx). */
+.botao-login-google {
+  background: #131314;
+  border-color: #8e918f;
+  color: #e3e3e3;
+}
+
+.botao-login-discord {
+  background: #5865f2;
+  color: #fff;
+}
+
+.botoes-de-login .ajuda {
+  flex-basis: 100%;
+}
+
+.conta-convite {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.separador-ou {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--texto-3);
+  font-size: 12px;
+}
+
+.separador-ou::before,
+.separador-ou::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--borda);
+}
+
+.conta-na-entrada {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-pequeno);
+  background: var(--painel-2);
+}
+
+.conta-na-entrada-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.conta-na-entrada-texto small {
+  color: var(--texto-2);
+  font-size: 12px;
+}
+
+.conta-na-entrada-texto strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conta-perfil {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+}
+
+.conta-perfil .campo {
+  flex: 1;
+  min-width: 0;
+}
+
+.conta-perfil-nome {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.conta-perfil-nome input {
+  min-width: 0;
+}
+
+.formas-de-entrar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .erro {

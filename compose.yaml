@@ -1,0 +1,39 @@
+# O Ozamigos inteiro no seu PC, com o banco: `docker compose up --build`, e a página em http://localhost:8090
+# (a 8080 fica livre). O deploy no Render usa o mesmo Dockerfile, com o banco do Supabase (docs/plano-contas.md).
+#
+# As senhas daqui são só deste banco local, que não sai do PC. As de verdade ficam nas variáveis do Render.
+# Para começar o banco do zero: `docker compose down -v`.
+name: ozamigos
+
+services:
+  banco:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ozamigos
+      POSTGRES_USER: ozamigos
+      POSTGRES_PASSWORD: ozamigos-local
+    volumes:
+      - banco:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:5433:5432" # para olhar o banco do PC (5433: a 5432 pode ter outro Postgres)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ozamigos -d ozamigos"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  ozamigos:
+    build: .
+    depends_on:
+      banco:
+        condition: service_healthy
+    environment:
+      OZAMIGOS_SENHA: teste
+      OZAMIGOS_BANCO_URL: jdbc:postgresql://banco:5432/ozamigos
+      OZAMIGOS_BANCO_USUARIO: ozamigos
+      OZAMIGOS_BANCO_SENHA: ozamigos-local
+    ports:
+      - "127.0.0.1:8090:8080"
+
+volumes:
+  banco:

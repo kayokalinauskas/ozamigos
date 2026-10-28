@@ -140,18 +140,18 @@ class SinalizacaoTest {
     }
 
     @Test
-    void oBemVindoTrazUmaRetransmissaoParaOVideoEOutraParaAVoz() throws Exception {
-        // De um endereço só dele: os outros testes, todos de localhost, gastam os pedidos de credenciais da janela.
+    void oConvidadoNaoRecebeARetransmissaoEFicaSabendoQueAContaResolve() throws Exception {
+        // Só quem entrou com conta recebe (decisão do dono, 27/10/2026); com conta, o ContasTest confere.
         Cliente ana = conectar("cf-" + sala, "198.51.100.1");
         ana.enviar("{\"tipo\":\"entrar\",\"sala\":\"" + sala + "\",\"senha\":\"teste\",\"nome\":\"Ana\"}");
 
         JsonNode boasVindas = ana.esperar("bem-vindo");
 
-        String video = boasVindas.path("retransmissao").path(0).path("username").asString();
-        String voz = boasVindas.path("retransmissaoDaVoz").path(0).path("username").asString();
-        assertThat(video).startsWith("u");
-        assertThat(voz).startsWith("u").isNotEqualTo(video);
-        assertThat(boasVindas.has("limiteDoVideo")).isFalse();
+        assertThat(boasVindas.has("retransmissao")).isFalse();
+        assertThat(boasVindas.has("retransmissaoDaVoz")).isFalse();
+        assertThat(boasVindas.path("retransmissaoSoComConta").asBoolean()).isTrue();
+        assertThat(boasVindas.path("nome").asString()).isEqualTo("Ana");
+        assertThat(boasVindas.has("conta")).isFalse();
     }
 
     @Test

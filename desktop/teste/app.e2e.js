@@ -137,6 +137,40 @@ test('os atalhos de voz chegam à página pelo auxiliar do app, que lê as tecla
   }
 });
 
+test('o login pelo navegador espera a volta só no 127.0.0.1, e só com o estado que o app sorteou', async () => {
+  const { servidor, endereco } = await servidorDeTeste();
+  const aberto = await abrirApp(endereco);
+  try {
+    await expect(aberto.janela.getByRole('heading', { name: 'servidor de teste' })).toBeVisible({ timeout: PAGINA_DO_SERVIDOR });
+    // O navegador do sistema não abre no teste: o app guarda o endereço, e o teste faz a volta.
+    await aberto.app.evaluate(({ shell }) => {
+      globalThis.abertos = [];
+      shell.openExternal = async (url) => {
+        globalThis.abertos.push(url);
+      };
+    });
+    const login = aberto.janela.evaluate(() => window.ozamigos.conta.loginPeloNavegador('google'));
+    await expect.poll(() => aberto.app.evaluate(() => globalThis.abertos.length)).toBe(1);
+    const inicio = new URL((await aberto.app.evaluate(() => globalThis.abertos))[0]);
+    expect(`${inicio.origin}${inicio.pathname}`).toBe(`${endereco}/conta/entrar/google`);
+    const porta = inicio.searchParams.get('app');
+    const estado = inicio.searchParams.get('estado');
+    expect(estado).toMatch(/^[A-Za-z0-9_-]{32}$/);
+
+    // Uma volta forjada, sem o estado certo: não serve, e o app continua esperando a de verdade.
+    const codigo = 'c'.repeat(43);
+    expect((await fetch(`http://127.0.0.1:${porta}/login?codigo=${codigo}&estado=forjado`)).status).toBe(404);
+    const volta = await fetch(`http://127.0.0.1:${porta}/login?codigo=${codigo}&estado=${estado}`);
+    expect(await volta.text()).toContain('Pronto!');
+    expect(await login).toEqual({ codigo });
+
+    expect(await aberto.janela.evaluate(() => window.ozamigos.conta.loginPeloNavegador('outro'))).toEqual({ erro: 'pedido-invalido' });
+  } finally {
+    await fechar(aberto);
+    servidor.close();
+  }
+});
+
 test('a captura do app manda à página os quadros prontos da janela escolhida, e avisa quando a janela fecha', async () => {
   test.skip(Boolean(process.env.CI), 'o runner do GitHub não tem placa de vídeo para reduzir e converter os quadros');
   // A janela a transmitir: um formulário do PowerShell, com um título que só ela tem.

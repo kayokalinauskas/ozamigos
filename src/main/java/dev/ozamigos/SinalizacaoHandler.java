@@ -1,7 +1,6 @@
 package dev.ozamigos;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
@@ -12,7 +11,6 @@ import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -123,8 +121,14 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
      */
     private void entrar(WebSocketSession sessao, String id, String codigo, String senha, String nome,
             String fichaAnterior, String grupo, boolean criar) throws IOException {
+        // Com conta (o cookie da sessão, lido na abertura do WebSocket: ContaNoWebSocket), o nome é o dela, e não o
+        // que a página mandou: ninguém entra com o nome de outra pessoa que tem conta.
+        Salas.Conta conta = (Salas.Conta) sessao.getAttributes().get(ContaNoWebSocket.CONTA);
+        if (conta != null) {
+            nome = (String) sessao.getAttributes().get(ContaNoWebSocket.NOME);
+        }
         // A senha vem antes de tudo: sem ela, a pessoa não descobre nada sobre a sala.
-        String endereco = endereco(sessao.getHandshakeHeaders(), sessao.getRemoteAddress());
+        String endereco = Enderecos.de(sessao.getHandshakeHeaders(), sessao.getRemoteAddress());
         if (tentativas.bloqueado(endereco)) {
             log.warn("{} bloqueado: senhas erradas demais de {}", id, endereco);
             recusar(sessao, "muitas-tentativas");
@@ -182,7 +186,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             fecharSemErro(antiga);
         }
         String ficha = (String) sessao.getAttributes().get("ficha");
-        Salas.Entrada entrada = salas.entrar(codigo, id, nome, ficha, segura(sessao));
+        Salas.Entrada entrada = salas.entrar(codigo, id, nome, conta, ficha, segura(sessao));
         if (entrada == null) {
             erro(sessao, "sala-cheia");
             sessao.close(CloseStatus.POLICY_VIOLATION);
@@ -200,9 +204,18 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         ObjectNode boasVindas = json.createObjectNode()
                 .put("tipo", "bem-vindo")
                 .put("id", id)
-                .put("ficha", ficha);
+                .put("ficha", ficha)
+                .put("nome", nome);
+        if (conta != null) {
+            contaEm(boasVindas, conta);
+        }
         ArrayNode outros = boasVindas.putArray("outros");
-        entrada.outros().forEach((outroId, outroNome) -> outros.addObject().put("id", outroId).put("nome", outroNome));
+        entrada.outros().forEach((outroId, outro) -> {
+            ObjectNode pessoa = outros.addObject().put("id", outroId).put("nome", outro.nome());
+            if (outro.conta() != null) {
+                contaEm(pessoa, outro.conta());
+            }
+        });
         ArrayNode compartilhando = boasVindas.putArray("compartilhando");
         entrada.compartilhando().forEach(compartilhando::add);
         ObjectNode plateias = boasVindas.putObject("plateias");
@@ -210,7 +223,12 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         // A retransmissão vem já no bem-vindo: a pessoa liga a voz para todos logo que o recebe.
         // "retransmissao" é a do vídeo: a página de antes (aberta antes do deploy) a usa também na voz, como antes.
         WebSocketSession segura = segura(sessao);
-        Retransmissao.Credenciais credenciais = retransmissao.entrou(id, nome, endereco, novas -> enviar(segura, mensagemDaRetransmissao(novas)));
+        Retransmissao.Credenciais credenciais = retransmissao.entrou(id, nome, endereco, conta == null ? null : conta.id(),
+                novas -> enviar(segura, mensagemDaRetransmissao(novas)));
+        if (conta == null && retransmissao.ligada()) {
+            // A página diz a quem não conecta direto que entrar com a conta resolve (decisão do dono, 27/10/2026).
+            boasVindas.put("retransmissaoSoComConta", true);
+        }
         if (credenciais != null) {
             boasVindas.set("retransmissao", credenciais.video());
             boasVindas.set("retransmissaoDaVoz", credenciais.voz());
@@ -226,8 +244,19 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         // Só quem já estava quando entrei: quem entrou depois (ao mesmo tempo, como todos voltando depois de um
         // deploy) já me recebeu na lista do "bem-vindo", e com o "entrou" também me via duas vezes.
         ObjectNode entrou = json.createObjectNode().put("tipo", "entrou").put("id", id).put("nome", nome);
+        if (conta != null) {
+            contaEm(entrou, conta);
+        }
         for (WebSocketSession outro : entrada.avisar()) {
             enviar(outro, entrou);
+        }
+    }
+
+    /** A conta de uma pessoa, nas mensagens: o id (que reconhece a pessoa na página) e a foto, se tiver. */
+    private static void contaEm(ObjectNode pessoa, Salas.Conta conta) {
+        pessoa.put("conta", conta.id());
+        if (conta.foto() != null) {
+            pessoa.put("foto", conta.foto());
         }
     }
 
@@ -512,23 +541,6 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             limpo = limpo.substring(0, limpo.offsetByCodePoints(0, 20)).strip();
         }
         return limpo.isEmpty() ? "Amigo" : limpo;
-    }
-
-    /**
-     * O endereço de quem conectou, para o freio de senhas erradas. No Render, a Cloudflare fica na frente e escreve no
-     * CF-Connecting-IP o endereço de verdade (o que o visitante mandar nesse cabeçalho, ela troca). O endereço remoto
-     * do Spring vem do X-Forwarded-For, que começa pelo que o visitante quiser: forjando-o a cada tentativa, dava para
-     * errar a senha sem limite. Sem a Cloudflare (no PC, nos testes), vale o endereço remoto.
-     */
-    static String endereco(HttpHeaders cabecalhos, InetSocketAddress remoto) {
-        String daCloudflare = cabecalhos.getFirst("CF-Connecting-IP");
-        if (daCloudflare != null && !daCloudflare.isBlank()) {
-            return daCloudflare.strip();
-        }
-        if (remoto == null) {
-            return "?";
-        }
-        return remoto.getAddress() != null ? remoto.getAddress().getHostAddress() : remoto.getHostString();
     }
 
     private WebSocketSession segura(WebSocketSession sessao) {

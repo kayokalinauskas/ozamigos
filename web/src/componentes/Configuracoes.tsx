@@ -9,6 +9,7 @@ import { useVoz } from '../useCliente';
 import type { Supressao } from '../voz/ajustes';
 import { voz } from '../voz/voz';
 import { AbaDeAtalhos } from './Atalhos';
+import { AbaDaConta } from './Conta';
 
 const SUPRESSOES: { valor: Supressao; titulo: string; texto: string }[] = [
   { valor: 'rnnoise', titulo: 'Inteligente (recomendado)', texto: 'Tira teclado, ventilador e barulho de fundo, e deixa só a voz.' },
@@ -24,6 +25,7 @@ const SITE = 'https://kayokalinauskas.github.io/ozamigos/';
 const PADRAO = ponte ? 'Padrão do Windows' : 'Padrão do sistema';
 
 const ABAS = [
+  { id: 'conta', titulo: 'Conta' },
   { id: 'voz', titulo: 'Voz e áudio' },
   { id: 'atalhos', titulo: 'Atalhos' },
   { id: 'notificacoes', titulo: 'Notificações' },
@@ -74,6 +76,7 @@ export function Configuracoes({ aoFechar }: { aoFechar: () => void }) {
         ))}
       </div>
       <div className="configuracoes-corpo" role="tabpanel" id={`painel-${aba}`} aria-labelledby={`aba-${aba}`}>
+        {aba === 'conta' && <AbaDaConta />}
         {aba === 'voz' && <AbaDeVoz />}
         {aba === 'atalhos' && <AbaDeAtalhos />}
         {aba === 'notificacoes' && <AbaDeNotificacoes />}
