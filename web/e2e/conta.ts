@@ -13,9 +13,12 @@ let pessoas = 0;
  * Um navegador próprio (como um PC), vindo de um endereço só dele: o CF-Connecting-IP é o que a Cloudflare põe no ar
  * (Enderecos.java), e sem ele todos os testes viriam do mesmo endereço e esgotariam o freio dos logins.
  */
-export function novoContexto(browser: Browser, opcoes: BrowserContextOptions = {}): Promise<BrowserContext> {
+export async function novoContexto(browser: Browser, opcoes: BrowserContextOptions = {}): Promise<BrowserContext> {
   pessoas++;
-  return browser.newContext({ ...opcoes, extraHTTPHeaders: { 'CF-Connecting-IP': `198.18.${Math.floor(pessoas / 250)}.${pessoas % 250}` } });
+  const contexto = await browser.newContext({ ...opcoes, extraHTTPHeaders: { 'CF-Connecting-IP': `198.18.${Math.floor(pessoas / 250)}.${pessoas % 250}` } });
+  // No Windows, o convite perguntaria antes se é para abrir no app (o teste do convite no app cuida disso).
+  await contexto.addInitScript(() => localStorage.setItem('ozamigos-fica-no-navegador', '1'));
+  return contexto;
 }
 
 /** O login no Google falso: a tela dele pede o usuário e aceita os dados do perfil. */

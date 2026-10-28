@@ -3391,7 +3391,7 @@ input[type='range'].medidor-controle::-moz-range-progress {
 }
 
 .meus-servidores > .botao {
-  align-self: flex-start;
+  align-self: stretch; /* a largura da lista, como os outros botões da entrada */
 }
 
 .lista-de-servidores {

@@ -552,13 +552,26 @@ class Cliente {
   }
 
   /** Sai da sala e volta para a lista dos servidores. */
-  sair() {
+  sair(para = '/') {
     this.recusado = true;
     this.pararDeTransmitir(false);
     this.conexoes.forEach(({ pc }) => pc.close());
     voz.sair();
     this.sinalizacao.encerrar();
-    location.assign('/');
+    location.assign(para);
+  }
+
+  /**
+   * Um convite aberto no app (ozamigos://convite/<codigo>, com o app já aberto): fora de uma sala, vai à página dele;
+   * numa sala, não tira ninguém da conversa sem perguntar, um aviso com "Abrir" é que leva.
+   */
+  abrirConvite(convite: string) {
+    if (!/^[A-Za-z0-9]{10}$/.test(convite)) return;
+    if (this.estado.fase === 'sala') {
+      this.avisar('Você recebeu um convite para um servidor.', 'info', { rotulo: 'Abrir', executar: () => this.sair(`/c/${convite}`) });
+    } else {
+      location.assign(`/c/${convite}`);
+    }
   }
 
   private enviar(msg: MensagemParaOServidor) {

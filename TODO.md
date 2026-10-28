@@ -12,8 +12,6 @@ aparece; baixar, abrir com a `BACKUP_CHAVE` (`gpg -d`) e conferir com `pg_restor
 
 - No Render, apagar a variável `OZAMIGOS_SENHA` (o servidor não a usa mais; deixá-la não quebra nada).
 - Criar o servidor do grupo pela interface e mandar o convite aos amigos (o `/ozamigos` leva à entrada).
-- O app guarda e abre `ozamigos://sala/CODIGO`, que já não serve: numa versão nova do app, trocar por
-  `ozamigos://convite/CODIGO` (abrir o convite de um servidor no app).
 
 ## Refazer as imagens da vitrine
 

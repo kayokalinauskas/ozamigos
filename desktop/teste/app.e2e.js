@@ -349,11 +349,11 @@ test('a página que cai abre de novo sozinha', async () => {
   }
 });
 
-test('um convite ozamigos:// abre o app na sala, e com o app aberto chega à página', async () => {
-  // Uma página que mostra no título o convite que chegou pela ponte (a interface de verdade chama cliente.abrirConvite).
+test('um convite ozamigos://convite/ abre o app no convite, e com o app aberto chega à página', async () => {
+  // Uma página que mostra no título o que chegou pela ponte (a interface de verdade chama cliente.abrirConvite).
   const servidor = http.createServer((_req, res) => {
     res.setHeader('content-type', 'text/html; charset=utf-8');
-    res.end('<!doctype html><title>sem convite</title><h1>servidor de teste</h1><script>window.ozamigos.aoAbrirSala((s) => (document.title = "convite " + s));</script>');
+    res.end('<!doctype html><title>sem convite</title><h1>servidor de teste</h1><script>window.ozamigos.aoAbrirConvite((c) => (document.title = "convite " + c)); window.ozamigos.aoAbrirSala((s) => (document.title = "sala " + s));</script>');
   });
   await new Promise((r) => servidor.listen(0, '127.0.0.1', r));
   const endereco = `http://localhost:${servidor.address().port}`;
@@ -361,21 +361,24 @@ test('um convite ozamigos:// abre o app na sala, e com o app aberto chega à pá
   fs.writeFileSync(path.join(dados, 'configuracao.json'), JSON.stringify({ avisouDaBandeja: true }));
   const env = { ...process.env, OZAMIGOS_SERVIDOR: endereco, OZAMIGOS_TESTE_DADOS: dados };
   const embrulho = path.join(__dirname, 'embrulho.js');
-  const app = await electron.launch({ args: [embrulho, 'ozamigos://sala/Convite01/'], env });
+  const app = await electron.launch({ args: [embrulho, 'ozamigos://convite/AbCdEfGh23/'], env });
   try {
     const janela = await app.firstWindow();
     await expect(janela.getByRole('heading', { name: 'servidor de teste' })).toBeVisible({ timeout: PAGINA_DO_SERVIDOR });
-    expect(janela.url()).toBe(`${endereco}/?sala=Convite01`);
+    expect(janela.url()).toBe(`${endereco}/c/AbCdEfGh23`); // o Windows às vezes acrescenta a barra
 
     // Com o app aberto, o Windows abre outro processo com o link: ele passa o convite ao primeiro e fecha.
     const { spawnSync } = require('node:child_process');
-    spawnSync(require('electron'), [embrulho, 'ozamigos://sala/Outra02'], { env, timeout: 20_000 });
-    await expect(janela).toHaveTitle('convite Outra02');
+    spawnSync(require('electron'), [embrulho, 'ozamigos://convite/Outro23456'], { env, timeout: 20_000 });
+    await expect(janela).toHaveTitle('convite Outro23456');
+    // Um link de sala de antes dos servidores chega à página, que avisa que ele não vale mais.
+    spawnSync(require('electron'), [embrulho, 'ozamigos://sala/Antiga01'], { env, timeout: 20_000 });
+    await expect(janela).toHaveTitle('sala Antiga01');
 
-    // Um convite que tentasse trocar de servidor não vira sala.
+    // Um link que tentasse trocar de servidor não vira nada.
     spawnSync(require('electron'), [embrulho, 'ozamigos://servidor/Outra03'], { env, timeout: 20_000 });
     await janela.waitForTimeout(500);
-    await expect(janela).toHaveTitle('convite Outra02');
+    await expect(janela).toHaveTitle('sala Antiga01');
   } finally {
     await app.close();
     fs.rmSync(dados, { recursive: true, force: true });

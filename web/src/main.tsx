@@ -24,6 +24,8 @@ manterTelaAcordada();
 avisarNaBarraDeTarefas();
 // No app: um link de sala (ozamigos://sala/...) aberto com o app aberto. As salas por código saíram (28/10/2026):
 // em vez de não acontecer nada, a pessoa fica sabendo o que pedir.
+// Um convite para um servidor (ozamigos://convite/...): abre a página do convite, sem tirar ninguém de uma conversa.
+ponte?.aoAbrirConvite?.((convite) => cliente.abrirConvite(convite));
 ponte?.aoAbrirSala?.(() =>
   cliente.avisar('Os links de sala não valem mais: peça a quem te chamou um convite para o servidor do grupo.', 'erro'),
 );
