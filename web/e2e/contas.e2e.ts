@@ -87,6 +87,30 @@ test('o nome novo vale na próxima entrada, e apagar a conta tira da sala', asyn
   await expect(dani.locator('.pessoa-nome-texto', { hasText: 'Caio' })).toHaveCount(0); // saiu da sala, para todos
 });
 
+test('no navegador do Windows, o convite oferece o app, o download ou continuar no navegador', async ({ browser }) => {
+  // Sem o "fica no navegador" dos outros testes (conta.ts): é o primeiro convite deste navegador.
+  const contexto = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/150.0.0.0' });
+  const pagina = await contexto.newPage();
+  await pagina.goto('/c/AbCdEfGh23');
+  await expect(pagina.getByText('Convite para um servidor do Ozamigos')).toBeVisible();
+  await expect(pagina.getByRole('link', { name: /baixar para Windows/ })).toBeVisible();
+
+  // Sem o app (aqui nada abre o ozamigos://), a janela não perde o foco: depois do prazo, o download vira o principal.
+  await pagina.getByRole('button', { name: 'Abrir no app' }).click();
+  await expect(pagina.getByText('O app não abriu')).toBeVisible({ timeout: 5000 });
+  // Com o app, o Windows passa o foco para ele: a página entende que abriu e lembra para os próximos convites.
+  await pagina.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect(pagina.getByText('Convite aberto no app')).toBeVisible();
+  expect(await pagina.evaluate(() => localStorage.getItem('ozamigos-tem-o-app'))).toBe('1');
+
+  // Continuar no navegador leva à página do convite, e os próximos convites vão direto para ela.
+  await pagina.getByRole('button', { name: /continuar no navegador/ }).click();
+  await expect(pagina.getByRole('alert')).toContainText('Esse convite não vale mais'); // este convite não existe
+  await pagina.reload();
+  await expect(pagina.getByText('Convite para um servidor do Ozamigos')).toHaveCount(0);
+  await contexto.close();
+});
+
 test('o erro do login aparece na entrada e sai do endereço', async ({ browser }) => {
   const p = await pessoa(browser);
   await p.goto('/?erro-de-login=recusado');

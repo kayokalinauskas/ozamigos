@@ -1,18 +1,17 @@
-import { Download, Server } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { ponte } from '../ponte';
 import { Versao } from './Versao';
 
 export const SITE = 'https://kayokalinauskas.github.io/ozamigos/';
 
-/** O servidor (no app), baixar o app (no navegador), a política de privacidade e a versão. */
+/**
+ * Baixar o app (só no navegador), a política de privacidade e a versão. O app não mostra mais o endereço do servidor
+ * nem o botão de trocar (pedido do dono, 28/10/2026): é sempre o oficial.
+ */
 export function RodapeDaEntrada() {
   return (
     <>
-      {ponte ? (
-        <button type="button" className="botao botao-fantasma botao-pequeno trocar-servidor" onClick={() => ponte!.trocarServidor()}>
-          <Server size={14} /> Servidor: {location.host}
-        </button>
-      ) : (
+      {!ponte && (
         <a className="botao botao-fantasma botao-pequeno trocar-servidor" href={SITE}>
           <Download size={14} /> Baixar o app para Windows (som do jogo sem eco)
         </a>

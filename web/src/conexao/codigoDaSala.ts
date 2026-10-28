@@ -22,3 +22,8 @@ export function conviteDoCaminho(caminho: string): string | null {
 export function linkDoConvite(codigo: string): string {
   return `${location.origin}/c/${codigo}`;
 }
+
+/** O mesmo convite, para abrir no app para Windows (registrado pelo app instalado, 1.3.1 em diante). */
+export function linkDoAppParaConvite(codigo: string): string {
+  return `ozamigos://convite/${codigo}`;
+}

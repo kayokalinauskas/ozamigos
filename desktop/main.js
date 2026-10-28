@@ -144,17 +144,17 @@ async function servidorAcordado(origem) {
   return ![502, 503, 504].includes(resposta.status);
 }
 
-/** sala: o código de um convite (link ozamigos://), para abrir já com a sala certa na entrada. */
-function abrirServidorOuInicio(erro, sala = null) {
+/** caminho: a página do servidor por onde começar (a de um convite ozamigos://, caminhoDoLink); sem ele, a raiz. */
+function abrirServidorOuInicio(erro, caminho = null) {
   const vez = ++esperaDoServidor;
   if (erro || !origemDoServidor()) {
     janela.loadFile(INICIO, { query: erro ? { erro } : {} });
     return;
   }
-  void esperarOServidor(vez, origemDoServidor(), sala);
+  void esperarOServidor(vez, origemDoServidor(), caminho);
 }
 
-async function esperarOServidor(vez, origem, sala) {
+async function esperarOServidor(vez, origem, caminho) {
   const vale = () => vez === esperaDoServidor && janela && !janela.isDestroyed();
   const comeco = Date.now();
   const acordando = setTimeout(() => vale() && janela.loadFile(INICIO, { query: { acordando: origem, desde: String(comeco) } }), MOSTRAR_ACORDANDO_DEPOIS);
@@ -176,7 +176,7 @@ async function esperarOServidor(vez, origem, sala) {
       if (!vale()) return;
       if (acordado) {
         // Sempre pergunta ao servidor pela página: um deploy novo aparece na hora, nunca a cópia guardada.
-        janela.loadURL(`${origem}/${sala ? `?sala=${sala}` : ''}`, { extraHeaders: 'pragma: no-cache\ncache-control: no-cache\n' });
+        janela.loadURL(`${origem}${caminho ?? '/'}`, { extraHeaders: 'pragma: no-cache\ncache-control: no-cache\n' });
         return;
       }
       if (Date.now() - comeco > PRAZO_PARA_ACORDAR) {
@@ -322,7 +322,7 @@ function criarJanela(atualizando) {
     abrirServidorOuInicio(`Não foi possível abrir ${origemDoServidor()} (${descricao}). Confira o endereço e a internet.`);
   });
 
-  abrirServidorOuInicio(null, salaDoLink(process.argv)); // aberto por um convite: já na sala dele
+  abrirServidorOuInicio(null, caminhoDoLink(linkDosArgumentos(process.argv))); // aberto por um convite: já nele
 }
 
 function abrirFora(url) {
@@ -976,36 +976,46 @@ ipcMain.handle('desempenho-amostra', (evento) => {
   return { processos, cpuDoPc: ultimaLeitura?.cpu ?? null, placa };
 });
 
-// ===== Convites: links ozamigos://sala/CODIGO abrem o app na sala =====
+// ===== Convites: links ozamigos://convite/CODIGO abrem o app no convite de um servidor =====
 
 const PROTOCOLO = 'ozamigos';
 
 /**
- * O código da sala de um link ozamigos://sala/CODIGO entre os argumentos (o Windows passa o link ao abrir o app),
- * ou null. O link só traz o código: o servidor continua o configurado no app. Um link que trocasse o servidor
- * seria uma isca para levar a senha do grupo a um servidor de outra pessoa.
+ * O link ozamigos:// entre os argumentos (o Windows passa o link ao abrir o app): um convite para um servidor
+ * (ozamigos://convite/CODIGO, 1.3.1 em diante) ou uma sala de antes dos servidores (ozamigos://sala/CODIGO, que a
+ * página só avisa que não vale mais). O link só traz o código: o servidor continua o configurado no app. Um link que
+ * trocasse o servidor seria uma isca para levar a pessoa (e o login dela) a um servidor de outra pessoa.
  */
-function salaDoLink(argumentos) {
+function linkDosArgumentos(argumentos) {
   for (const argumento of argumentos) {
     if (typeof argumento !== 'string' || !argumento.toLowerCase().startsWith(`${PROTOCOLO}://`)) continue;
     try {
       const link = new URL(argumento);
-      const codigo = link.hostname === 'sala' ? link.pathname.replace(/^\/+|\/+$/g, '') : '';
-      if (/^[A-Za-z0-9]{6,20}$/.test(codigo)) return codigo; // a mesma regra do servidor (CODIGO_VALIDO)
+      const codigo = link.pathname.replace(/^\/+|\/+$/g, '');
+      // As mesmas regras do servidor: Servidores.CODIGO (convite) e o código das salas de antes.
+      if (link.hostname === 'convite' && /^[A-Za-z0-9]{10}$/.test(codigo)) return { convite: codigo };
+      if (link.hostname === 'sala' && /^[A-Za-z0-9]{6,20}$/.test(codigo)) return { sala: codigo };
     } catch {
-      // link estragado: o app só abre, sem sala
+      // link estragado: o app só abre
     }
   }
   return null;
 }
 
+/** A página por onde o app começa, aberto por um link: a do convite; uma sala de antes, a entrada. */
+function caminhoDoLink(link) {
+  return link?.convite ? `/c/${link.convite}` : null;
+}
+
 /**
- * Um convite com o app já aberto: a página decide (na entrada, troca a sala; numa sala, pergunta antes de sair dela).
- * Na tela de início (sem servidor), só mostra a janela.
+ * Um link com o app já aberto: a página decide (fora de uma sala, vai ao convite; numa sala, pergunta antes de sair
+ * dela). Na tela de início (sem servidor), só mostra a janela.
  */
-function abrirConvite(sala) {
+function abrirLink(link) {
   if (!janela || janela.isDestroyed()) return;
-  if (origemDe(janela.webContents.getURL()) === origemDoServidor()) janela.webContents.send('abrir-sala', sala);
+  if (origemDe(janela.webContents.getURL()) !== origemDoServidor()) return;
+  if (link.convite) janela.webContents.send('abrir-convite', link.convite);
+  else janela.webContents.send('abrir-sala', link.sala);
 }
 
 /**
@@ -1314,8 +1324,8 @@ if (!app.requestSingleInstanceLock()) {
   // Abrir de novo (atalho, ou um convite ozamigos://) traz a janela para a frente, inclusive da bandeja.
   app.on('second-instance', (_evento, argumentos) => {
     mostrarJanela();
-    const sala = salaDoLink(argumentos);
-    if (sala) abrirConvite(sala);
+    const link = linkDosArgumentos(argumentos);
+    if (link) abrirLink(link);
   });
 
   app.setAppUserModelId('dev.ozamigos.share'); // necessário para as notificações do Windows
