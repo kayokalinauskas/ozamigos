@@ -26,7 +26,7 @@ public class Salas {
     public static final int LIMITE_POR_SALA = 8;
 
     /**
-     * A conta de quem entrou com uma (null: convidado): o id, que a página usa para reconhecer a pessoa (volume, volta
+     * A conta de quem entrou (todos, desde 28/10/2026): o id, que a página usa para reconhecer a pessoa (volume, volta
      * depois de uma queda), e o endereço da foto, ou null sem foto.
      */
     public record Conta(String id, String foto) {}

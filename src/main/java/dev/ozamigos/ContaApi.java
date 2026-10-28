@@ -63,7 +63,7 @@ public class ContaApi {
     }
 
     /**
-     * Quem é a pessoa ({@code conta}, ou null para convidado) e com o que dá para entrar ({@code login}: vazio sem banco
+     * Quem é a pessoa ({@code conta}, ou null sem sessão) e com o que dá para entrar ({@code login}: vazio sem banco
      * ou sem provedores). A página pergunta isto ao abrir.
      */
     @GetMapping("/api/eu")

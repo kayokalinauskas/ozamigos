@@ -19,7 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * As contas (docs/plano-contas.md, fase 1): quem entrou com o Google ou o Discord, com o nome e a foto que aparecem na
- * sala. Só existe de fato com o banco pronto ({@link #disponivel()}); sem ele, todo mundo é convidado, como antes.
+ * sala. Só existe de fato com o banco pronto ({@link #disponivel()}); sem ele, ninguém entra numa sala nova.
  *
  * <p>O mínimo de dados pessoais: do provedor vêm só o id da conta (para reconhecer a pessoa), o nome (que ela muda) e a
  * foto (reduzida aqui, FotosDoPerfil). Os escopos do login nem pedem o e-mail.
@@ -46,7 +46,7 @@ public class Contas {
     private static final Logger log = LoggerFactory.getLogger(Contas.class);
 
     /**
-     * O banco não respondeu: por esse tempo, todos entram como convidados sem nem tentar. Sem isso, cada entrada com
+     * O banco não respondeu: por esse tempo, as contas ficam indisponíveis sem nem tentar. Sem isso, cada entrada com
      * conta esperaria o prazo da conexão (Banco), e depois de um deploy, com todos voltando juntos, a fila de 5 conexões
      * segurava as salas por dezenas de segundos.
      */

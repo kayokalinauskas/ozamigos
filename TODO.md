@@ -11,7 +11,14 @@ aparece; baixar, abrir com a `BACKUP_CHAVE` (`gpg -d`) e conferir com `pg_restor
 ## Depois do deploy dos servidores (só servidores, com conta)
 
 - No Render, apagar a variável `OZAMIGOS_SENHA` (o servidor não a usa mais; deixá-la não quebra nada).
-- Criar o servidor do grupo pela interface e mandar o convite aos amigos (o `/ozamigos` leva à entrada).
+
+## Depois da revisão de segurança (PR #21)
+
+- Ligar o Discord pelo app instalado, numa conta sem ele (nenhum teste automático passa pela confirmação no app de
+  verdade).
+- No Supabase, *Settings → API*: conferir que o esquema `ozamigos` não está em *Exposed schemas*.
+- Na próxima versão do app: tirar do `loginPeloNavegador` (`desktop/main.js`) a volta `ligou`, que o servidor não manda
+  mais (a ligação volta com um `codigo`, que a página confirma).
 
 ## Refazer as imagens da vitrine
 

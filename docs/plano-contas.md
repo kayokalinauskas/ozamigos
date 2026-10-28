@@ -41,7 +41,7 @@ a foto na sala, o login do app pelo navegador; (3) o ponta a ponta com o mock-oa
 | Acesso ao banco | **`JdbcClient`** do Spring, com SQL escrito à mão | Explícito, sem a mágica do JPA (carregamento preguiçoso, sessões), combina com o estilo do código |
 | Esquema | **Flyway**, migrações versionadas em `src/main/resources/db/migracao/` | O esquema muda junto com o código, e cada mudança fica no git |
 | Login | **Spring Security OAuth2 Client**: Google (escopos `openid profile`) e Discord (`identify`) | Sem guardar senha de ninguém, sem e-mail de confirmação nem "esqueci a senha". Os escopos **não pedem o e-mail** |
-| Sessão | **Spring Session JDBC** (sessões no Postgres), cookie `__Host-ozamigos`, `HttpOnly`, `Secure`, `SameSite=Lax`, 30 dias | O Render reinicia a cada deploy e quando dorme: sessão na memória deslogaria todo mundo |
+| Sessão | Sessões **do Ozamigos no Postgres** (`Sessoes`; o plano era o Spring Session JDBC), cookie `__Host-ozamigos`, `HttpOnly`, `Secure`, `SameSite=Lax`, 60 dias desde o último uso | O Render reinicia a cada deploy e quando dorme: sessão na memória deslogaria todo mundo. Quem usa nunca precisa entrar de novo (28/10/2026) |
 | Login no app (Electron) | **Pelo navegador do sistema, com pareamento** (detalhes abaixo) | O Google bloqueia login dentro de janelas embutidas (`disallowed_useragent`) |
 | Docker | `compose.yaml` com **app + Postgres** para rodar tudo localmente com um comando; o `Dockerfile` atual continua sendo o do deploy | O mesmo contêiner roda no Render, no PC ou numa VPS/Oracle no futuro |
 | Testes do servidor | **Testcontainers** (Postgres de verdade em Docker) | O Docker já está instalado no PC, e os runners do GitHub têm Docker |
@@ -53,8 +53,8 @@ a foto na sala, o login do app pelo navegador; (3) o ponta a ponta com o mock-oa
 - **Saúde do servidor:** com um banco, o `/actuator/health` passa a incluir o banco. Se o Supabase pausar ou cair, o
   Render acharia que o servidor caiu e o app mostraria "Conectando…" para sempre. **O health continua só do servidor**
   (`management.health.db.enabled=false`), e as telas que dependem do banco mostram um erro próprio.
-- **O banco fora do ar não derruba as salas:** convidados, o grupo fixo e os grupos criados na hora funcionam sem banco.
-  Só o login e os servidores salvos ficam indisponíveis.
+- **O banco fora do ar não derruba quem já está na sala** (as salas são da memória). Desde 28/10/2026, sem convidados
+  nem grupos, ninguém novo entra até ele voltar; a entrada pergunta de novo sozinha (`indisponivel` no `/api/eu`).
 - **Supabase pausa depois de 7 dias sem uso:** o próprio servidor faz uma consulta leve por dia.
 - **Conexões:** a conexão direta do Supabase grátis é só IPv6, que o Render não tem. Vai pelo **Session pooler** (IPv4),
   com um pool pequeno (Hikari com 5).
@@ -171,7 +171,7 @@ do app. Um app antigo não tem o botão de login (a página confere se a ponte t
 ### Segurança
 
 - APIs só com `Content-Type: application/json` e conferindo o `Origin` (contra CSRF, junto com o `SameSite=Lax`).
-- Freio de logins e de pareamentos por endereço (como `TentativasDeSenha`).
+- Freio de logins e de pareamentos por endereço (`Freio`). Os limites da revisão de 28/10/2026 estão na seção dela.
 - O log diz o id e o nome de quem logou, nunca tokens nem o id externo.
 
 ### Retransmissão só para contas (decisão do dono, 27/10/2026)
@@ -295,6 +295,21 @@ salvos. Isto substitui o princípio 4 ("o modo de hoje continua") e a decisão 3
   antigos (`/ozamigos`, `/nome-de-grupo`, `?sala=`) levam à entrada.
 - **Quem não tem conta** entra por um convite e faz o login ali.
 - **Testes:** todos entram com conta (banco e o mock-oauth2-server em Docker, como o `contas.e2e.ts`).
+
+## Revisão de segurança (28/10/2026)
+
+Pedida pelo dono depois dos servidores ("uma pessoa que logou pode criar infinitos servidores?"). Os limites por
+conta já existiam (10 servidores como dono, 100 no total, 100 membros, 20 convites); faltavam os de quem não tem conta
+e os de contas descartáveis. Entrou (PR #21, detalhes no `AGENTS.md` e no `docs/protocolo.md`):
+
+- corpo de todo pedido até 16 KB (o ícone, 2 MB), e até 300 pedidos à API e aberturas do WebSocket por minuto por
+  endereço (`LimitesDaApi`), antes de conferir a conta;
+- freios por conta (30 ações por minuto, 10 ícones a cada 10 min) e tetos de contas novas (5 por endereço por hora,
+  200 no servidor todo);
+- até 20 conexões abertas por endereço, e a que não entra numa sala em 10 s fecha;
+- ligar outro provedor pelo app só com a confirmação do app (antes, um link com o código de ligação de outra pessoa
+  ligava a conta de quem o abria à dela);
+- sair de todos os aparelhos; e a política de privacidade com as cópias de segurança (até 90 dias).
 
 ## Decisões do dono (27/10/2026)
 

@@ -68,7 +68,7 @@ Para publicar o servidor, use a imagem do `Dockerfile`, com as variáveis do ban
 
 | Parte | Ferramentas |
 |---|---|
-| Servidor | Java 25, Spring Boot 4 (WebSocket e Actuator), imageio-webp |
+| Servidor | Java 25, Spring Boot 4 (WebSocket, Security com OAuth2 e Actuator), PostgreSQL com Flyway, imageio-webp |
 | Interface | React 19, TypeScript, Vite, ícones Lucide, fontes Inter e Sora |
 | Voz e vídeo | WebRTC (H.265/H.264 e Opus), RNNoise ([web-noise-suppressor](https://github.com/sapphi-red/web-noise-suppressor)) |
 | Imagens do chat | libwebp, via [jSquash](https://github.com/jamsinclair/jSquash) |
