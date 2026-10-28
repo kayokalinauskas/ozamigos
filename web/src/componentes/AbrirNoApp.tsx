@@ -81,7 +81,7 @@ export function AbrirNoApp({ convite, aoContinuar }: { convite: string; aoContin
           <p className="subtitulo">
             {etapa === 'nao-abriu'
               ? 'O app não abriu. Se o navegador perguntou, escolha Abrir; se você ainda não tem o app, baixe para Windows.'
-              : 'Abra no app para Windows (o som do jogo vai sem eco) ou continue no navegador.'}
+              : 'Abra no app ou continue no navegador.'}
           </p>
           {etapa === 'nao-abriu' ? (
             <>

@@ -168,7 +168,7 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
           type="button"
           className="botao-icone"
           aria-label={`Mandar um print de ${nome} para o chat`}
-          title="Print para o chat (vai para a bandeja; manda com o Enter)"
+          title="Print para o chat"
           disabled={!stream}
           onClick={() => void mandarPrint()}
         >
@@ -185,7 +185,7 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
             className={emJanela ? 'botao-icone ativo' : 'botao-icone'}
             aria-label={emJanela ? `Voltar ${nome} para a sala` : `Janela flutuante: ${nome}`}
             aria-pressed={emJanela}
-            title={emJanela ? 'Voltar para a sala' : 'Janela flutuante (fica por cima do jogo)'}
+            title={emJanela ? 'Voltar para a sala' : 'Janela flutuante'}
             disabled={!stream}
             onClick={() => void alternarJanela()}
           >

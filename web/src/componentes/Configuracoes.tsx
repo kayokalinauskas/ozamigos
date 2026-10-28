@@ -212,7 +212,7 @@ function AbaDeNotificacoes() {
               setSons(e.target.checked);
             }}
           />
-          <span>Sons de aviso (alguém entrou, saiu, começou a transmitir, mensagem no chat, microfone e fone)</span>
+          <span>Sons de aviso</span>
         </label>
       </section>
 
@@ -300,7 +300,7 @@ function AbaGeral() {
           </button>
         ) : (
           <a className="botao botao-secundario" href={SITE}>
-            <Download size={16} /> Baixar o app para Windows (som do jogo sem eco)
+            <Download size={16} /> Baixar o app para Windows
           </a>
         )}
       </section>

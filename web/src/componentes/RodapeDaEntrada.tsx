@@ -13,7 +13,7 @@ export function RodapeDaEntrada() {
     <>
       {!ponte && (
         <a className="botao botao-fantasma botao-pequeno trocar-servidor" href={SITE}>
-          <Download size={14} /> Baixar o app para Windows (som do jogo sem eco)
+          <Download size={14} /> Baixar o app para Windows
         </a>
       )}
       {/* Onde se entra com a conta, o link para a política (LGPD: a pessoa sabe como os dados são tratados). */}

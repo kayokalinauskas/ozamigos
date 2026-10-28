@@ -141,7 +141,7 @@ export function PainelChat() {
           type="button"
           className="botao-icone chat-anexar"
           aria-label="Mandar imagem"
-          title="Mandar imagem (ou cole com Ctrl+V, ou arraste para o chat)"
+          title="Mandar imagem"
           disabled={conexaoPerdida || itens.length >= IMAGENS_POR_ENVIO}
           onClick={() => escolher.current?.click()}
         >
