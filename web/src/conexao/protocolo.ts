@@ -22,7 +22,8 @@ type Candidato = { candidato: RTCIceCandidateInit; canal: Canal | 'voz' };
 
 export type MensagemParaOServidor =
   // Com `grupo`, um grupo criado na hora (a sala é a dele, e `sala` vai vazia); `criar` o cria se não existe.
-  | { tipo: 'entrar'; sala: string; senha: string; nome: string; ficha: string; grupo?: string; criar?: boolean }
+  // servidor: o código de um servidor salvo (sem senha, só membros com a conta; sala e senha vão vazias).
+  | { tipo: 'entrar'; sala: string; senha: string; nome: string; ficha: string; grupo?: string; criar?: boolean; servidor?: string }
   | { tipo: 'comecei' }
   | { tipo: 'parei' }
   | { tipo: 'assistir'; para: string }
@@ -51,6 +52,13 @@ export type MotivoDoErro =
   | 'senha-curta'
   | 'muitos-grupos'
   | 'grupos-demais'
+  // Dos servidores salvos: sem conta, não é membro (ou não existe), banco fora do ar; e, já na sala, tirado dela.
+  | 'sem-conta'
+  | 'servidor-nao-existe'
+  | 'servidores-indisponiveis'
+  | 'expulso'
+  | 'servidor-apagado'
+  | 'fora-do-servidor'
   | 'muitas-tentativas'
   | 'sala-cheia'
   | 'codigo-invalido'

@@ -150,9 +150,29 @@ public class Contas {
         return mudou == 1 ? limpo : null;
     }
 
-    /** Apaga tudo da pessoa, na hora: identidades e sessões vão junto (on delete cascade). */
+    /**
+     * Apaga tudo da pessoa, na hora: identidades, sessões e o lugar dela nos servidores vão junto (on delete cascade).
+     * Os servidores de que ela é dona passam para o admin mais antigo, senão para o membro mais antigo; sem mais
+     * ninguém, somem. Numa transação: um servidor nunca fica sem dono.
+     */
     public void apagar(UUID usuario) {
-        banco.sql("delete from usuarios where id = :id").param("id", usuario).update();
+        transacao.executeWithoutResult(estado -> {
+            List<UUID> dela = banco.sql("select servidor_id from membros where usuario_id = :u and papel = 'dono'")
+                    .param("u", usuario).query(UUID.class).list();
+            banco.sql("delete from usuarios where id = :id").param("id", usuario).update();
+            if (dela.isEmpty()) {
+                return;
+            }
+            banco.sql("""
+                    update membros m set papel = 'dono'
+                    from (select distinct on (servidor_id) servidor_id, usuario_id from membros
+                          where servidor_id in (:servidores)
+                          order by servidor_id, papel = 'admin' desc, entrou_em, usuario_id) herdeiro
+                    where m.servidor_id = herdeiro.servidor_id and m.usuario_id = herdeiro.usuario_id""")
+                    .param("servidores", dela).update();
+            banco.sql("delete from servidores s where s.id in (:servidores) and not exists (select 1 from membros m where m.servidor_id = s.id)")
+                    .param("servidores", dela).update();
+        });
     }
 
     public Optional<byte[]> foto(UUID usuario) {

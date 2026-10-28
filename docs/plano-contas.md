@@ -166,7 +166,7 @@ do app. Um app antigo não tem o botão de login (a página confere se a ponte t
 
 - Entrada: "Entrar com Google", "Entrar com Discord" e "Entrar como convidado".
 - Configurações → **Conta**: nome, foto (a do provedor, ou só as iniciais), contas ligadas, **sair**, **apagar a conta**
-  (apaga tudo na hora; os servidores de que a pessoa é dona passam para o admin mais antigo, ou somem).
+  (apaga tudo na hora; os servidores de que a pessoa é dona passam para o admin mais antigo, senão para o membro mais antigo; vazios, somem).
 
 ### Segurança
 
@@ -220,6 +220,11 @@ convites   (codigo text, servidor_id, criado_por, expira_em null, usos_maximos n
 - Papéis: o **dono** apaga o servidor e passa a posse; o **admin** convida, expulsa membros, cria e renomeia salas; o
   **membro** entra e convida (se o dono deixar).
 - Ícone: como a foto, reduzido no servidor.
+- Decidido na implementação (28/10/2026): o dono é o membro de papel `dono` (sem coluna própria); renomear e trocar o
+  ícone são do dono e dos admins; apagar a conta passa o servidor ao admin mais antigo, **senão ao membro mais antigo**
+  (some só se ficar vazio); um convite gasto ainda leva ao servidor quem já é membro.
+- **Expulsar também bloqueia** (decisão do dono, 28/10/2026): quem foi expulso não volta por convite nenhum até o dono ou
+  um admin desbloquear, numa lista de bloqueados nas configurações do servidor.
 
 ### Entrada
 
