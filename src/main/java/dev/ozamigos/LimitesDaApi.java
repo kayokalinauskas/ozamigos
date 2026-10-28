@@ -36,7 +36,7 @@ import jakarta.servlet.http.HttpServletResponse;
  * <li><b>Tamanho do corpo:</b> até {@link #CORPO_MAXIMO} (o JSON das ações é pequeno), e o ícone de um servidor até
  * {@link ServidoresApi#ICONE_MAXIMO}. Sem isso, o servidor lia um corpo de qualquer tamanho antes de saber de quem era, e
  * alguns pedidos enormes enchiam a memória (512 MB no Render).</li>
- * <li><b>Pedidos à API por endereço:</b> até {@code ozamigos.limite.api-por-minuto} por minuto. Fotos, ícones e a sessão
+ * <li><b>Pedidos à API (e aberturas do WebSocket) por endereço:</b> até {@code ozamigos.limite.api-por-minuto} por minuto. Fotos, ícones e a sessão
  * consultam o banco, de 5 conexões; sem um freio, uma enxurrada esgotava as conexões, e uma falha deixa o banco de fora
  * por 30 s para todos (Contas.bancoFalhou).</li>
  * </ul>
@@ -59,7 +59,10 @@ public class LimitesDaApi extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest pedido, HttpServletResponse resposta, FilterChain cadeia)
             throws ServletException, IOException {
-        if (pedido.getRequestURI().startsWith("/api/") && !porEndereco.passa(Enderecos.de(pedido))) {
+        // A abertura do WebSocket também consulta o banco (a sessão, ContaNoWebSocket): abrir e fechar sem parar contaria
+        // tanto quanto uma enxurrada na API.
+        String caminho = pedido.getRequestURI();
+        if ((caminho.startsWith("/api/") || caminho.equals("/sinal")) && !porEndereco.passa(Enderecos.de(pedido))) {
             ProtecaoDaApi.recusar(resposta, HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
             return;
         }
@@ -122,7 +125,7 @@ public class LimitesDaApi extends OncePerRequestFilter {
         private final int chavesNoMaximo;
         private final Clock relogio;
         private final Map<String, long[]> contagens = new HashMap<>(); // {início da janela, vezes}
-        private long ultimaLimpeza = Long.MIN_VALUE;
+        private long ultimaLimpeza; // 0: a primeira limpeza pode na hora (Long.MIN_VALUE estourava a conta e nunca limpava)
 
         Contador(int limite, long janelaMs, int chavesNoMaximo, Clock relogio) {
             this.limite = limite;

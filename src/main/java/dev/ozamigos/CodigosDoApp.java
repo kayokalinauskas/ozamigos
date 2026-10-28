@@ -40,7 +40,7 @@ public class CodigosDoApp {
     public enum Uso { LOGIN, LIGACAO, CONFIRMACAO }
 
     /** Uma ligação esperando a confirmação da página do app: de quem é a conta, e o que ligar a ela. */
-    public record Confirmacao(UUID usuario, String provedor, String idExterno) {}
+    public record Confirmacao(String provedor, String idExterno) {}
 
     private record Pendente(UUID usuario, Uso uso, Instant expira, Confirmacao confirmacao) {}
 
@@ -61,7 +61,7 @@ public class CodigosDoApp {
     }
 
     public String criarConfirmacao(UUID usuario, String provedor, String idExterno) {
-        return criar(usuario, Uso.CONFIRMACAO, new Confirmacao(usuario, provedor, idExterno));
+        return criar(usuario, Uso.CONFIRMACAO, new Confirmacao(provedor, idExterno));
     }
 
     private synchronized String criar(UUID usuario, Uso uso, Confirmacao confirmacao) {
@@ -83,9 +83,9 @@ public class CodigosDoApp {
         return retirar(codigo, uso).map(Pendente::usuario);
     }
 
-    /** A ligação que esse código confirma; ele deixa de valer na hora, dando certo ou não. */
-    public Optional<Confirmacao> trocarConfirmacao(String codigo) {
-        return retirar(codigo, Uso.CONFIRMACAO).map(Pendente::confirmacao);
+    /** A ligação que esse código confirma, se ele for dessa conta; ele deixa de valer na hora, dando certo ou não. */
+    public Optional<Confirmacao> trocarConfirmacao(String codigo, UUID usuario) {
+        return retirar(codigo, Uso.CONFIRMACAO).filter(p -> p.usuario().equals(usuario)).map(Pendente::confirmacao);
     }
 
     private synchronized Optional<Pendente> retirar(String codigo, Uso uso) {

@@ -184,8 +184,8 @@ public class ContaApi {
         if (!trocas.passa(Enderecos.de(pedido))) {
             return erro(HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
         }
-        Optional<CodigosDoApp.Confirmacao> confirmacao = codigos.trocarConfirmacao(codigo.codigo());
-        if (confirmacao.isEmpty() || !confirmacao.get().usuario().equals(usuario.get())) {
+        Optional<CodigosDoApp.Confirmacao> confirmacao = codigos.trocarConfirmacao(codigo.codigo(), usuario.get());
+        if (confirmacao.isEmpty()) {
             return erro(HttpStatus.BAD_REQUEST, "codigo-invalido");
         }
         String provedor = confirmacao.get().provedor();

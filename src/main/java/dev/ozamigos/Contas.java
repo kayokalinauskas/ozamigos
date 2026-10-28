@@ -125,7 +125,7 @@ public class Contas {
                 log.warn("Contas novas: o teto de {} por hora chegou; as próximas esperam", contasNovasPorHora);
                 throw new NovasDemais();
             }
-            if (endereco != null && !novasPorEndereco.passa(endereco)) {
+            if (endereco != null && novasPorEndereco.excedeu(endereco)) {
                 throw new NovasDemais(); // o endereço não vai para o log
             }
             UUID id = UUID.randomUUID();
@@ -138,6 +138,9 @@ public class Contas {
             if (inseridas == 0) {
                 estado.setRollbackOnly(); // outra entrada criou antes: vale a dela
                 return null;
+            }
+            if (endereco != null) {
+                novasPorEndereco.contar(endereco); // só a conta que nasceu conta (não a que perdeu a corrida para outra aba)
             }
             return new Entrada(id, null);
         });

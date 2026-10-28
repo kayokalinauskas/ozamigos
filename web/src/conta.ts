@@ -95,7 +95,8 @@ export async function carregarConta(): Promise<void> {
   }
   indisponivelDesde ??= Date.now();
   const esperou = Date.now() - indisponivelDesde;
-  if (esperou >= AVISAR_DEPOIS_MS) mudar({ carregada: true, login: [], conta: null });
+  // Só na abertura: uma conta já carregada (a releitura depois de ligar ou desligar um provedor) fica como estava.
+  if (esperou >= AVISAR_DEPOIS_MS && !estado.carregada) mudar({ carregada: true, login: [], conta: null });
   novaTentativa = setTimeout(() => void carregarConta(), esperou >= AVISAR_DEPOIS_MS ? NOVA_TENTATIVA_DEMORADA_MS : NOVA_TENTATIVA_MS);
 }
 

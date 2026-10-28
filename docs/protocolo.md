@@ -61,7 +61,7 @@ O login e a conta não passam pelo WebSocket: são páginas e uma API JSON no me
 
 Erros da API: `{erro: <motivo>}`, com 401 `sem-conta`, 503 `contas-indisponiveis`, 403 `origem`, 429 `muitas-tentativas`, 413 `grande-demais`, 400 `pedido-invalido` (corpo que não dá para ler).
 
-**Limites de todo pedido** (`LimitesDaApi`, antes de conferir a conta): corpo até 16 KB (o ícone de um servidor, até 2 MB), e até 300 pedidos à API por minuto por endereço (429). As ações de cada conta (as que mudam algo em `/api/servidores/**`, o nome e o código de ligação) têm um freio de 30 por minuto, e trocar o ícone, de 10 a cada 10 minutos. O WebSocket aceita até 20 conexões abertas por endereço, e fecha a que não entra numa sala em 10 s.
+**Limites de todo pedido** (`LimitesDaApi`, antes de conferir a conta): corpo até 16 KB (o ícone de um servidor, até 2 MB), e até 300 pedidos à API (e aberturas do WebSocket) por minuto por endereço (429). As ações de cada conta (as que mudam algo em `/api/servidores/**`, o nome e o código de ligação) têm um freio de 30 por minuto, e trocar o ícone, de 10 a cada 10 minutos. O WebSocket aceita até 20 conexões abertas por endereço, e fecha a que não entra numa sala em 10 s.
 
 ## Servidores salvos (HTTP)
 
