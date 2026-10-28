@@ -8,6 +8,8 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.3.0] - 2026-10-27
+
 ### Novo
 - **Entrar com o Google ou o Discord:** na entrada, com os botões oficiais de cada um, um clique e o seu nome e a sua foto aparecem para os amigos na sala, em qualquer grupo. Os volumes e o silenciado de cada amigo com conta valem em qualquer sala, e quem cai e volta é reconhecido mesmo com dois nomes iguais. Em Configurações → Conta, você troca o nome, liga a outra conta, sai, ou apaga tudo na hora. O Ozamigos não recebe o seu e-mail nem a sua senha. No app para Windows (1.3.0), o login abre no seu navegador e volta sozinho para o app. Entrar sem conta continua igual.
 - **Quem usa muito a conexão de reserva perde só o vídeo, e continua conversando:** para quem não consegue se conectar direto aos amigos, a voz e o vídeo passam por um caminho de reserva, que tem um limite diário. Agora, ao passar dele, só o vídeo por esse caminho para até o dia seguinte, com um aviso explicando o motivo; a voz continua normalmente.
@@ -15,6 +17,8 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ### Mudado
 - **A conexão de reserva passa a ser de quem entra com conta:** para quem não consegue se conectar direto aos amigos, a voz e a transmissão continuam passando pelo caminho de reserva, mas só para quem entrou com o Google ou o Discord. Quem entra sem conta continua conversando normalmente quando a conexão direta funciona, e é avisado quando entrar com a conta resolveria. (Servidor: só quem tem conta recebe as credenciais da retransmissão, e os limites contam a conta além do endereço.)
+- **O Ozamigos lembra onde você estava:** ao abrir de novo, o app para Windows entra sozinho no último grupo ou sala em que você estava, como o Discord. Se você tinha saído com "Sair da sala", ele só mostra a entrada, já preenchida. Se a senha mudou ou a sala está cheia, a entrada aparece com o motivo. No navegador, a entrada vem preenchida com o último lugar. Para escolher outro, use "Ir para a entrada do Ozamigos" (nos grupos) ou o botão ao lado do campo da sala.
+- **Chamar a atenção bem mais alto, e até 5 vezes por minuto:** o som de quem é chamado ficou bem mais alto que os outros avisos, para ser ouvido com o jogo ligado. E dá para chamar a mesma pessoa até 5 vezes por minuto (era uma).
 
 ### Interno
 - **Contas no servidor:** login com o Google e o Discord, sem pedir e-mail nem guardar senha; sessão própria do Ozamigos no banco; API da conta (nome, sair, apagar a conta, provedores); o login do app pelo navegador do sistema, com um código de uso único; a conta e a foto dentro da sala. A interface vem a seguir. (Plano em `docs/plano-contas.md`.)
@@ -22,10 +26,6 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ### Corrigido
 - **A voz com um amigo que ficava em "conectando…" para sempre:** às vezes a combinação inicial entre os dois PCs não terminava (por exemplo, numa atualização do Ozamigos, com todos voltando juntos), e a voz entre aqueles dois nunca conectava, mesmo funcionando com os outros. Agora, se não conecta em 20 segundos, ela é refeita sozinha.
-
-### Mudado
-- **O Ozamigos lembra onde você estava:** ao abrir de novo, o app para Windows entra sozinho no último grupo ou sala em que você estava, como o Discord. Se você tinha saído com "Sair da sala", ele só mostra a entrada, já preenchida. Se a senha mudou ou a sala está cheia, a entrada aparece com o motivo. No navegador, a entrada vem preenchida com o último lugar. Para escolher outro, use "Ir para a entrada do Ozamigos" (nos grupos) ou o botão ao lado do campo da sala.
-- **Chamar a atenção bem mais alto, e até 5 vezes por minuto:** o som de quem é chamado ficou bem mais alto que os outros avisos, para ser ouvido com o jogo ligado. E dá para chamar a mesma pessoa até 5 vezes por minuto (era uma).
 
 ## [1.2.21] - 2026-10-18
 
@@ -325,7 +325,8 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
-[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.21...HEAD
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.21...v1.3.0
 [1.2.21]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.20...v1.2.21
 [1.2.20]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.19...v1.2.20
 [1.2.19]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.18...v1.2.19
