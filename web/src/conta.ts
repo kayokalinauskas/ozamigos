@@ -76,13 +76,19 @@ export async function carregarConta(): Promise<void> {
 }
 
 /**
- * O erro que voltou do login para a entrada (?erro-de-login=): vira o aviso da conta, e sai do endereço (recarregar não
- * mostra de novo, e copiar o link não leva o erro junto).
+ * O erro que voltou do login (?erro-de-login=), lido quando este módulo carrega: o cliente (que importa este módulo)
+ * reescreve o endereço da sala ao nascer, e o erro se perderia.
+ */
+const ERRO_DO_LOGIN = new URLSearchParams(location.search).get('erro-de-login');
+
+/**
+ * O erro que voltou do login para a entrada: vira o aviso da conta, e sai do endereço (recarregar não mostra de novo,
+ * e copiar o link não leva o erro junto).
  */
 export function lerErroDoEndereco() {
+  if (!ERRO_DO_LOGIN) return;
+  const motivo = ERRO_DO_LOGIN;
   const parametros = new URLSearchParams(location.search);
-  const motivo = parametros.get('erro-de-login');
-  if (!motivo) return;
   parametros.delete('erro-de-login');
   const resto = parametros.toString();
   history.replaceState(null, '', location.pathname + (resto ? `?${resto}` : '') + location.hash);

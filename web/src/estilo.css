@@ -409,9 +409,51 @@ code {
   gap: 8px;
 }
 
-.botoes-de-login .botao-login {
-  flex: 1 1 180px;
+.botao-login {
+  display: inline-flex;
+  flex: 1 1 200px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--raio-pequeno);
+  font: 500 14px/20px 'Google Sans', 'Inter Variable', system-ui, sans-serif;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.botao-login span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.botao-login img {
+  flex: none;
+}
+
+.botao-login:not(:disabled):hover {
+  filter: brightness(1.15);
+}
+
+.botao-login:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* A diretriz do botão do Google, tema escuro (Conta.tsx). */
+.botao-login-google {
+  background: #131314;
+  border-color: #8e918f;
+  color: #e3e3e3;
+}
+
+.botao-login-discord {
+  background: #5865f2;
+  color: #fff;
 }
 
 .botoes-de-login .ajuda {
