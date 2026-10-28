@@ -19,9 +19,13 @@ const SENHA_MINIMA = 4;
 export function Entrada() {
   const { sala, grupo, salaFixa } = useCliente();
   const [criando, setCriando] = useState(false);
+  const { carregada } = useConta();
 
-  // O app aberto no último lugar entra sozinho (uma vez; as regras em entradaAutomatica.ts).
-  useEffect(() => cliente.entrarSozinhoSePuder(), []);
+  // O app aberto no último lugar entra sozinho (uma vez; as regras em entradaAutomatica.ts), depois de saber da conta:
+  // sem conta e sem ter escolhido ser convidado, fica na entrada, com os botões de login.
+  useEffect(() => {
+    if (carregada) cliente.entrarSozinhoSePuder();
+  }, [carregada]);
 
   // No navegador do Windows, o link de uma sala pergunta antes se a pessoa quer abrir no app (Convite.tsx).
   const [convite, setConvite] = useState(() => !ponte && NO_WINDOWS && cliente.veioDeUmLink && !lembrado(FICA_NO_NAVEGADOR));

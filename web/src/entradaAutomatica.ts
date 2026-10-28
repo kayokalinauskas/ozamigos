@@ -17,8 +17,16 @@ export type SituacaoDaAbertura = {
   senha: string;
   /** Saiu da sala de propósito, ou a última entrada automática foi recusada (sala cheia, grupo de outra pessoa). */
   naoEntrarSozinho: boolean;
+  /**
+   * Sem conta, com o login disponível, e a pessoa nunca escolheu entrar como convidado: a entrada fica na tela, com os
+   * botões de login. Sem isso, quem atualizou para a 1.3.0 caía direto na sala e nem via que podia entrar com a conta.
+   */
+  loginPorEscolher: boolean;
 };
 
+/** Guardado como 'sim' quando a pessoa entra como convidado com os botões de login na tela. */
+export const ESCOLHEU_CONVIDADO = 'ozamigos-escolheu-convidado';
+
 export function deveEntrarSozinho(s: SituacaoDaAbertura): boolean {
-  return s.voltouAoUltimo && s.noApp && s.nome.trim() !== '' && s.senha !== '' && !s.naoEntrarSozinho;
+  return s.voltouAoUltimo && s.noApp && s.nome.trim() !== '' && s.senha !== '' && !s.naoEntrarSozinho && !s.loginPorEscolher;
 }

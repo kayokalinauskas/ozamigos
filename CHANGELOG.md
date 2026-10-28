@@ -8,6 +8,9 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+### Corrigido
+- O app que entra sozinho na última sala agora para na entrada quando dá para entrar com o Google ou o Discord e você ainda não escolheu entrar como convidado: antes, quem atualizou para a 1.3.0 caía direto na sala e nem via os botões.
+
 ## [1.3.0] - 2026-10-27
 
 ### Novo

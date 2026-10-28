@@ -17,8 +17,8 @@ import { trocaDeImagens } from './imagens/troca';
 import { novoIdDeImagem, type Chegada } from './imagens/protocolo';
 import type { ImagemComprimida } from './imagens/compressor';
 import { FOLGA, FolgaAdaptativa } from './folga';
-import { NAO_ENTRAR_SOZINHO, deveEntrarSozinho } from './entradaAutomatica';
-import { voltouDoLogin } from './conta';
+import { ESCOLHEU_CONVIDADO, NAO_ENTRAR_SOZINHO, deveEntrarSozinho } from './entradaAutomatica';
+import { lerConta, voltouDoLogin } from './conta';
 
 /** O history.state dos endereços que a própria página escreve (trocarSala): recarregar não os confunde com um convite. */
 const ESCRITO_AQUI = { ozamigos: 'escrito-aqui' };
@@ -480,6 +480,8 @@ class Cliente {
   /** Entra no grupo fixo, ou no grupo do endereço; `criar` cria o grupo se ele não existe. */
   entrar(nome: string, senha: string, criar = false) {
     if (this.estado.fase !== 'entrada') return; // dois cliques abririam duas conexões (uma "pessoa fantasma")
+    const { conta, login } = lerConta();
+    if (!conta && login.length > 0) lembrar(ESCOLHEU_CONVIDADO, 'sim'); // viu os botões e preferiu convidado
     this.recusado = false;
     this.nome = nome;
     this.senha = senha;
@@ -494,14 +496,16 @@ class Cliente {
    * Ao abrir o app no último lugar (a entrada chama uma vez, ao aparecer), entra sozinho se tudo estiver lembrado e a
    * pessoa não tiver saído de propósito (as regras em entradaAutomatica.ts). Num grupo, cria de novo se ele sumiu
    * (o servidor reiniciou), com a senha lembrada: o mesmo que a reconexão faz. Recusada, a entrada fica na tela com o
-   * motivo, e a próxima abertura não tenta de novo.
+   * motivo, e a próxima abertura não tenta de novo. Chamada com a conta já carregada (conta.ts).
    */
   entrarSozinhoSePuder() {
     if (!this.voltouAoUltimo || this.estado.fase !== 'entrada') return;
     this.voltouAoUltimo = false; // uma vez só por abertura
-    const nome = lembrado('ozamigos-nome');
+    const { conta, login } = lerConta();
+    const nome = conta?.nome ?? lembrado('ozamigos-nome'); // com conta, o servidor usa o nome dela
     const senha = lembrado(this.chaveDaSenha());
-    if (!deveEntrarSozinho({ voltouAoUltimo: true, noApp, nome, senha, naoEntrarSozinho: lembrado(NAO_ENTRAR_SOZINHO) === 'sim' })) return;
+    const loginPorEscolher = !conta && login.length > 0 && lembrado(ESCOLHEU_CONVIDADO) !== 'sim';
+    if (!deveEntrarSozinho({ voltouAoUltimo: true, noApp, nome, senha, naoEntrarSozinho: lembrado(NAO_ENTRAR_SOZINHO) === 'sim', loginPorEscolher })) return;
     this.registrar('entrada automática no último lugar');
     this.entrandoSozinho = true;
     this.entrar(nome, senha, this.estado.grupo !== null);

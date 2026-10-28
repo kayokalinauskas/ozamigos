@@ -63,7 +63,7 @@ describe('grupo criado na hora', () => {
 });
 
 describe('entrada automática ao abrir o app', () => {
-  const tudo = { voltouAoUltimo: true, noApp: true, nome: 'Kayo', senha: 'segredo', naoEntrarSozinho: false };
+  const tudo = { voltouAoUltimo: true, noApp: true, nome: 'Kayo', senha: 'segredo', naoEntrarSozinho: false, loginPorEscolher: false };
 
   it('entra sozinho no app, de volta ao último lugar, com o nome e a senha lembrados', () => {
     expect(deveEntrarSozinho(tudo)).toBe(true);
@@ -75,5 +75,6 @@ describe('entrada automática ao abrir o app', () => {
     expect(deveEntrarSozinho({ ...tudo, nome: '  ' })).toBe(false);
     expect(deveEntrarSozinho({ ...tudo, senha: '' })).toBe(false); // a senha errada apaga a lembrada
     expect(deveEntrarSozinho({ ...tudo, naoEntrarSozinho: true })).toBe(false); // saiu, ou a última foi recusada
+    expect(deveEntrarSozinho({ ...tudo, loginPorEscolher: true })).toBe(false); // os botões de login ficam na tela
   });
 });
