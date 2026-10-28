@@ -72,6 +72,11 @@ public class VidaDoBanco {
     void sinalDeVida() {
         try {
             banco.sql("insert into sinais_de_vida (dia) values (current_date) on conflict (dia) do nothing").update();
+            // De carona, a limpeza diária: as sessões vencidas (Sessoes) saem do banco.
+            int vencidas = banco.sql("delete from sessoes where expira_em <= now()").update();
+            if (vencidas > 0) {
+                log.info("Banco: {} sessões vencidas apagadas", vencidas);
+            }
         } catch (RuntimeException erro) {
             log.warn("Banco: o sinal de vida falhou ({})", erro.getMessage());
         }

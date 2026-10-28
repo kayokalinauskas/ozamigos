@@ -5,6 +5,10 @@ ficam salvos, no estilo do Discord. Escrito em 27/10/2026, a partir do código d
 
 ## Como o trabalho anda (decisão do dono, 27/10/2026)
 
+**A fase 1 em três PRs para o `contas`:** (1) `contas-login`, o servidor: contas, sessões, login, API, a conta na
+sala, a retransmissão só com conta, a privacidade; (2) a interface e o app: os botões de login, Configurações → Conta,
+a foto na sala, o login do app pelo navegador; (3) o ponta a ponta com o mock-oauth2-server e o teste no app de verdade.
+
 - Tudo isto fica no branch **`contas`**, com um PR em rascunho para a `main`. **Nada vai para o ar pela metade:** cada
   push na `main` é um deploy no Render.
 - Partes de uma fase entram no `contas` por PRs próprios (branches `contas-...`), com o CI rodando em cada um.
@@ -135,15 +139,19 @@ pareamentos (id text, resumo_do_segredo bytea, usuario_id uuid null, expira_em) 
 
 ### Fluxo no app (Electron)
 
-1. A página do app gera um `segredo` aleatório e pede `POST /api/pareamentos` com o **resumo** dele; recebe um `id`.
-2. O app abre o navegador do sistema em `/login/app?pareamento=id`. A pessoa faz o login normal.
-3. No fim, o servidor liga o pareamento ao usuário e mostra "Pode voltar para o Ozamigos".
-4. A página do app consulta `POST /api/pareamentos/{id}/resgatar` com o `segredo` (a cada 2 s, até 5 min). Com o
-   segredo certo, recebe a sessão no cookie do app. O pareamento vale uma vez só.
+Decidido na implementação (27/10/2026): **o redirecionamento para o 127.0.0.1, da RFC 8252** (a recomendação para apps
+nativos), no lugar do pareamento por consulta. No pareamento, um link de login forjado por outra pessoa podia fazer a
+vítima logar o app *do atacante*; com o 127.0.0.1, o código só chega ao PC de quem fez o login.
 
-Funciona no instalado e na versão portátil (sem depender do `ozamigos://`). Quem vê o link do navegador não consegue
-resgatar a sessão: o segredo nunca saiu do app. **Muda `desktop/`** (abrir o navegador por IPC, conferindo a
-origem): sai uma versão nova do app.
+1. O app (processo principal) abre um servidor HTTP só no `127.0.0.1`, numa porta livre, e sorteia um `estado`.
+2. Abre o navegador do sistema em `/conta/entrar/{provedor}?app=<porta>&estado=<estado>`. A pessoa faz o login normal.
+3. No fim, o servidor manda o navegador para `http://127.0.0.1:<porta>/login?codigo=<código>&estado=<estado>`. O
+   código vale 2 minutos, uma vez só, e só existe na memória do servidor.
+4. O app confere o `estado`, mostra "Pode voltar para o Ozamigos" no navegador, fecha a porta e passa o código para a
+   página, que o troca pela sessão (`POST /api/conta/codigo`), no cookie da janela do app.
+
+Funciona no instalado e na versão portátil (sem depender do `ozamigos://`). **Muda `desktop/`**: sai uma versão nova
+do app. Um app antigo não tem o botão de login (a página confere se a ponte tem a função).
 
 ### Na sala
 

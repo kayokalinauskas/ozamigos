@@ -6,8 +6,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDate;
 
 import javax.sql.DataSource;
@@ -18,28 +16,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import com.zaxxer.hikari.HikariDataSource;
 
-/** O banco num Postgres de verdade, em Docker (o mesmo do compose.yaml), e o servidor sem ele. */
-@Testcontainers(disabledWithoutDocker = true) // sem o Docker ligado no PC, pula; no CI ele sempre existe
+/** O banco num Postgres de verdade, e o servidor sem ele. */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT, properties = "ozamigos.senha=teste")
-class BancoTest {
-
-    @Container
-    static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:18-alpine");
-
-    @DynamicPropertySource
-    static void banco(DynamicPropertyRegistry propriedades) {
-        propriedades.add("ozamigos.banco.url", postgres::getJdbcUrl);
-        propriedades.add("ozamigos.banco.usuario", postgres::getUsername);
-        propriedades.add("ozamigos.banco.senha", postgres::getPassword);
-    }
+class BancoTest extends ComBanco {
 
     @LocalServerPort
     private int porta;
@@ -53,6 +35,7 @@ class BancoTest {
     @Test
     void asMigracoesRodamAoSubirEOSinalDeVidaFicaRegistrado() throws Exception {
         esperarPronto(vida);
+        Thread.sleep(500); // o sinal de vida é agendado logo depois de ficar pronto
 
         LocalDate dia = JdbcClient.create(fonte).sql("select max(dia) from sinais_de_vida").query(LocalDate.class).single();
         assertThat(dia).isNotNull();
@@ -76,13 +59,5 @@ class BancoTest {
             assertThat(semBanco.pronto()).isFalse();
             semBanco.parar();
         }
-    }
-
-    private static void esperarPronto(VidaDoBanco vida) throws InterruptedException {
-        Instant limite = Instant.now().plus(Duration.ofSeconds(30));
-        while (!vida.pronto() && Instant.now().isBefore(limite)) Thread.sleep(100);
-        assertThat(vida.pronto()).as("as migrações rodaram").isTrue();
-        // O sinal de vida é agendado logo depois de ficar pronto.
-        Thread.sleep(500);
     }
 }

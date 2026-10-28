@@ -26,12 +26,21 @@ public class Salas {
     public static final int LIMITE_POR_SALA = 8;
 
     /**
-     * O que quem acabou de entrar precisa saber: quem já está (id -> nome),
+     * A conta de quem entrou com uma (null: convidado): o id, que a página usa para reconhecer a pessoa (volume, volta
+     * depois de uma queda), e o endereço da foto, ou null sem foto.
+     */
+    public record Conta(String id, String foto) {}
+
+    /** Quem está na sala, como os outros veem. */
+    public record Pessoa(String nome, Conta conta) {}
+
+    /**
+     * O que quem acabou de entrar precisa saber: quem já está (id -> pessoa),
      * quem está transmitindo, quem assiste cada transmissão e quem está gravando as estatísticas (ou null).
      * {@code avisar} são as conexões de quem já estava, as que recebem o "entrou": tiradas junto com {@code outros},
      * para quem entra ao mesmo tempo não receber a mesma pessoa duas vezes (na lista do "bem-vindo" e num "entrou").
      */
-    public record Entrada(Map<String, String> outros, List<String> compartilhando, Map<String, List<String>> plateias,
+    public record Entrada(Map<String, Pessoa> outros, List<String> compartilhando, Map<String, List<String>> plateias,
             String gravador, List<WebSocketSession> avisar) {}
 
     /**
@@ -44,6 +53,7 @@ public class Salas {
     private static final class Sala {
         final Map<String, WebSocketSession> participantes = new LinkedHashMap<>();
         final Map<String, String> nomes = new HashMap<>();
+        final Map<String, Conta> contas = new HashMap<>();
         /** A ficha de cada pessoa: só ela sabe, e é o que prova que é ela voltando depois de uma queda. */
         final Map<String, String> fichas = new HashMap<>();
         /** Quem transmite -> quem está assistindo (só existe enquanto a pessoa transmite). */
@@ -55,16 +65,19 @@ public class Salas {
     private final Map<String, Sala> salas = new HashMap<>();
 
     /** Devolve null se a sala estiver cheia. */
-    public synchronized Entrada entrar(String codigo, String id, String nome, String ficha, WebSocketSession sessao) {
+    public synchronized Entrada entrar(String codigo, String id, String nome, Conta conta, String ficha, WebSocketSession sessao) {
         Sala sala = salas.computeIfAbsent(codigo, c -> new Sala());
         if (sala.participantes.size() >= LIMITE_POR_SALA) {
             return null;
         }
-        Map<String, String> outros = new LinkedHashMap<>();
-        sala.participantes.keySet().forEach(outroId -> outros.put(outroId, sala.nomes.get(outroId)));
+        Map<String, Pessoa> outros = new LinkedHashMap<>();
+        sala.participantes.keySet().forEach(outroId -> outros.put(outroId, new Pessoa(sala.nomes.get(outroId), sala.contas.get(outroId))));
         List<WebSocketSession> avisar = new ArrayList<>(sala.participantes.values());
         sala.participantes.put(id, sessao);
         sala.nomes.put(id, nome);
+        if (conta != null) {
+            sala.contas.put(id, conta);
+        }
         sala.fichas.put(id, ficha);
         Map<String, List<String>> plateias = new LinkedHashMap<>();
         sala.plateias.forEach((quem, plateia) -> plateias.put(quem, List.copyOf(plateia)));
@@ -79,6 +92,7 @@ public class Salas {
         }
         sala.participantes.remove(id);
         sala.nomes.remove(id);
+        sala.contas.remove(id);
         sala.fichas.remove(id);
         sala.plateias.remove(id); // quem sai para de transmitir; o "saiu" já avisa os outros
         boolean gravacaoAcabou = id.equals(sala.gravador);

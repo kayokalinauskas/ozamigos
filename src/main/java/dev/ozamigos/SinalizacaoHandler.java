@@ -123,6 +123,12 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
      */
     private void entrar(WebSocketSession sessao, String id, String codigo, String senha, String nome,
             String fichaAnterior, String grupo, boolean criar) throws IOException {
+        // Com conta (o cookie da sessão, lido na abertura do WebSocket: ContaNoWebSocket), o nome é o dela, e não o
+        // que a página mandou: ninguém entra com o nome de outra pessoa que tem conta.
+        Salas.Conta conta = (Salas.Conta) sessao.getAttributes().get(ContaNoWebSocket.CONTA);
+        if (conta != null) {
+            nome = (String) sessao.getAttributes().get(ContaNoWebSocket.NOME);
+        }
         // A senha vem antes de tudo: sem ela, a pessoa não descobre nada sobre a sala.
         String endereco = endereco(sessao.getHandshakeHeaders(), sessao.getRemoteAddress());
         if (tentativas.bloqueado(endereco)) {
@@ -182,7 +188,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             fecharSemErro(antiga);
         }
         String ficha = (String) sessao.getAttributes().get("ficha");
-        Salas.Entrada entrada = salas.entrar(codigo, id, nome, ficha, segura(sessao));
+        Salas.Entrada entrada = salas.entrar(codigo, id, nome, conta, ficha, segura(sessao));
         if (entrada == null) {
             erro(sessao, "sala-cheia");
             sessao.close(CloseStatus.POLICY_VIOLATION);
@@ -200,9 +206,18 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         ObjectNode boasVindas = json.createObjectNode()
                 .put("tipo", "bem-vindo")
                 .put("id", id)
-                .put("ficha", ficha);
+                .put("ficha", ficha)
+                .put("nome", nome);
+        if (conta != null) {
+            contaEm(boasVindas, conta);
+        }
         ArrayNode outros = boasVindas.putArray("outros");
-        entrada.outros().forEach((outroId, outroNome) -> outros.addObject().put("id", outroId).put("nome", outroNome));
+        entrada.outros().forEach((outroId, outro) -> {
+            ObjectNode pessoa = outros.addObject().put("id", outroId).put("nome", outro.nome());
+            if (outro.conta() != null) {
+                contaEm(pessoa, outro.conta());
+            }
+        });
         ArrayNode compartilhando = boasVindas.putArray("compartilhando");
         entrada.compartilhando().forEach(compartilhando::add);
         ObjectNode plateias = boasVindas.putObject("plateias");
@@ -210,7 +225,12 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         // A retransmissão vem já no bem-vindo: a pessoa liga a voz para todos logo que o recebe.
         // "retransmissao" é a do vídeo: a página de antes (aberta antes do deploy) a usa também na voz, como antes.
         WebSocketSession segura = segura(sessao);
-        Retransmissao.Credenciais credenciais = retransmissao.entrou(id, nome, endereco, novas -> enviar(segura, mensagemDaRetransmissao(novas)));
+        Retransmissao.Credenciais credenciais = retransmissao.entrou(id, nome, endereco, conta == null ? null : conta.id(),
+                novas -> enviar(segura, mensagemDaRetransmissao(novas)));
+        if (conta == null && retransmissao.ligada()) {
+            // A página diz a quem não conecta direto que entrar com a conta resolve (decisão do dono, 27/10/2026).
+            boasVindas.put("retransmissaoSoComConta", true);
+        }
         if (credenciais != null) {
             boasVindas.set("retransmissao", credenciais.video());
             boasVindas.set("retransmissaoDaVoz", credenciais.voz());
@@ -226,8 +246,19 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         // Só quem já estava quando entrei: quem entrou depois (ao mesmo tempo, como todos voltando depois de um
         // deploy) já me recebeu na lista do "bem-vindo", e com o "entrou" também me via duas vezes.
         ObjectNode entrou = json.createObjectNode().put("tipo", "entrou").put("id", id).put("nome", nome);
+        if (conta != null) {
+            contaEm(entrou, conta);
+        }
         for (WebSocketSession outro : entrada.avisar()) {
             enviar(outro, entrou);
+        }
+    }
+
+    /** A conta de uma pessoa, nas mensagens: o id (que reconhece a pessoa na página) e a foto, se tiver. */
+    private static void contaEm(ObjectNode pessoa, Salas.Conta conta) {
+        pessoa.put("conta", conta.id());
+        if (conta.foto() != null) {
+            pessoa.put("foto", conta.foto());
         }
     }
 
