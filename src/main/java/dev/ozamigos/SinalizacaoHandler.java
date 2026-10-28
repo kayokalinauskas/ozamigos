@@ -56,12 +56,21 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     private final Retransmissao retransmissao;
     private final Servidores servidores;
     private final Contas contas;
+    /**
+     * Uma trava por servidor (64 repartidas pelo código): a entrada confere se a pessoa é membro e entra na sala segurando
+     * a trava, e a expulsão tira da sala segurando a mesma. Sem ela, quem fosse expulso entre a conferência e a entrada
+     * ficava na sala.
+     */
+    private final Object[] travasDosServidores = new Object[64];
 
     public SinalizacaoHandler(Salas salas, SenhaDoGrupo senhaDoGrupo, TentativasDeSenha tentativas, JsonMapper json, PreviasDeLinks previas,
             Grupos grupos, Retransmissao retransmissao, Servidores servidores, Contas contas) {
         this.salas = salas;
         this.servidores = servidores;
         this.contas = contas;
+        for (int i = 0; i < travasDosServidores.length; i++) {
+            travasDosServidores[i] = new Object();
+        }
         this.retransmissao = retransmissao;
         this.grupos = grupos;
         this.senhaDoGrupo = senhaDoGrupo;
@@ -126,6 +135,21 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
      * {@code servidor}, um servidor salvo (Servidores): sem senha, só para os membros, que entram com a conta.
      */
     private void entrar(WebSocketSession sessao, String id, String codigo, String senha, String nome,
+            String fichaAnterior, String grupo, boolean criar, String servidor) throws IOException {
+        if (servidor.isEmpty()) {
+            entrarJa(sessao, id, codigo, senha, nome, fichaAnterior, grupo, criar, servidor);
+            return;
+        }
+        synchronized (trava(servidor)) {
+            entrarJa(sessao, id, codigo, senha, nome, fichaAnterior, grupo, criar, servidor);
+        }
+    }
+
+    private Object trava(String servidor) {
+        return travasDosServidores[Math.floorMod(servidor.hashCode(), travasDosServidores.length)];
+    }
+
+    private void entrarJa(WebSocketSession sessao, String id, String codigo, String senha, String nome,
             String fichaAnterior, String grupo, boolean criar, String servidor) throws IOException {
         // Com conta (o cookie da sessão, lido na abertura do WebSocket: ContaNoWebSocket), o nome é o dela, e não o
         // que a página mandou: ninguém entra com o nome de outra pessoa que tem conta.
@@ -294,13 +318,22 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
      */
     public void tirarDoServidor(String servidor, UUID conta, String motivo) {
         ObjectNode aviso = json.createObjectNode().put("tipo", "erro").put("motivo", motivo);
-        for (WebSocketSession pessoa : salas.daConta(Servidores.sala(servidor), conta == null ? null : conta.toString())) {
-            enviar(pessoa, aviso);
-            try {
-                pessoa.close(CloseStatus.POLICY_VIOLATION);
-            } catch (IOException | RuntimeException e) {
-                // já tinha fechado: era o que queríamos
+        synchronized (trava(servidor)) {
+            for (WebSocketSession pessoa : salas.daConta(Servidores.sala(servidor), conta == null ? null : conta.toString())) {
+                enviar(pessoa, aviso);
+                try {
+                    pessoa.close(CloseStatus.POLICY_VIOLATION);
+                } catch (IOException | RuntimeException e) {
+                    // já tinha fechado: era o que queríamos
+                }
             }
+        }
+    }
+
+    /** Tira a conta das salas de todos os servidores salvos em que ela está (a conta foi apagada). */
+    public void tirarDosServidores(UUID conta, String motivo) {
+        for (String sala : salas.salasDaConta(conta.toString(), Servidores.sala(""))) {
+            tirarDoServidor(sala.substring(Servidores.sala("").length()), conta, motivo);
         }
     }
 
@@ -520,11 +553,17 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
      * invertem a direção do texto, sem espaços nas pontas, e até CHAT_MAXIMO caracteres sem partir um emoji ao meio.
      */
     static String textoDoChat(String texto) {
-        String limpo = texto.replaceAll("[\\r\\n\\t]+", " ")
-                .replaceAll("[\\p{Cc}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]", "")
-                .strip();
-        if (limpo.codePointCount(0, limpo.length()) > CHAT_MAXIMO) {
-            limpo = limpo.substring(0, limpo.offsetByCodePoints(0, CHAT_MAXIMO)).strip();
+        return semControles(texto.replaceAll("[\\r\\n\\t]+", " "), CHAT_MAXIMO);
+    }
+
+    /**
+     * Sem caracteres de controle nem os que invertem a direção do texto, sem espaços nas pontas, e até {@code maximo}
+     * caracteres sem partir um emoji ao meio: a regra de tudo o que uma pessoa escreve e as outras veem (chat, nomes).
+     */
+    static String semControles(String texto, int maximo) {
+        String limpo = texto.replaceAll("[\\p{Cc}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]", "").strip();
+        if (limpo.codePointCount(0, limpo.length()) > maximo) {
+            limpo = limpo.substring(0, limpo.offsetByCodePoints(0, maximo)).strip();
         }
         return limpo;
     }
@@ -590,10 +629,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
      * ao meio, e "Amigo" se vier vazio.
      */
     static String nomeLimpo(String nome) {
-        String limpo = nome.replaceAll("[\\p{Cc}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]", "").strip();
-        if (limpo.codePointCount(0, limpo.length()) > 20) {
-            limpo = limpo.substring(0, limpo.offsetByCodePoints(0, 20)).strip();
-        }
+        String limpo = semControles(nome, 20);
         return limpo.isEmpty() ? "Amigo" : limpo;
     }
 

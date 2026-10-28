@@ -231,6 +231,17 @@ public class Salas {
         return achadas;
     }
 
+    /** As salas, de chave começando por {@code prefixo}, em que uma conta está. */
+    public synchronized List<String> salasDaConta(String conta, String prefixo) {
+        List<String> achadas = new ArrayList<>();
+        salas.forEach((codigo, sala) -> {
+            if (codigo.startsWith(prefixo) && sala.contas.values().stream().anyMatch(dela -> dela.id().equals(conta))) {
+                achadas.add(codigo);
+            }
+        });
+        return achadas;
+    }
+
     /** Todo mundo da sala, inclusive quem pediu. */
     public synchronized List<WebSocketSession> todos(String codigo) {
         Sala sala = salas.get(codigo);

@@ -126,7 +126,6 @@ class ServidoresTest extends ComBanco {
 
         assertThat(servidores.papel(comGente, caio)).contains(Papel.DONO);
         assertThat(servidores.papel(comGente, beto)).contains(Papel.MEMBRO);
-        assertThat(servidores.icone(vazio)).isEmpty();
         assertThat(JdbcClient.create(fonte).sql("select count(*) from servidores where codigo = :c").param("c", vazio)
                 .query(Integer.class).single()).isZero();
     }

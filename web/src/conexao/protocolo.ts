@@ -58,6 +58,7 @@ export type MotivoDoErro =
   | 'servidores-indisponiveis'
   | 'expulso'
   | 'servidor-apagado'
+  | 'fora-do-servidor'
   | 'muitas-tentativas'
   | 'sala-cheia'
   | 'codigo-invalido'

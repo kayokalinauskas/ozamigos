@@ -43,11 +43,14 @@ public class ContaApi {
     private final Sessoes sessoes;
     private final ProvedoresDeLogin provedores;
     private final CodigosDoApp codigos;
+    private final SinalizacaoHandler sinalizacao;
     /** Trocas de código por endereço: uma por login de verdade, então 20 a cada 10 minutos sobram. */
     private final Freio trocas = new Freio(20, Duration.ofMinutes(10));
 
-    public ContaApi(Contas contas, Sessoes sessoes, ProvedoresDeLogin provedores, CodigosDoApp codigos) {
+    public ContaApi(Contas contas, Sessoes sessoes, ProvedoresDeLogin provedores, CodigosDoApp codigos,
+            SinalizacaoHandler sinalizacao) {
         this.contas = contas;
+        this.sinalizacao = sinalizacao;
         this.sessoes = sessoes;
         this.provedores = provedores;
         this.codigos = codigos;
@@ -94,6 +97,7 @@ public class ContaApi {
             return erro(HttpStatus.BAD_REQUEST, "confirme");
         }
         contas.apagar(usuario.get());
+        sinalizacao.tirarDosServidores(usuario.get(), "fora-do-servidor"); // já não é membro de nenhum
         return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, Sessoes.cookieApagado().toString()).build();
     }
 
@@ -185,6 +189,14 @@ public class ContaApi {
     }
 
     private ResponseEntity<Map<String, String>> semConta() {
+        return semConta(contas);
+    }
+
+    /**
+     * Sem a conta da sessão: 401, ou 503 se foi o banco que não respondeu (Sessoes.conta devolve vazio também nesse caso,
+     * e deixa o banco de fora): a página não acha que a pessoa saiu da conta.
+     */
+    static ResponseEntity<Map<String, String>> semConta(Contas contas) {
         return contas.disponivel() ? erro(HttpStatus.UNAUTHORIZED, "sem-conta")
                 : erro(HttpStatus.SERVICE_UNAVAILABLE, "contas-indisponiveis");
     }

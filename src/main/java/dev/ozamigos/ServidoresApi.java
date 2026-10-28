@@ -87,12 +87,7 @@ public class ServidoresApi {
     @PatchMapping("/api/servidores/{codigo}")
     public ResponseEntity<?> mudar(@PathVariable String codigo, @RequestBody Mudanca mudanca, HttpServletRequest pedido) {
         return comConta(pedido, usuario -> {
-            if (mudanca.nome() != null) {
-                servidores.renomear(codigo, usuario, mudanca.nome());
-            }
-            if (mudanca.membrosConvidam() != null) {
-                servidores.membrosConvidam(codigo, usuario, mudanca.membrosConvidam());
-            }
+            servidores.mudar(codigo, usuario, mudanca.nome(), mudanca.membrosConvidam());
             return emJson(servidores.ver(codigo, usuario));
         });
     }
@@ -101,10 +96,10 @@ public class ServidoresApi {
     @DeleteMapping("/api/servidores/{codigo}")
     public ResponseEntity<?> apagar(@PathVariable String codigo, @RequestBody(required = false) Confirmacao confirmacao,
             HttpServletRequest pedido) {
-        if (confirmacao == null || !Boolean.TRUE.equals(confirmacao.confirmar())) {
-            return ContaApi.erro(HttpStatus.BAD_REQUEST, "confirme");
-        }
         return comConta(pedido, usuario -> {
+            if (confirmacao == null || !Boolean.TRUE.equals(confirmacao.confirmar())) {
+                throw new Servidores.Recusa(Servidores.Motivo.CONFIRME);
+            }
             servidores.apagar(codigo, usuario);
             sinalizacao.tirarDoServidor(codigo, null, "servidor-apagado");
             return null;
@@ -135,12 +130,16 @@ public class ServidoresApi {
     }
 
     /** O ícone, com a versão no endereço: pode ficar no cache por um ano. */
-    @GetMapping("/api/servidores/{codigo}/icone")
-    public ResponseEntity<byte[]> icone(@PathVariable String codigo) {
+    @GetMapping("/api/icones/{servidor}")
+    public ResponseEntity<byte[]> icone(@PathVariable String servidor) {
+        Optional<UUID> id = uuid(servidor);
+        if (id.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
         if (!contas.disponivel()) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         }
-        return servidores.icone(codigo)
+        return servidores.icone(id.get())
                 .map(icone -> ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG)
                         .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
                         .body(icone))
@@ -186,6 +185,7 @@ public class ServidoresApi {
         return comConta(pedido, usuario -> {
             if (alvo.get().equals(usuario)) {
                 servidores.sair(codigo, usuario);
+                sinalizacao.tirarDoServidor(codigo, usuario, "fora-do-servidor"); // a sala aberta também
             } else {
                 servidores.expulsar(codigo, usuario, alvo.get());
                 sinalizacao.tirarDoServidor(codigo, alvo.get(), "expulso");
@@ -295,7 +295,7 @@ public class ServidoresApi {
         }
         Optional<UUID> usuario = sessoes.usuario(Sessoes.segredoDe(pedido));
         if (usuario.isEmpty()) {
-            return ContaApi.erro(HttpStatus.UNAUTHORIZED, "sem-conta");
+            return ContaApi.semConta(contas);
         }
         Object corpo = acao.fazer(usuario.get());
         return corpo == null ? ResponseEntity.noContent().build() : ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(corpo);

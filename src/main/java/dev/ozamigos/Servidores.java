@@ -6,6 +6,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.ToIntFunction;
@@ -56,11 +57,11 @@ public class Servidores {
         DONO, ADMIN, MEMBRO;
 
         String noBanco() {
-            return name().toLowerCase();
+            return name().toLowerCase(Locale.ROOT);
         }
 
         static Papel doBanco(String papel) {
-            return valueOf(papel.toUpperCase());
+            return valueOf(papel.toUpperCase(Locale.ROOT));
         }
     }
 
@@ -74,6 +75,7 @@ public class Servidores {
         NOME_INVALIDO(HttpStatus.BAD_REQUEST, "nome-invalido"),
         ICONE_INVALIDO(HttpStatus.BAD_REQUEST, "icone-invalido"),
         PEDIDO_INVALIDO(HttpStatus.BAD_REQUEST, "pedido-invalido"),
+        CONFIRME(HttpStatus.BAD_REQUEST, "confirme"),
         DONO_NAO_SAI(HttpStatus.CONFLICT, "dono-nao-sai"),
         DONA_DE_DEMAIS(HttpStatus.CONFLICT, "servidores-demais"),
         MEMBRO_DE_DEMAIS(HttpStatus.CONFLICT, "participa-demais"),
@@ -153,14 +155,14 @@ public class Servidores {
     /** Os servidores de que a pessoa é membro, do mais recente para o mais antigo. */
     public List<Resumo> meus(UUID usuario) {
         return banco.sql("""
-                select s.codigo, s.nome, s.icone is not null as tem_icone, s.icone_versao, m.papel,
+                select s.id, s.codigo, s.nome, s.icone is not null as tem_icone, s.icone_versao, m.papel,
                        (select count(*) from membros t where t.servidor_id = s.id) as membros
                 from membros m join servidores s on s.id = m.servidor_id
                 where m.usuario_id = :u
                 order by m.entrou_em desc, s.codigo""")
                 .param("u", usuario)
                 .query((linha, n) -> new Resumo(linha.getString("codigo"), linha.getString("nome"),
-                        enderecoDoIcone(linha.getString("codigo"), linha.getBoolean("tem_icone"), linha.getInt("icone_versao")),
+                        enderecoDoIcone(linha.getObject("id", UUID.class), linha.getBoolean("tem_icone"), linha.getInt("icone_versao")),
                         Papel.doBanco(linha.getString("papel")), linha.getInt("membros")))
                 .list();
     }
@@ -183,7 +185,7 @@ public class Servidores {
         return banco.sql("select nome, icone is not null as tem_icone, icone_versao, membros_convidam from servidores where id = :s")
                 .param("s", acesso.id())
                 .query((linha, n) -> new Servidor(codigo, linha.getString("nome"),
-                        enderecoDoIcone(codigo, linha.getBoolean("tem_icone"), linha.getInt("icone_versao")),
+                        enderecoDoIcone(acesso.id(), linha.getBoolean("tem_icone"), linha.getInt("icone_versao")),
                         acesso.papel(), linha.getBoolean("membros_convidam"), membros))
                 .single();
     }
@@ -197,20 +199,31 @@ public class Servidores {
                 .param("c", codigo).param("u", usuario).query(String.class).optional().map(Papel::doBanco);
     }
 
+    /**
+     * Muda o nome (dono e admin) e se os membros convidam (só o dono); null fica como está. As permissões das duas são
+     * conferidas antes de mudar qualquer uma: ou muda tudo, ou nada.
+     */
+    public void mudar(String codigo, UUID usuario, String nome, Boolean membrosConvidam) {
+        String limpo = nome == null ? null : nomeLimpo(nome);
+        Acesso acesso = acesso(codigo, usuario, false);
+        exigir(limpo == null || acesso.papel() != Papel.MEMBRO);
+        exigir(membrosConvidam == null || acesso.papel() == Papel.DONO);
+        banco.sql("""
+                update servidores set nome = coalesce(cast(:nome as text), nome),
+                       membros_convidam = coalesce(cast(:convidam as boolean), membros_convidam)
+                where id = :s""")
+                .param("nome", limpo).param("convidam", membrosConvidam).param("s", acesso.id()).update();
+    }
+
     /** Muda o nome (dono e admin). Devolve o nome novo, já limpo. */
     public String renomear(String codigo, UUID usuario, String nome) {
-        String limpo = nomeLimpo(nome);
-        Acesso acesso = acesso(codigo, usuario, false);
-        exigir(acesso.papel() != Papel.MEMBRO);
-        banco.sql("update servidores set nome = :nome where id = :s").param("nome", limpo).param("s", acesso.id()).update();
-        return limpo;
+        mudar(codigo, usuario, nome, null);
+        return nomeLimpo(nome);
     }
 
     /** Deixa ou não os membros criarem convites (só o dono). */
     public void membrosConvidam(String codigo, UUID usuario, boolean convidam) {
-        Acesso acesso = acesso(codigo, usuario, false);
-        exigir(acesso.papel() == Papel.DONO);
-        banco.sql("update servidores set membros_convidam = :c where id = :s").param("c", convidam).param("s", acesso.id()).update();
+        mudar(codigo, usuario, null, convidam);
     }
 
     /**
@@ -233,16 +246,16 @@ public class Servidores {
         }
         int versao = banco.sql("update servidores set icone = :icone, icone_versao = icone_versao + 1 where id = :s returning icone_versao")
                 .param("icone", icone).param("s", acesso.id()).query(Integer.class).single();
-        return enderecoDoIcone(codigo, icone != null, versao);
+        return enderecoDoIcone(acesso.id(), icone != null, versao);
     }
 
-    /** O ícone, para quem tem o endereço (ele aparece também na prévia de um convite). */
-    public Optional<byte[]> icone(String codigo) {
-        if (!CODIGO.matcher(codigo).matches()) {
-            return Optional.empty();
-        }
-        return banco.sql("select icone from servidores where codigo = :c and icone is not null")
-                .param("c", codigo).query(byte[].class).optional();
+    /**
+     * O ícone, para quem tem o endereço (ele aparece também na prévia de um convite). Pelo id interno, e não pelo código:
+     * a prévia de um convite não revela o endereço do servidor.
+     */
+    public Optional<byte[]> icone(UUID servidor) {
+        return banco.sql("select icone from servidores where id = :s and icone is not null")
+                .param("s", servidor).query(byte[].class).optional();
     }
 
     /** Apaga o servidor, com membros e convites (só o dono). */
@@ -399,13 +412,13 @@ public class Servidores {
             return Optional.empty();
         }
         return banco.sql("""
-                select s.codigo, s.nome, s.icone is not null as tem_icone, s.icone_versao,
+                select s.id, s.nome, s.icone is not null as tem_icone, s.icone_versao,
                        (select count(*) from membros m where m.servidor_id = s.id) as membros
                 from convites c join servidores s on s.id = c.servidor_id
                 where c.codigo = :c and %s""".formatted(VALE))
                 .param("c", convite)
                 .query((linha, n) -> new PreviaDoConvite(linha.getString("nome"),
-                        enderecoDoIcone(linha.getString("codigo"), linha.getBoolean("tem_icone"), linha.getInt("icone_versao")),
+                        enderecoDoIcone(linha.getObject("id", UUID.class), linha.getBoolean("tem_icone"), linha.getInt("icone_versao")),
                         linha.getInt("membros")))
                 .optional();
     }
@@ -463,16 +476,13 @@ public class Servidores {
         return "servidor:" + codigo;
     }
 
-    static String enderecoDoIcone(String codigo, boolean temIcone, int versao) {
-        return temIcone ? "/api/servidores/" + codigo + "/icone?v=" + versao : null;
+    static String enderecoDoIcone(UUID servidor, boolean temIcone, int versao) {
+        return temIcone ? "/api/icones/" + servidor + "?v=" + versao : null;
     }
 
     /** O nome como os membros veem: sem controles nem inversões de direção, até NOME_MAXIMO, nunca vazio. */
     static String nomeLimpo(String nome) {
-        String limpo = nome == null ? "" : nome.replaceAll("[\\p{Cc}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]", "").strip();
-        if (limpo.codePointCount(0, limpo.length()) > NOME_MAXIMO) {
-            limpo = limpo.substring(0, limpo.offsetByCodePoints(0, NOME_MAXIMO)).strip();
-        }
+        String limpo = SinalizacaoHandler.semControles(nome == null ? "" : nome, NOME_MAXIMO);
         if (limpo.isEmpty()) {
             throw new Recusa(Motivo.NOME_INVALIDO);
         }
