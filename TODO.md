@@ -16,7 +16,6 @@ aparece; baixar, abrir com a `BACKUP_CHAVE` (`gpg -d`) e conferir com `pg_restor
 
 - Ligar o Discord pelo app instalado, numa conta sem ele (nenhum teste automático passa pela confirmação no app de
   verdade).
-- No Supabase, *Settings → API*: conferir que o esquema `ozamigos` não está em *Exposed schemas*.
 - Na próxima versão do app: tirar do `loginPeloNavegador` (`desktop/main.js`) a volta `ligou`, que o servidor não manda
   mais (a ligação volta com um `codigo`, que a página confirma).
 
