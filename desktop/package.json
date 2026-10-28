@@ -18,9 +18,9 @@
     "captura": "dotnet publish captura -c Release -o captura/publicado"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.0",
+    "@playwright/test": "^1.64.1",
     "electron": "^44.7.2",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.18.0"
   },
   "build": {
     "appId": "dev.ozamigos.share",
@@ -88,6 +88,6 @@
     ]
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.11"
   }
 }
