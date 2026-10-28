@@ -170,7 +170,7 @@ export function BarraLateral() {
           })}
           {pessoas.length === 0 && (
             <li className="pessoa-vazia">
-              Só você por aqui. Clique em Convidar e mande o link para os amigos: eles entram com a conta do Google ou do Discord.
+              Só você por aqui. Clique em Convidar e mande o link para os amigos.
             </li>
           )}
         </ul>

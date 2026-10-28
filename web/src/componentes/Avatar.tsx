@@ -9,9 +9,15 @@ function corDe(nome: string): string {
   return CORES[soma % CORES.length];
 }
 
+// Por caractere visível, não por unidade UTF-16: "Família 🎮" cortava o emoji ao meio e mostrava um caractere inválido.
+const segmentador = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter() : null;
+function caracteres(texto: string): string[] {
+  return segmentador ? Array.from(segmentador.segment(texto), (s) => s.segment) : Array.from(texto);
+}
+
 function iniciais(nome: string): string {
-  const partes = nome.trim().split(/\s+/).filter(Boolean);
-  const letras = partes.length > 1 ? partes[0][0] + partes[partes.length - 1][0] : (partes[0] ?? '?').slice(0, 2);
+  const partes = nome.trim().split(/\s+/).filter(Boolean).map(caracteres);
+  const letras = partes.length > 1 ? partes[0][0] + partes[partes.length - 1][0] : (partes[0] ?? ['?']).slice(0, 2).join('');
   return letras.toUpperCase();
 }
 

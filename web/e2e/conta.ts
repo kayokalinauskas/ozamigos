@@ -3,9 +3,10 @@
 import { expect, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from '@playwright/test';
 
 /** Uma sala dos testes: o servidor salvo, criado por quem entra primeiro, e o convite que os outros aceitam. */
-export type Sala = { codigo: string | null; convite: string | null };
+/** nome: o do servidor que a primeira pessoa cria. */
+export type Sala = { codigo: string | null; convite: string | null; nome?: string };
 
-export const novaSala = (): Sala => ({ codigo: null, convite: null });
+export const novaSala = (nome?: string): Sala => ({ codigo: null, convite: null, nome });
 
 let pessoas = 0;
 
@@ -57,7 +58,7 @@ export async function entrarNaSala(browser: Browser, sala: Sala, nome: string, o
   await pagina.goto('/');
   await entrarComOGoogle(pagina, nome);
   if (!sala.codigo) {
-    sala.codigo = (await api<{ codigo: string }>(pagina, 'POST', '/api/servidores', { nome: 'Sala do teste' })).codigo;
+    sala.codigo = (await api<{ codigo: string }>(pagina, 'POST', '/api/servidores', { nome: sala.nome ?? 'Sala do teste' })).codigo;
     sala.convite = (await api<{ codigo: string }>(pagina, 'POST', `/api/servidores/${sala.codigo}/convites`, { horas: null, usos: null })).codigo;
   } else {
     await api(pagina, 'POST', `/api/convites/${sala.convite}`);

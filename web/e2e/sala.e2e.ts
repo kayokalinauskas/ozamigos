@@ -403,7 +403,8 @@ test('um print colado no chat chega comprimido ao amigo, direto entre os PCs, e 
 
 test('no celular, nada passa da largura da tela (sem rolagem de lado), com o chat fechado ou aberto', async ({ browser }) => {
   const celular = { viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true };
-  const pagina = await entrarNaSala(browser, novaSala(), 'Kayo', celular);
+  // Um nome sem espaços, do tamanho máximo: com ele, a sala e as configurações do servidor passavam da tela.
+  const pagina = await entrarNaSala(browser, novaSala('A'.repeat(40)), 'Kayo', celular);
   await expect(pagina.getByRole('button', { name: 'Sair da sala' })).toBeVisible();
 
   const larguras = () => pagina.evaluate(() => ({ pagina: document.documentElement.scrollWidth, tela: innerWidth }));
@@ -411,6 +412,11 @@ test('no celular, nada passa da largura da tela (sem rolagem de lado), com o cha
 
   await pagina.getByRole('button', { name: 'Chat' }).click();
   await expect(pagina.getByLabel('Chat da sala')).toBeVisible();
+  expect(await larguras()).toEqual({ pagina: 375, tela: 375 });
+
+  await pagina.getByRole('button', { name: 'Fechar o chat' }).click(); // no celular, o chat cobre a sala
+  await pagina.getByRole('button', { name: 'Configurações do servidor' }).click();
+  await expect(pagina.getByRole('dialog')).toBeVisible();
   expect(await larguras()).toEqual({ pagina: 375, tela: 375 });
 });
 

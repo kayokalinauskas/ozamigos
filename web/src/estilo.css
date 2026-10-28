@@ -2007,8 +2007,13 @@ button.chat-imagem-quadro:focus-visible {
   border-top: 1px solid var(--borda);
 }
 
+/* O título pode ser o nome de um servidor, sem espaços: sem o corte, ele alargava a página no celular. */
 .seletor h2 {
   font-size: 18px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fontes {
@@ -2123,7 +2128,8 @@ button.chat-imagem-quadro:focus-visible {
 /* ===== Telas menores (notebook pequeno, tablet) ===== */
 @media (max-width: 900px) {
   .sala {
-    grid-template-columns: 1fr;
+    /* minmax(0, ...): com 1fr, a coluna crescia até o nome de servidor mais largo e passava da tela. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto 1fr;
     height: auto;
     min-height: 100%;
