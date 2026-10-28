@@ -18,6 +18,7 @@ import { novoIdDeImagem, type Chegada } from './imagens/protocolo';
 import type { ImagemComprimida } from './imagens/compressor';
 import { FOLGA, FolgaAdaptativa } from './folga';
 import { NAO_ENTRAR_SOZINHO, deveEntrarSozinho } from './entradaAutomatica';
+import { voltouDoLogin } from './conta';
 import { LIMITE_POR_SALA, SALA_FIXA, codigoValido, ehASalaFixa, grupoDoCaminho, grupoValido, linkDaSala, linkDoGrupo, novoCodigo } from './conexao/codigoDaSala';
 import {
   FPS_MINIMO_DA_CAPTURA,
@@ -62,6 +63,8 @@ export type Estado = {
   salaFixa: boolean; // o endereço /ozamigos: o grupo fixo, sempre na mesma sala (SALA_FIXA)
   meuId: string | null;
   meuNome: string;
+  minhaConta: string | null; // o id da minha conta, se entrei com uma (o servidor diz no "bem-vindo"); null: convidado
+  minhaFoto: string | null;
   pessoas: Pessoa[]; // as outras pessoas, na ordem em que entraram
   transmitindo: string[]; // quem está transmitindo agora (inclusive eu)
   plateias: Record<string, string[]>; // quem transmite -> quem assiste
@@ -85,6 +88,7 @@ export type MensagemDoChat = {
   numero: number;
   de: string;
   nome: string;
+  foto?: string | null; // a da conta, guardada na chegada junto com o nome
   texto: string;
   momento: number;
   minha: boolean;
@@ -214,8 +218,10 @@ class Cliente {
   private entrandoSozinho = false;
   private salaDoGrupoFixo = ''; // para voltar a ela se criar um grupo der errado
   private ficha = ''; // dada pelo servidor; na reconexão, prova que somos a mesma pessoa
-  // Nome de quem saiu -> quando, e se eu assistia. Quem volta ganha outro id: o nome é o que liga.
+  // Quem saiu (chaveDe: a conta, ou o nome de um convidado) -> quando, e se eu assistia. Quem volta ganha outro id.
   private readonly saidas = new Map<string, { momento: number; assistia: boolean }>();
+  /** Sou convidado, e a conexão de reserva é só de quem tem conta: os avisos de "não conectou" dizem isso. */
+  private reservaSoComConta = false;
   private proximoAviso = 1;
   private proximaMensagem = 1;
   private readonly imagensMinhas = new Map<string, ImagemComprimida>(); // para o "Tentar de novo"
@@ -225,7 +231,7 @@ class Cliente {
   private avisoDoChat: { de: string; aviso: number } | null = null; // o aviso da última mensagem, enquanto na tela
   private envioDoChat: number[] = []; // quando mandei as últimas mensagens (o freio)
   private avisoDoFreio: number | null = null;
-  // Nome de quem chamei -> quando. Pelo nome: quem reconecta ganha outro id, e o freio do servidor é por conexão.
+  // Quem chamei (chaveDe) -> quando. Não pelo id: quem reconecta ganha outro, e o freio do servidor é por conexão.
   private readonly chamadas = new Map<string, number[]>();
   private readonly tentativasDeVideo = new Map<string, number>(); // id -> conexões de vídeo refeitas seguidas
   private readonly folgas = new Map<string, FolgaAdaptativa>(); // quem eu assisto -> folga de rede (folga.ts)
@@ -253,7 +259,7 @@ class Cliente {
     const salaFixa = ehASalaFixa(location.pathname);
     const daUrl = new URLSearchParams(location.search).get('sala');
     // O convite para o app (Convite.tsx) é só das salas do grupo fixo: o app ainda não abre um grupo pelo link.
-    this.veioDeUmLink = !grupo && !salaFixa && Boolean(daUrl && codigoValido(daUrl));
+    this.veioDeUmLink = !grupo && !salaFixa && Boolean(daUrl && codigoValido(daUrl)) && !voltouDoLogin();
     // Sem sala no link, a entrada mostra a última em que a pessoa entrou (pedido do dono, 21/10/2026): o app abre
     // sempre na raiz, e era preciso colar o código de novo a cada vez. O botão ao lado do campo ainda sorteia uma nova.
     const ultima = lembrado(ULTIMA_SALA);
@@ -269,6 +275,8 @@ class Cliente {
       salaFixa,
       meuId: null,
       meuNome: lembrado('ozamigos-nome'),
+      minhaConta: null,
+      minhaFoto: null,
       pessoas: [],
       transmitindo: [],
       plateias: {},
@@ -315,6 +323,8 @@ class Cliente {
     voz.ligar({
       enviar: (msg) => this.enviar(msg),
       nomeDe: (id) => this.nomeDe(id),
+      chaveDe: (id) => this.chaveDe(id),
+      dicaDaReserva: () => this.dicaDaReserva(),
       avisar: (texto, tipo) => this.avisar(texto, tipo),
       registrar: (evento) => this.registrar(evento),
     });
@@ -341,6 +351,39 @@ class Cliente {
   nomeDe(id: string): string {
     if (id === this.estado.meuId) return 'Você';
     return this.estado.pessoas.find((p) => p.id === id)?.nome ?? 'Amigo';
+  }
+
+  /**
+   * O que reconhece a pessoa mesmo quando o id da conexão muda (uma reconexão): a conta, se ela entrou com uma; senão,
+   * o nome. Também é a chave dos volumes e do silenciado de cada um: com conta, valem em qualquer sala e com qualquer
+   * nome; os de convidado continuam pelo nome, como antes.
+   */
+  chaveDe(id: string): string {
+    const pessoa = this.estado.pessoas.find((p) => p.id === id);
+    return pessoa?.conta ? `conta:${pessoa.conta}` : (pessoa?.nome ?? this.nomeDe(id));
+  }
+
+  /** A foto da conta de alguém da sala (a minha também), ou null. */
+  fotoDe(id: string): string | null {
+    if (id === this.estado.meuId) return this.estado.minhaFoto;
+    return this.estado.pessoas.find((p) => p.id === id)?.foto ?? null;
+  }
+
+  /** Para os avisos de "não conectou": convidado, a conexão de reserva vem com a conta (Retransmissao.java). */
+  dicaDaReserva(): string {
+    return this.reservaSoComConta
+      ? ' Entre com a sua conta (Configurações → Conta) para usar a conexão de reserva, que funciona em redes mais fechadas.'
+      : '';
+  }
+
+  /**
+   * Entrou ou saiu da conta com a sala aberta (Configurações → Conta, no app): uma conexão nova com o servidor, que lê
+   * a sessão nova, e as conexões com os amigos são refeitas (como numa reconexão). O nome e a reserva mudam na hora.
+   */
+  renovarConexao() {
+    if (this.estado.fase !== 'sala' || this.recusado) return;
+    this.registrar('conexão renovada: a conta mudou');
+    this.sinalizacao.conectar();
   }
 
   /** O nome como os outros veem (o meu também), para relatórios. */
@@ -532,11 +575,12 @@ class Cliente {
 
   /** De volta ao servidor, com um id novo: as conexões antigas não servem mais e são refeitas. */
   private voltei(msg: Extract<MensagemDoServidor, { tipo: 'bem-vindo' }>) {
-    for (const id of this.estado.assistindo) this.lembrarSaida(this.nomeDe(id), true);
+    for (const id of this.estado.assistindo) this.lembrarSaida(this.chaveDe(id), true);
     for (const { canal, id } of [...this.conexoes.values()]) this.fecharConexao(canal, id);
     this.sinalizacao.zerarEsperas();
     this.mudar({
       meuId: msg.id,
+      ...this.quemSouEu(msg),
       pessoas: msg.outros,
       transmitindo: msg.compartilhando,
       plateias: msg.plateias ?? {},
@@ -553,23 +597,28 @@ class Cliente {
     this.avisar('Conexão com o servidor restabelecida');
   }
 
-  private lembrarSaida(nome: string, assistia: boolean) {
-    this.saidas.set(nome, { momento: Date.now(), assistia });
+  /** O que o "bem-vindo" diz de mim: com conta, o nome dela (o servidor não usa o que a página mandou) e a foto. */
+  private quemSouEu(msg: Extract<MensagemDoServidor, { tipo: 'bem-vindo' }>): Partial<Estado> {
+    return { meuNome: msg.nome ?? this.estado.meuNome, minhaConta: msg.conta ?? null, minhaFoto: msg.foto ?? null };
   }
 
-  /** Quem saiu há pouco com esse nome, ou null. */
-  private saidaRecente(nome: string) {
-    const saida = this.saidas.get(nome);
+  private lembrarSaida(chave: string, assistia: boolean) {
+    this.saidas.set(chave, { momento: Date.now(), assistia });
+  }
+
+  /** Quem saiu há pouco com essa chave (chaveDe), ou null. */
+  private saidaRecente(chave: string) {
+    const saida = this.saidas.get(chave);
     if (saida && Date.now() - saida.momento < JANELA_DE_VOLTA) return saida;
-    this.saidas.delete(nome);
+    this.saidas.delete(chave);
     return null;
   }
 
   /** É alguém que eu assistia, caiu e voltou com outro id? Responde uma vez só. */
   private voltandoQuemEuAssistia(id: string): boolean {
-    const nome = this.nomeDe(id);
-    if (!this.saidaRecente(nome)?.assistia) return false;
-    this.saidas.delete(nome);
+    const chave = this.chaveDe(id);
+    if (!this.saidaRecente(chave)?.assistia) return false;
+    this.saidas.delete(chave);
     return true;
   }
 
@@ -610,13 +659,15 @@ class Cliente {
     switch (msg.tipo) {
       case 'bem-vindo': {
         this.ficha = msg.ficha ?? '';
+        this.reservaSoComConta = msg.retransmissaoSoComConta === true;
         this.usarRetransmissao(msg.retransmissao ?? [], msg.retransmissaoDaVoz ?? [], msg.limiteDoVideo);
         if (e.fase === 'sala') {
           this.voltei(msg);
           break;
         }
-        this.registrar(`entrei ${e.grupo ? 'no grupo' : 'na sala'} ${this.estado.sala} como ${this.estado.meuNome}`);
-        lembrar('ozamigos-nome', this.nome);
+        this.mudar(this.quemSouEu(msg));
+        this.registrar(`entrei ${e.grupo ? 'no grupo' : 'na sala'} ${this.estado.sala} como ${this.estado.meuNome}${msg.conta ? ' (com conta)' : ''}`);
+        lembrar('ozamigos-nome', this.estado.meuNome);
         lembrar(this.chaveDaSenha(), this.senha);
         lembrar(ULTIMO_GRUPO, e.grupo ?? (e.salaFixa ? SALA_FIXA : ''));
         lembrar(NAO_ENTRAR_SOZINHO, '');
@@ -644,11 +695,12 @@ class Cliente {
       }
       case 'entrou': {
         if (e.pessoas.some((p) => p.id === msg.id)) break; // já veio na lista do "bem-vindo" (entramos ao mesmo tempo)
-        this.mudar({ pessoas: [...e.pessoas, { id: msg.id, nome: msg.nome }] });
-        const saida = this.saidaRecente(msg.nome);
+        this.mudar({ pessoas: [...e.pessoas, { id: msg.id, nome: msg.nome, conta: msg.conta, foto: msg.foto }] });
+        const chaveDeQuemEntrou = this.chaveDe(msg.id);
+        const saida = this.saidaRecente(chaveDeQuemEntrou);
         if (saida) {
           this.avisar(`${msg.nome} reconectou`); // caiu e voltou: sem som nem notificação
-          if (!saida.assistia) this.saidas.delete(msg.nome);
+          if (!saida.assistia) this.saidas.delete(chaveDeQuemEntrou);
           break;
         }
         this.avisar(`${msg.nome} entrou na sala`);
@@ -658,7 +710,7 @@ class Cliente {
       }
       case 'saiu': {
         const nomeQueSaiu = this.nomeDe(msg.id);
-        this.lembrarSaida(nomeQueSaiu, e.assistindo.includes(msg.id));
+        this.lembrarSaida(this.chaveDe(msg.id), e.assistindo.includes(msg.id));
         this.fecharConexao('envio', msg.id);
         this.fecharConexao('recebimento', msg.id);
         voz.pessoaSaiu(msg.id);
@@ -819,15 +871,15 @@ class Cliente {
   // ===== Chamar a atenção =====
 
   /** As vezes que chamei essa pessoa no último minuto. */
-  private chamadasRecentes(nome: string): number[] {
-    const recentes = (this.chamadas.get(nome) ?? []).filter((t) => Date.now() - t < CHAMADAS_JANELA);
-    this.chamadas.set(nome, recentes);
+  private chamadasRecentes(chaveDaPessoa: string): number[] {
+    const recentes = (this.chamadas.get(chaveDaPessoa) ?? []).filter((t) => Date.now() - t < CHAMADAS_JANELA);
+    this.chamadas.set(chaveDaPessoa, recentes);
     return recentes;
   }
 
   /** Quanto falta para poder chamar essa pessoa de novo (0: já pode; só espera quem já chamou 5 vezes no minuto). */
   chamarDeNovoEm(id: string): number {
-    const recentes = this.chamadasRecentes(this.nomeDe(id));
+    const recentes = this.chamadasRecentes(this.chaveDe(id));
     return recentes.length < CHAMADAS_POR_JANELA ? 0 : Math.max(0, recentes[0] + CHAMADAS_JANELA - Date.now());
   }
 
@@ -838,7 +890,8 @@ class Cliente {
   chamar(id: string) {
     if (this.chamarDeNovoEm(id) > 0 || !this.estado.pessoas.some((p) => p.id === id)) return;
     const nome = this.nomeDe(id);
-    this.chamadas.set(nome, [...this.chamadasRecentes(nome), Date.now()]);
+    const chaveDaPessoa = this.chaveDe(id);
+    this.chamadas.set(chaveDaPessoa, [...this.chamadasRecentes(chaveDaPessoa), Date.now()]);
     this.enviar({ tipo: 'chamar', para: id });
     this.registrar(`chamei a atenção de ${nome}`);
     this.mostrarAviso(`Você chamou ${nome}.`);
@@ -929,7 +982,8 @@ class Cliente {
   }
 
   private porNoChat(campos: Omit<MensagemDoChat, 'numero' | 'momento'>) {
-    const chat = [...this.estado.chat, { ...campos, numero: this.proximaMensagem++, momento: Date.now() }];
+    const mensagem = { foto: this.fotoDe(campos.de), ...campos, numero: this.proximaMensagem++, momento: Date.now() };
+    const chat = [...this.estado.chat, mensagem];
     chat.slice(0, -MENSAGENS_NA_TELA).forEach((velha) => this.soltarImagem(velha.imagem));
     this.mudar({ chat: chat.slice(-MENSAGENS_NA_TELA) });
   }
@@ -1381,7 +1435,7 @@ class Cliente {
     this.fecharConexao('recebimento', id);
     if (tentativas > (conectou ? 3 : 1)) {
       this.tentativasDeVideo.delete(id);
-      this.avisar(`Não foi possível conectar com ${this.nomeDe(id)}. A rede de um de vocês pode estar bloqueando a conexão.`, 'erro', {
+      this.avisar(`Não foi possível conectar com ${this.nomeDe(id)}. A rede de um de vocês pode estar bloqueando a conexão.${this.dicaDaReserva()}`, 'erro', {
         rotulo: 'Tentar de novo',
         executar: () => this.pedirVideoDeNovo(id),
       });

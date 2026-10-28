@@ -82,7 +82,7 @@ export function BarraLateral() {
                     title="Volume da voz e silenciar"
                     onClick={() => setMenuDe(menuAberto ? null : id)}
                   >
-                    <Avatar nome={nome} aoVivo={aoVivo} falando={falando.includes(id)} />
+                    <Avatar nome={nome} foto={cliente.fotoDe(id)} aoVivo={aoVivo} falando={falando.includes(id)} />
                     <span className="pessoa-texto">
                       <span className="pessoa-nome">
                         <span className="pessoa-nome-texto">{nome}</span>
@@ -143,7 +143,7 @@ export function BarraLateral() {
 
 /** O cartão de baixo: você, a prévia da sua transmissão, quem te assiste, e o microfone, o som e a engrenagem. */
 function Voce({ nome, plateia, nomesDe }: { nome: string; plateia: string[] | null; nomesDe: (ids: string[]) => string }) {
-  const { minhaTela } = useCliente();
+  const { minhaTela, minhaFoto } = useCliente();
   const { mudo, surdo, falando, microfone, ajustes, apertado } = useVoz();
   const teclaDeFalar = useSyncExternalStore(atalhos.inscrever, () => atalhos.ler().falar.nome);
   const previa = useRef<HTMLVideoElement>(null);
@@ -190,7 +190,7 @@ function Voce({ nome, plateia, nomesDe }: { nome: string; plateia: string[] | nu
         </p>
       )}
       <div className="voce-linha">
-        <Avatar nome={nome} aoVivo={Boolean(minhaTela)} falando={falando.includes(EU)} />
+        <Avatar nome={nome} foto={minhaFoto} aoVivo={Boolean(minhaTela)} falando={falando.includes(EU)} />
         <div className="pessoa-texto">
           <span className="pessoa-nome" title={nome}>
             <span className="pessoa-nome-texto">{nome}</span>

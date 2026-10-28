@@ -8,10 +8,14 @@ import { acompanharGravacaoDaSala } from './desempenho/coletor';
 import { manterTelaAcordada } from './telaAcordada';
 import { avisarNaBarraDeTarefas } from './avisoNaBarra';
 import { cliente } from './cliente';
+import { carregarConta, lerErroDoEndereco } from './conta';
 import { ponte } from './ponte';
 import { atalhos } from './voz/atalhos';
 import { voz } from './voz/voz';
 
+// A conta (login pelo Google ou pelo Discord): o erro que voltou do login, e quem é a pessoa.
+lerErroDoEndereco();
+void carregarConta();
 // Quando alguém grava as estatísticas da sala (Ctrl+Shift+G), este PC manda as próprias medidas para essa pessoa.
 acompanharGravacaoDaSala();
 // Com mais alguém na sala, a tela não apaga (como numa chamada do Discord).

@@ -179,6 +179,27 @@ class ContasTest extends ComBanco {
     }
 
     @Test
+    void peloAppOCodigoDeLigacaoLigaOutroProvedorENaoViraSessao() throws Exception {
+        UUID ana = novaConta("Ana");
+        String cookie = Sessoes.COOKIE + "=" + sessoes.criar(ana, "app");
+        String ligacao = json.readTree(enviar("POST", "/api/eu/ligacao", cookie, origem(), "").body()).path("ligacao").asString();
+
+        // Trocado como se fosse o de um login, não vale (e deixa de valer).
+        assertThat(enviar("POST", "/api/conta/codigo", null, origem(), "{\"codigo\":\"" + ligacao + "\"}").statusCode()).isEqualTo(400);
+
+        String outra = json.readTree(enviar("POST", "/api/eu/ligacao", cookie, origem(), "").body()).path("ligacao").asString();
+        String estado = "estado-do-app-0123456789";
+        HttpResponse<String> comeco = get("/conta/ligar/discord?app=50124&estado=" + estado + "&ligacao=" + outra, null);
+        assertThat(comeco.headers().firstValue("Location").orElseThrow()).endsWith("/oauth2/authorization/discord");
+        assertThat(get("/conta/ligar/discord?app=50124&estado=" + estado + "&ligacao=" + outra, null)
+                .headers().firstValue("Location").orElseThrow()).contains("erro=sem-conta"); // uma vez só
+
+        MockHttpServletResponse volta = voltarDoDiscord(new Login.Pedido("/", 50124, estado, ana), "111", "Ana");
+        assertThat(volta.getRedirectedUrl()).isEqualTo("http://127.0.0.1:50124/login?ligou=discord&estado=" + estado);
+        assertThat(contas.usuario(ana).orElseThrow().provedores()).containsExactly("discord", "google");
+    }
+
+    @Test
     void naSalaQuemTemContaEntraComONomeDelaERecebeARetransmissao() throws Exception {
         UUID ana = novaConta("Ana da Conta");
         String sala = "conta" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);

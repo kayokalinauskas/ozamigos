@@ -209,7 +209,7 @@ function Mensagem({ m, junto, aoAbrir }: PropsDaMensagem) {
     );
   return (
     <li className={m.minha ? 'chat-mensagem minha' : 'chat-mensagem'}>
-      <Avatar nome={m.nome} tamanho={32} />
+      <Avatar nome={m.nome} foto={m.foto} tamanho={32} />
       <div>
         <span className="chat-autor">
           {m.minha ? 'Você' : m.nome} <time dateTime={new Date(m.momento).toISOString()}>{hora.format(m.momento)}</time>

@@ -122,6 +122,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 ### Núcleo
 
 - `cliente.ts` é o núcleo, sem React: um *store* (`inscrever`/`ler`) lido por `useSyncExternalStore`. Os componentes só leem e chamam ações.
+- `conta.ts` é o *store* da conta (`useConta`): `/api/eu` ao abrir, e as ações (entrar, ligar, desligar, renomear, sair, apagar). **Quem manda é o servidor:** a sessão vai no cookie `HttpOnly` (a página nem o enxerga), e na sala o nome e a foto vêm do `bem-vindo` (`minhaConta`, `minhaFoto`). No navegador, o login sai da página e volta (`?erro-de-login=` vira aviso e some do endereço; `voltouDoLogin` evita que a volta pareça um convite); no app, vai pelo navegador do sistema (`ponte.conta`, veja "Login pelo navegador"). App antigo sem a ponte: sem os botões.
 - `conexao/` tem as peças sem estado da sala: `protocolo.ts`, `sinalizacao.ts` (WebSocket, fila e esperas da reconexão), `captura.ts`, `medidor.ts`, `relatorio.ts`, `webrtc.ts` (STUN, Opus no SDP, preferência de codec) e `codigoDaSala.ts`.
 - O `localStorage` está sempre em `try/catch` (`armazenamento.ts`).
 
@@ -162,6 +163,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
 
 ### Sala
 
+- **Conta na sala:** `chaveDe(id)` reconhece a pessoa (`conta:<id>`, ou o nome de um convidado): é a chave da volta depois de uma queda (`saidas`), do freio de chamar, e dos volumes e do silenciado guardados (os de convidado continuam pelo nome, como antes). Mudou a conta com a sala aberta (login no app, nome novo, sair): `renovarConexao()` abre outra conexão com o servidor, que lê a sessão nova. Convidado com a retransmissão só para contas: os avisos de "não conectou" dizem que entrar com a conta resolve (`dicaDaReserva`). **Sem selo de "convidado"** na lista: com quase todos convidados no começo, seria ruído.
 - **Reconexão** (`perderConexao` → `agendarReconexao` → `conectar`):
   - queda pelo `onclose` ou pelo silêncio: `ping` a cada 30 s, e 70 s sem mensagem (`SILENCIO_MAXIMO`) derrubam; com a página voltando a ficar visível depois de 35 s, já conta como caída;
   - esperas de 1, 2, 5 e depois 10 s, para sempre; o evento `online` força uma tentativa;
@@ -223,6 +225,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - Sem o auxiliar (Windows antigo), vai o som do sistema inteiro (`audio: 'loopback'`).
   - Os COM também são chamados **por índice da vtable** (`Com.Metodo(obj, i)`), para o `.exe` poder ser *trimmed*.
 - **Relógio fino** (`honrarRelogioFino`, `OzamigosSom.exe --relogio <pid>`): marca o processo principal com `PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION`. Sem isso, com a janela tapada ou minimizada, o Windows 11 tirava o relógio fino e a captura do Chromium caía para ~21 fps. **Não tire sem medir de novo** (a bancada: minimizar o app por 40 s capturando).
+- **Login pelo navegador** (1.3.0; `loginPeloNavegador` no `main.js`, RFC 8252): o Google não deixa entrar em janela embutida. O app abre uma porta só no `127.0.0.1` (porta livre), sorteia um `estado` e abre `/conta/entrar/{provedor}?app=<porta>&estado=` no navegador do sistema; a volta só vale com o `estado` certo (senão 404), e a página troca o `codigo` pela sessão (`POST /api/conta/codigo`), no cookie da janela. Ligar outro provedor é igual, com `ligacao` (o código que a página pede em `POST /api/eu/ligacao`). Um login por vez, 5 min de prazo; dando certo, a janela vem para a frente. Funciona na portátil. **Não troque por login dentro da janela** (o Google recusa) nem pelo `ozamigos://` (a portátil não se registra). O teste no app de verdade troca o `shell.openExternal` por um "navegador" que segue o login.
 - **Bandeja:** o X só esconde a janela (desliga em Configurações → Geral). **`saindo` é o que deixa a janela fechar** (`before-quit`, `session-end`): sem ele, a atualização e o desligamento do Windows ficam presos.
 - **Não lidas:** número sobre o ícone da barra de tarefas (`setOverlayIcon`) e da bandeja (`marcaDoChat.js`, que precisa estar nos `files` do `package.json`), e o ícone pisca com a janela fora de foco.
 - **Atualização automática** (`electron-updater`): ao abrir, confere o `latest.yml` da última release (6 s de prazo), mostra `atualizando.html`, baixa e `quitAndInstall(true, true)`. Só no app instalado. **Não feche o aviso antes de criar a janela principal** (o app encerraria). O app não é assinado: **não configure `publisherName`**, ou toda atualização falha.

@@ -109,6 +109,20 @@ public class ContaApi {
         };
     }
 
+    /**
+     * Ligar mais um provedor pelo app: o navegador do sistema não tem a sessão do app, então a página pede um código de
+     * uso único (2 minutos) e o leva no endereço do login ({@code /conta/ligar/...?ligacao=}).
+     */
+    @PostMapping("/api/eu/ligacao")
+    public ResponseEntity<?> codigoDeLigacao(HttpServletRequest pedido) {
+        Optional<UUID> usuario = usuario(pedido);
+        if (usuario.isEmpty()) {
+            return semConta();
+        }
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(Map.of("ligacao", codigos.criar(usuario.get(), CodigosDoApp.Uso.LIGACAO)));
+    }
+
     /** O app troca o código que recebeu na porta local (CodigosDoApp) pela sessão, no cookie da janela dele. */
     @PostMapping("/api/conta/codigo")
     public ResponseEntity<?> trocarCodigo(@RequestBody Codigo codigo, HttpServletRequest pedido) {
@@ -118,7 +132,7 @@ public class ContaApi {
         if (!trocas.passa(Login.endereco(pedido))) {
             return erro(HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
         }
-        Optional<UUID> usuario = codigos.trocar(codigo.codigo());
+        Optional<UUID> usuario = codigos.trocar(codigo.codigo(), CodigosDoApp.Uso.LOGIN);
         if (usuario.isEmpty()) {
             return erro(HttpStatus.BAD_REQUEST, "codigo-invalido");
         }

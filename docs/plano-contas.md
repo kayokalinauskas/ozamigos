@@ -157,7 +157,8 @@ do app. Um app antigo não tem o botão de login (a página confere se a ponte t
 
 - Logado, o `entrar` vai sem `nome`: o servidor usa o da conta (ninguém entra com o nome de outro). O WebSocket
   `/sinal` lê a sessão do cookie no *handshake*.
-- Convidado continua como hoje, com um selo "convidado" na lista.
+- Convidado continua como hoje. **Sem selo de "convidado"** na lista (decidido na implementação, 27/10/2026): com quase
+  todos convidados no começo, seria ruído; quem tem conta se destaca pela foto.
 - O volume por pessoa passa a ser guardado pelo id da conta (`ozamigos-volume:u:<id>`), e a reconexão reconhece a
   pessoa pela conta. Resolve a limitação de hoje: dois amigos com o mesmo nome.
 

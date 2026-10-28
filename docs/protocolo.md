@@ -47,6 +47,8 @@ O login e a conta não passam pelo WebSocket: são páginas e uma API JSON no me
 | `GET /conta/entrar/{google\|discord}?voltar=/caminho` | Começa o login no navegador; no fim, ganha o cookie e volta para `voltar`. Erro: volta com `?erro-de-login=<motivo>` (`indisponivel`, `muitas-tentativas`, `recusado`, `pedido-invalido`) |
 | `GET /conta/entrar/{provedor}?app=<porta>&estado=<estado>` | O login do app pelo navegador do sistema (RFC 8252): no fim, o navegador vai para `http://127.0.0.1:<porta>/login?codigo=<código>&estado=<estado>` (ou `erro=<motivo>`) |
 | `GET /conta/ligar/{provedor}?voltar=/caminho` | Liga mais um provedor à conta logada. Erros a mais: `sem-conta`, `de-outra-pessoa`, `ja-tem-desse-provedor` |
+| `GET /conta/ligar/{provedor}?app=<porta>&estado=<estado>&ligacao=<código>` | O mesmo, no app: a sessão é da janela do app, e o navegador do sistema leva o código de ligação. No fim, `http://127.0.0.1:<porta>/login?ligou=<provedor>&estado=` |
+| `POST /api/eu/ligacao` | `{ligacao}`: o código de ligação (2 minutos, uma vez só; não vira sessão) |
 | `GET /api/eu` | `{login: ["google", "discord"], conta: {id, nome, foto, provedores[]} \| null}`. `login` vazio: sem banco ou sem provedores |
 | `PATCH /api/eu` | `{nome}` → o nome novo, limpo como o da sala |
 | `POST /api/eu/sair` | Encerra a sessão e apaga o cookie |
