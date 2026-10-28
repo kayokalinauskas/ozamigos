@@ -22,7 +22,13 @@ public class PaginasDoApp {
         return "forward:/index.html";
     }
 
-    @GetMapping("/{antigo:(?!(?:sinal|actuator|assets|marcas|api|conta|login|oauth2|error)$)[a-z0-9][a-z0-9-]{1,30}[a-z0-9]}")
+    /** O painel do dono: a página abre para qualquer um, e a API (PainelApi) só responde ao dono. */
+    @GetMapping("/painel")
+    public String painel() {
+        return "forward:/index.html";
+    }
+
+    @GetMapping("/{antigo:(?!(?:sinal|actuator|assets|marcas|api|conta|login|oauth2|error|painel)$)[a-z0-9][a-z0-9-]{1,30}[a-z0-9]}")
     public String grupoDeAntes(@PathVariable String antigo) {
         return "redirect:/";
     }

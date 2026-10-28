@@ -242,6 +242,29 @@ public class Salas {
         return achadas;
     }
 
+    /** Alguém numa sala agora, para o painel do dono: quem é, se transmite e a quem assiste (pelos nomes). */
+    public record NoAr(String nome, String conta, boolean transmitindo, List<String> assistindo) {}
+
+    /** O retrato de todas as salas (chave → quem está nelas), para o painel do dono. */
+    public synchronized Map<String, List<NoAr>> retrato() {
+        Map<String, List<NoAr>> retrato = new LinkedHashMap<>();
+        salas.forEach((codigo, sala) -> {
+            List<NoAr> pessoas = new ArrayList<>();
+            sala.participantes.keySet().forEach(id -> {
+                List<String> assiste = new ArrayList<>();
+                sala.plateias.forEach((quem, plateia) -> {
+                    if (plateia.contains(id)) {
+                        assiste.add(sala.nomes.get(quem));
+                    }
+                });
+                Conta conta = sala.contas.get(id);
+                pessoas.add(new NoAr(sala.nomes.get(id), conta == null ? null : conta.id(), sala.plateias.containsKey(id), assiste));
+            });
+            retrato.put(codigo, pessoas);
+        });
+        return retrato;
+    }
+
     /** Todo mundo da sala, inclusive quem pediu. */
     public synchronized List<WebSocketSession> todos(String codigo) {
         Sala sala = salas.get(codigo);

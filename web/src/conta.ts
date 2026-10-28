@@ -11,7 +11,8 @@ export type Provedor = 'google' | 'discord';
 
 export const NOME_DO_PROVEDOR: Record<Provedor, string> = { google: 'Google', discord: 'Discord' };
 
-export type Conta = { id: string; nome: string; foto: string | null; provedores: Provedor[] };
+/** dono: só vem para o dono do Ozamigos (o link do painel; quem confere é o servidor). */
+export type Conta = { id: string; nome: string; foto: string | null; provedores: Provedor[]; dono?: boolean };
 
 export type EstadoDaConta = {
   carregada: boolean; // já perguntou ao servidor quem é (antes disso, a entrada mostra o de sempre)

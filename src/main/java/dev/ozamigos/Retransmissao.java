@@ -155,6 +155,15 @@ public class Retransmissao {
     /** De quem é cada credencial: o endereço e a conta (para os limites) e o id e o nome da pessoa (para o log). */
     private record Emitida(List<String> chaves, Uso uso, Instant quando, String id, String nome) {}
 
+    /**
+     * A última leitura do consumo, para o painel do dono: o total do período e de hoje (UTC), por uso e por conta
+     * ({@code porConta}: id → vídeo, voz). Null antes da primeira leitura.
+     */
+    public record Resumo(Instant lidoEm, long periodo, long hoje, long hojeVideo, long hojeVoz, Map<String, long[]> porConta,
+            boolean esgotada, boolean videoEsgotado) {}
+
+    private volatile Resumo resumo;
+
     private final Cloudflare cloudflare;
     private final JsonMapper json;
     private final Clock relogio;
@@ -269,6 +278,11 @@ public class Retransmissao {
     /** Com as variáveis da Cloudflare: quem entra com conta pode receber credenciais (os limites ainda decidem). */
     public boolean ligada() {
         return cloudflare != null;
+    }
+
+    /** A última leitura do consumo (o painel do dono), ou null: desligada, ou ainda sem ler. */
+    public Resumo resumo() {
+        return resumo;
     }
 
     /** Saiu da sala (ou a conexão caiu): as credenciais dela são canceladas daqui a pouco. */
@@ -398,6 +412,7 @@ public class Retransmissao {
                 Map<String, Long> vozPorChave = new HashMap<>();
                 Map<String, String> nomesPorChave = new HashMap<>();
                 Map<String, long[]> porPessoa = new HashMap<>(); // "nome (id)" → vídeo, voz
+                Map<String, long[]> porConta = new HashMap<>(); // id da conta → vídeo, voz (o painel do dono)
                 for (Map.Entry<String, Long> uso : consumo.hojePorUsuario().entrySet()) {
                     hojeTotal += uso.getValue();
                     Emitida emitida = emitidas.get(uso.getKey());
@@ -407,6 +422,9 @@ public class Retransmissao {
                         for (String chave : emitida.chaves()) {
                             (emitida.uso() == Uso.VIDEO ? videoPorChave : vozPorChave).merge(chave, uso.getValue(), Long::sum);
                             nomesPorChave.merge(chave, quem, (a, b) -> a.contains(b) ? a : a + ", " + b);
+                            if (chave.startsWith("conta:")) {
+                                porConta.computeIfAbsent(chave.substring(6), c -> new long[2])[emitida.uso() == Uso.VIDEO ? 0 : 1] += uso.getValue();
+                            }
                         }
                         porPessoa.computeIfAbsent(quem, q -> new long[2])[emitida.uso() == Uso.VIDEO ? 0 : 1] += uso.getValue();
                     } else if (uso.getValue() > 0 && orfasCanceladas.add(uso.getKey())) {
@@ -461,6 +479,8 @@ public class Retransmissao {
                             .forEach(p -> log.info("Retransmissão de {} hoje: vídeo {}, voz {}", p.getKey(), quanto(p.getValue()[0]), quanto(p.getValue()[1])));
                 }
                 videoEsgotado = videoEsgotou;
+                this.resumo = new Resumo(agora, consumo.periodo(), hojeTotal, hojePorUso.getOrDefault(Uso.VIDEO, 0L),
+                        hojePorUso.getOrDefault(Uso.VOZ, 0L), Map.copyOf(porConta), esgotou, videoEsgotou);
                 for (Pessoa pessoa : pessoas.values()) {
                     Set<Uso> valem = liberados(pessoa.chaves);
                     boolean cortou = false;
