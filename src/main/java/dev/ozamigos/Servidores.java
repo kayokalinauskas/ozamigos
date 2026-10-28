@@ -491,7 +491,7 @@ public class Servidores {
     }
 
     /** O convite (de apelido {@code c} na consulta) ainda vale: não venceu e não gastou os usos. */
-    private static final String VALE = "(c.expira_em is null or c.expira_em > now()) and (c.usos_maximos is null or c.usos < c.usos_maximos)";
+    static final String VALE = "(c.expira_em is null or c.expira_em > now()) and (c.usos_maximos is null or c.usos < c.usos_maximos)";
 
     private static void exigir(boolean pode) {
         if (!pode) {

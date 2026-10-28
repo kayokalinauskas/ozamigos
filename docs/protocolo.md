@@ -50,7 +50,7 @@ O login e a conta não passam pelo WebSocket: são páginas e uma API JSON no me
 | `GET /conta/ligar/{provedor}?app=<porta>&estado=<estado>&ligacao=<código>` | O mesmo, no app: a sessão é da janela do app, e o navegador do sistema leva o código de ligação (só com `app`: sem ele, `pedido-invalido`). No fim, `http://127.0.0.1:<porta>/login?codigo=<confirmação>&estado=`, e **nada foi ligado ainda**: a página do app confirma (abaixo). Assim, um link com o código de ligação de outra pessoa não liga a conta de quem o abre |
 | `POST /api/eu/ligacao` | `{ligacao}`: o código de ligação (2 minutos, uma vez só; não vira sessão) |
 | `POST /api/eu/ligacao/confirmar` | `{codigo}`: a página do app confirma a ligação com o código que chegou à porta dela, na sessão da mesma conta → `{ligou}`. Erros: 400 `codigo-invalido`, 409 `de-outra-pessoa`, `ja-tem-desse-provedor` |
-| `GET /api/eu` | `{login: ["google", "discord"], conta: {id, nome, foto, provedores[]} \| null}`. `login` vazio: sem banco ou sem provedores. `indisponivel: true`: o banco existe mas não está pronto (o servidor acordando, uma falha há pouco), e a página pergunta de novo. Com conta, devolve o cookie de novo: ele vence 60 dias depois do último uso, e não do login |
+| `GET /api/eu` | `{login: ["google", "discord"], conta: {id, nome, foto, provedores[], dono?} \| null}` (`dono: true` só para as contas de `OZAMIGOS_DONOS`). `login` vazio: sem banco ou sem provedores. `indisponivel: true`: o banco existe mas não está pronto (o servidor acordando, uma falha há pouco), e a página pergunta de novo. Com conta, devolve o cookie de novo: ele vence 60 dias depois do último uso, e não do login |
 | `PATCH /api/eu` | `{nome}` → o nome novo, limpo como o da sala |
 | `POST /api/eu/sair` | Encerra a sessão e apaga o cookie |
 | `POST /api/eu/sair-de-todos` | Encerra todas as sessões da conta e apaga o cookie; quem estava numa sala com ela sai (`sem-conta`) |
@@ -58,6 +58,7 @@ O login e a conta não passam pelo WebSocket: são páginas e uma API JSON no me
 | `DELETE /api/eu/provedores/{provedor}` | Desliga um provedor; o último não sai (409 `ultima`) |
 | `POST /api/conta/codigo` | `{codigo}`: o app troca o código de uso único pela sessão, no cookie da janela dele (400 `codigo-invalido`) |
 | `GET /api/fotos/{conta}?v=<versão>` | A foto (JPEG de 128 px), com cache de um ano |
+| `GET /api/painel` | Só para o dono (`OZAMIGOS_DONOS`): `{agora, salas: [{codigo, nome, pessoas: [{nome, conta, transmitindo, assistindo[]}]}], retransmissao: {ligada, lidoEm?, periodo?, hoje?, hojeVideo?, hojeVoz?, esgotada?, videoEsgotado?, porConta?, limites}, banco: {bytesDoBanco, bytesPorTabela, contas, ...}, servidores: [...], contas: [...]}`. Para os outros (com ou sem conta), 404 `nao-existe` |
 
 Erros da API: `{erro: <motivo>}`, com 401 `sem-conta`, 503 `contas-indisponiveis`, 403 `origem`, 429 `muitas-tentativas`, 413 `grande-demais`, 400 `pedido-invalido` (corpo que não dá para ler).
 

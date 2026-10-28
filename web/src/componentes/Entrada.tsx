@@ -8,6 +8,7 @@ import { useCliente } from '../useCliente';
 import { ContaNaEntrada } from './Conta';
 import { AbrirNoApp, FICA_NO_NAVEGADOR } from './AbrirNoApp';
 import { Logo } from './Logo';
+import { Painel } from './Painel';
 import { RodapeDaEntrada } from './RodapeDaEntrada';
 import { AceitarConvite, EntrarNoServidor, MeusServidores } from './Servidores';
 
@@ -28,6 +29,8 @@ export function Entrada() {
   const [perguntarDoApp, setPerguntarDoApp] = useState(
     () => convite !== null && !ponte && NO_WINDOWS && !lembrado(FICA_NO_NAVEGADOR) && !voltouDoLogin(),
   );
+
+  if (location.pathname === '/painel') return <Painel />;
 
   if (convite && perguntarDoApp && !servidor) {
     return (
@@ -62,6 +65,11 @@ function Inicio() {
         </p>
       )}
       {conta && <MeusServidores />}
+      {conta?.dono && (
+        <a className="botao botao-fantasma botao-pequeno trocar-servidor" href="/painel">
+          Painel do dono
+        </a>
+      )}
       <RodapeDaEntrada />
     </div>
   );

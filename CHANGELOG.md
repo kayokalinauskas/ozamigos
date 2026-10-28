@@ -8,6 +8,13 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+### Novo
+- **Painel do dono** (só no servidor e na interface, sem versão nova do app): as salas abertas com quem está nelas, o consumo da retransmissão, o banco, os servidores e as contas, em `/painel`. Só a conta do dono vê; para as outras, a página não existe.
+
+### Corrigido
+- No celular, um nome de servidor longo e sem espaços alargava a sala e as configurações do servidor além da tela.
+- As iniciais de um nome com emoji mostravam um caractere inválido.
+
 ## [1.3.3] - 2026-10-28
 
 ### Mudado

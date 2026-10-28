@@ -48,14 +48,16 @@ public class ContaApi {
     private final ProvedoresDeLogin provedores;
     private final CodigosDoApp codigos;
     private final SinalizacaoHandler sinalizacao;
+    private final Painel painel;
     /** Trocas de código por endereço: uma por login de verdade, então 20 a cada 10 minutos sobram. */
     private final Freio trocas = new Freio(20, Duration.ofMinutes(10));
     /** As ações de cada conta que gravam no banco (o nome, os provedores, sair de todos): gente de verdade não passa disso. */
     private final Freio acoes = new Freio(30, Duration.ofMinutes(1));
 
     public ContaApi(Contas contas, Sessoes sessoes, ProvedoresDeLogin provedores, CodigosDoApp codigos,
-            SinalizacaoHandler sinalizacao) {
+            SinalizacaoHandler sinalizacao, Painel painel) {
         this.contas = contas;
+        this.painel = painel;
         this.sinalizacao = sinalizacao;
         this.sessoes = sessoes;
         this.provedores = provedores;
@@ -70,7 +72,11 @@ public class ContaApi {
     public ResponseEntity<Map<String, Object>> eu(HttpServletRequest pedido) {
         Map<String, Object> corpo = new LinkedHashMap<>();
         corpo.put("login", contas.disponivel() ? provedores.disponiveis() : List.of());
-        Object conta = usuario(pedido).flatMap(contas::usuario).map(ContaApi::emJson).orElse(null);
+        Optional<UUID> id = usuario(pedido);
+        Map<String, Object> conta = id.flatMap(contas::usuario).map(ContaApi::emJson).orElse(null);
+        if (conta != null && painel.ehDono(id)) {
+            conta.put("dono", true); // só para o dono: a página mostra o link do painel (quem confere é o PainelApi)
+        }
         corpo.put("conta", conta);
         // O banco existe mas não está pronto (o servidor acordando, uma falha há pouco): a página pergunta de novo.
         corpo.put("indisponivel", contas.configurado() && !contas.disponivel());

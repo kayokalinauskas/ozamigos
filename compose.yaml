@@ -50,6 +50,7 @@ services:
       OZAMIGOS_GOOGLE_ID: local
       OZAMIGOS_GOOGLE_SEGREDO: local
       OZAMIGOS_GOOGLE_EMISSOR: http://localhost:8091/default
+      OZAMIGOS_DONOS: ${OZAMIGOS_DONOS:-} # para ver o painel do dono: o id da sua conta de teste
 
 volumes:
   banco:
