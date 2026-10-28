@@ -93,3 +93,24 @@ export function grupoDe(texto: string): string | null {
 export function linkDoGrupo(nome: string): string {
   return `${location.origin}/${nome}`;
 }
+
+// ===== Servidores salvos (Servidores.java): /s/<codigo> é o servidor, /c/<codigo> um convite para ele =====
+
+/** O código de um servidor ou de um convite: 10 letras e números (Servidores.CODIGO). */
+const CODIGO_SALVO = /^[A-Za-z0-9]{10}$/;
+
+/** O servidor salvo de um caminho (/s/<codigo>, ou "s/<codigo>" como fica guardado), ou null. */
+export function servidorDoCaminho(caminho: string): string | null {
+  const partes = caminho.replace(/^\/+|\/+$/g, '').split('/');
+  return partes.length === 2 && partes[0] === 's' && CODIGO_SALVO.test(partes[1]) ? partes[1] : null;
+}
+
+/** O convite de um caminho (/c/<codigo>), ou null. */
+export function conviteDoCaminho(caminho: string): string | null {
+  const partes = caminho.replace(/^\/+|\/+$/g, '').split('/');
+  return partes.length === 2 && partes[0] === 'c' && CODIGO_SALVO.test(partes[1]) ? partes[1] : null;
+}
+
+export function linkDoConvite(codigo: string): string {
+  return `${location.origin}/c/${codigo}`;
+}

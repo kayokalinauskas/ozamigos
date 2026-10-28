@@ -227,15 +227,20 @@ function falhou(motivo: string | undefined, texto?: string): false {
   return false;
 }
 
-type Resposta = { ok: boolean; motivo?: string; corpo?: Record<string, unknown> };
+export type Resposta = { ok: boolean; motivo?: string; corpo?: Record<string, unknown> };
 
-/** As ações da API: JSON, na mesma origem (o servidor confere o Origin, ProtecaoDaApi.java). */
-async function enviar(metodo: string, caminho: string, corpo?: unknown): Promise<Resposta> {
+/**
+ * Os pedidos à API: JSON, na mesma origem (o servidor confere o Origin das ações, ProtecaoDaApi.java). Um `Blob` vai
+ * como está (o ícone de um servidor). Sem rede, `motivo` é "rede".
+ */
+export async function enviar(metodo: string, caminho: string, corpo?: unknown): Promise<Resposta> {
   try {
+    const arquivo = corpo instanceof Blob;
     const resposta = await fetch(caminho, {
       method: metodo,
-      headers: corpo === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: corpo === undefined ? undefined : JSON.stringify(corpo),
+      cache: 'no-store',
+      headers: corpo === undefined || arquivo ? undefined : { 'Content-Type': 'application/json' },
+      body: corpo === undefined ? undefined : arquivo ? corpo : JSON.stringify(corpo),
     });
     const texto = await resposta.text();
     const json = texto ? (JSON.parse(texto) as Record<string, unknown>) : undefined;

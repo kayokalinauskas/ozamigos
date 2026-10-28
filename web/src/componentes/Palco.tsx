@@ -161,7 +161,7 @@ function Vazio({ link, sozinho, temAlguemNoAr }: { link: string; sozinho: boolea
       <MonitorUp size={40} strokeWidth={1.5} />
       <h2>Ninguém está transmitindo</h2>
       <p>Clique em Transmitir, embaixo, para mostrar o seu jogo. Os amigos escolhem se querem assistir.</p>
-      {sozinho && (
+      {sozinho && link && (
         <p className="vazio-link">
           <Link size={14} aria-hidden="true" /> Convide os amigos: <code>{link}</code>
         </p>
