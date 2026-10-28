@@ -53,7 +53,8 @@ export function BotoesDeLogin() {
           key={provedor}
           type="button"
           className={`botao-login botao-login-${provedor}`}
-          disabled={ocupada}
+          // No app, clicar de novo vale: o login novo cancela o que ficou esperando no navegador (a aba fechada).
+          disabled={ocupada && !noApp}
           onClick={() => void entrar(provedor)}
         >
           {qual === provedor ? (
@@ -177,7 +178,6 @@ function Perfil() {
     if (novo === null) return;
     setNome(novo);
     setSalvo(true);
-    cliente.renovarConexao(); // numa sala, os amigos já veem o nome novo
   }
 
   return (
@@ -202,7 +202,9 @@ function Perfil() {
               Salvar
             </button>
           </span>
-          <small className="ajuda">{salvo ? 'Nome salvo.' : 'A foto é a do seu Google ou Discord.'}</small>
+          <small className="ajuda">
+            {salvo ? 'Nome salvo. Os amigos veem o nome novo na próxima vez que você entrar numa sala.' : 'A foto é a do seu Google ou Discord.'}
+          </small>
         </label>
       </form>
     </section>

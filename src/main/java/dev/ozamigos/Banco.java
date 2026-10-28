@@ -42,7 +42,8 @@ public class Banco {
         if (StringUtils.hasText(senha)) fonte.setPassword(senha);
         fonte.setMaximumPoolSize(CONEXOES);
         fonte.setMinimumIdle(1);
-        fonte.setConnectionTimeout(Duration.ofSeconds(10).toMillis());
+        // Curto: com o banco fora, quem tem conta espera isso uma vez e entra como convidado (Contas.bancoFalhou).
+        fonte.setConnectionTimeout(Duration.ofSeconds(3).toMillis());
         fonte.setInitializationFailTimeout(-1);
         return fonte;
     }

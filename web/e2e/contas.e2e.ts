@@ -145,7 +145,7 @@ test.describe('contas', () => {
     await expect(ana.locator('.conta-na-entrada').or(ana.locator('.voce-linha'))).toContainText('Ana da Conta');
   });
 
-  test('o nome novo vale na sala na hora, e apagar a conta volta a ser convidado', async ({ browser }) => {
+  test('o nome novo vale na próxima entrada, e apagar a conta volta a ser convidado', async ({ browser }) => {
     const caio = await pessoa(browser);
     await caio.goto('/?entrada');
     await entrarComOGoogle(caio, `caio-${Date.now()}`, 'Caio');
@@ -162,7 +162,8 @@ test.describe('contas', () => {
     await caio.getByLabel('Nome na sala').fill('Caio Novo');
     await caio.getByRole('button', { name: 'Salvar' }).click();
     await expect(caio.getByText('Nome salvo.')).toBeVisible();
-    await expect(dani.locator('.pessoa-nome-texto', { hasText: 'Caio Novo' })).toBeVisible();
+    expect((await (await caio.request.get('/api/eu')).json()).conta.nome).toBe('Caio Novo');
+    await expect(dani.locator('.pessoa-nome-texto', { hasText: 'Caio' })).toBeVisible(); // ninguém caiu da sala
 
     await caio.getByRole('button', { name: 'Apagar a minha conta' }).click();
     await caio.getByRole('button', { name: 'Apagar para sempre' }).click();

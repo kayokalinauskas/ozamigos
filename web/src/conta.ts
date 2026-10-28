@@ -137,7 +137,7 @@ export async function entrarCom(provedor: Provedor): Promise<boolean> {
     return false;
   }
   mudar({ ocupada: true, erro: '' });
-  const volta = await ponte.conta.loginPeloNavegador(provedor);
+  const volta = await pelaPonte(() => ponte!.conta!.loginPeloNavegador(provedor));
   if (!volta.codigo) return falhou(volta.erro);
   const troca = await enviar('POST', '/api/conta/codigo', { codigo: volta.codigo });
   if (!troca.ok) return falhou(troca.motivo);
@@ -158,7 +158,8 @@ export async function ligar(provedor: Provedor): Promise<void> {
     falhou(pedido.motivo);
     return;
   }
-  const volta = await ponte.conta.loginPeloNavegador(provedor, pedido.corpo.ligacao);
+  const ligacao = pedido.corpo.ligacao;
+  const volta = await pelaPonte(() => ponte!.conta!.loginPeloNavegador(provedor, ligacao));
   if (!volta.ligou) {
     falhou(volta.erro);
     return;
@@ -206,6 +207,15 @@ export async function apagarConta(): Promise<boolean> {
   if (!resposta.ok) return falhou(resposta.motivo);
   mudar({ ocupada: false, conta: null });
   return true;
+}
+
+/** A ponte do app recusou (a janela recarregou, um erro do processo principal): vira um erro comum, sem travar nada. */
+async function pelaPonte(chamar: () => Promise<{ codigo?: string; ligou?: string; erro?: string }>) {
+  try {
+    return await chamar();
+  } catch {
+    return { erro: 'navegador' };
+  }
 }
 
 function falhou(motivo: string | undefined, texto?: string): false {

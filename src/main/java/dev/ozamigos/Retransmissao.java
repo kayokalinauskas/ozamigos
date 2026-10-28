@@ -13,6 +13,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -417,18 +418,23 @@ public class Retransmissao {
                 }
                 // Os endereços não vão para o log (a política de privacidade só fala do log das senhas erradas): vai o
                 // nome de quem usou o endereço (pedido do dono, 26/10/2026; a política fala dele).
+                // Quem passa pelo endereço e pela conta ao mesmo tempo aparece uma vez só (as duas chaves têm o mesmo nome).
+                Set<String> semVozAgora = new LinkedHashSet<>();
+                Set<String> semVideoAgora = new LinkedHashSet<>();
                 vozPorChave.forEach((chave, bytes) -> {
                     if (bytes >= LIMITE_DE_VOZ_POR_ENDERECO && bloqueados.add(chave)) {
-                        log.warn("Retransmissão: {} passou de {} GB de voz hoje (não é conversa) e ficou sem ela até amanhã",
-                                nomesPorChave.get(chave), LIMITE_DE_VOZ_POR_ENDERECO / GB);
+                        semVozAgora.add(nomesPorChave.get(chave));
                     }
                 });
                 videoPorChave.forEach((chave, bytes) -> {
                     if (bytes >= LIMITE_DE_VIDEO_POR_ENDERECO && semVideo.add(chave)) {
-                        log.warn("Retransmissão: {} passou de {} GB de vídeo hoje e ficou sem o vídeo até amanhã (a voz continua)",
-                                nomesPorChave.get(chave), LIMITE_DE_VIDEO_POR_ENDERECO / GB);
+                        semVideoAgora.add(nomesPorChave.get(chave));
                     }
                 });
+                semVozAgora.forEach(quem -> log.warn("Retransmissão: {} passou de {} GB de voz hoje (não é conversa) e ficou sem ela até amanhã",
+                        quem, LIMITE_DE_VOZ_POR_ENDERECO / GB));
+                semVideoAgora.forEach(quem -> log.warn("Retransmissão: {} passou de {} GB de vídeo hoje e ficou sem o vídeo até amanhã (a voz continua)",
+                        quem, LIMITE_DE_VIDEO_POR_ENDERECO / GB));
                 boolean esgotou = consumo.periodo() >= LIMITE_DO_PERIODO || hojeTotal >= LIMITE_DO_DIA;
                 boolean videoEsgotou = consumo.periodo() >= LIMITE_DO_PERIODO_DO_VIDEO || hojeTotal >= LIMITE_DO_DIA_DO_VIDEO;
                 String resumo = String.format(java.util.Locale.ROOT, "%s em %d dias, %s hoje (vídeo %s, voz %s)",

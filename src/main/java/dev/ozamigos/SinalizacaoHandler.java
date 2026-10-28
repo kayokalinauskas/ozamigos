@@ -1,7 +1,6 @@
 package dev.ozamigos;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
@@ -12,7 +11,6 @@ import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -130,7 +128,7 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             nome = (String) sessao.getAttributes().get(ContaNoWebSocket.NOME);
         }
         // A senha vem antes de tudo: sem ela, a pessoa não descobre nada sobre a sala.
-        String endereco = endereco(sessao.getHandshakeHeaders(), sessao.getRemoteAddress());
+        String endereco = Enderecos.de(sessao.getHandshakeHeaders(), sessao.getRemoteAddress());
         if (tentativas.bloqueado(endereco)) {
             log.warn("{} bloqueado: senhas erradas demais de {}", id, endereco);
             recusar(sessao, "muitas-tentativas");
@@ -543,23 +541,6 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
             limpo = limpo.substring(0, limpo.offsetByCodePoints(0, 20)).strip();
         }
         return limpo.isEmpty() ? "Amigo" : limpo;
-    }
-
-    /**
-     * O endereço de quem conectou, para o freio de senhas erradas. No Render, a Cloudflare fica na frente e escreve no
-     * CF-Connecting-IP o endereço de verdade (o que o visitante mandar nesse cabeçalho, ela troca). O endereço remoto
-     * do Spring vem do X-Forwarded-For, que começa pelo que o visitante quiser: forjando-o a cada tentativa, dava para
-     * errar a senha sem limite. Sem a Cloudflare (no PC, nos testes), vale o endereço remoto.
-     */
-    static String endereco(HttpHeaders cabecalhos, InetSocketAddress remoto) {
-        String daCloudflare = cabecalhos.getFirst("CF-Connecting-IP");
-        if (daCloudflare != null && !daCloudflare.isBlank()) {
-            return daCloudflare.strip();
-        }
-        if (remoto == null) {
-            return "?";
-        }
-        return remoto.getAddress() != null ? remoto.getAddress().getHostAddress() : remoto.getHostString();
     }
 
     private WebSocketSession segura(WebSocketSession sessao) {

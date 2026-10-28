@@ -2,11 +2,6 @@ package dev.ozamigos;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
@@ -15,57 +10,30 @@ import org.springframework.stereotype.Component;
  * de graça. Depois de {@value #LIMITE} erros do mesmo endereço em {@code JANELA}, esse endereço espera.
  *
  * <p>O endereço é o que a Cloudflare (na frente do Render) põe no CF-Connecting-IP, que o visitante não consegue
- * forjar; veja {@code SinalizacaoHandler.endereco}. Até 14/10/2026 vinha do X-Forwarded-For, e quem o forjava
- * escapava do freio.
+ * forjar; veja {@code Enderecos}. Até 14/10/2026 vinha do X-Forwarded-For, e quem o forjava escapava do freio.
  */
 @Component
 public class TentativasDeSenha {
 
     static final int LIMITE = 10;
     static final Duration JANELA = Duration.ofMinutes(5);
-    /** Acima disso, os endereços que já não erram há uma janela inteira saem da memória. */
-    private static final int ENDERECOS_ANTES_DE_LIMPAR = 10_000;
 
-    private final Map<String, Deque<Instant>> erros = new HashMap<>();
-    private final Clock relogio;
+    private final Freio erros;
 
     public TentativasDeSenha() {
         this(Clock.systemUTC());
     }
 
     TentativasDeSenha(Clock relogio) {
-        this.relogio = relogio;
+        this.erros = new Freio(LIMITE, JANELA, relogio);
     }
 
     /** Este endereço já errou demais e precisa esperar? */
-    public synchronized boolean bloqueado(String endereco) {
-        Deque<Instant> recentes = erros.get(endereco);
-        if (recentes == null) {
-            return false;
-        }
-        esquecerAntigos(recentes, relogio.instant());
-        if (recentes.isEmpty()) {
-            erros.remove(endereco);
-            return false;
-        }
-        return recentes.size() >= LIMITE;
+    public boolean bloqueado(String endereco) {
+        return erros.excedeu(endereco);
     }
 
-    public synchronized void errou(String endereco) {
-        Instant agora = relogio.instant();
-        if (erros.size() >= ENDERECOS_ANTES_DE_LIMPAR) {
-            erros.values().removeIf(recentes -> {
-                esquecerAntigos(recentes, agora);
-                return recentes.isEmpty();
-            });
-        }
-        erros.computeIfAbsent(endereco, e -> new ArrayDeque<>()).addLast(agora);
-    }
-
-    private static void esquecerAntigos(Deque<Instant> recentes, Instant agora) {
-        Instant limite = agora.minus(JANELA);
-        while (!recentes.isEmpty() && !recentes.peekFirst().isAfter(limite)) {
-            recentes.removeFirst();
-        }
+    public void errou(String endereco) {
+        erros.contar(endereco);
     }
 }

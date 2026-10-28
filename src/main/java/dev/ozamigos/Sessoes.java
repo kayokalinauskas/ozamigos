@@ -73,22 +73,38 @@ public class Sessoes {
      * fora do ar (a pessoa entra como convidada, em vez de não entrar).
      */
     public Optional<UUID> usuario(String segredo) {
+        return conta(segredo).map(Contas.Usuario::id);
+    }
+
+    /**
+     * A conta da sessão (sem os provedores, que a sala não usa), numa consulta só: é a que roda a cada entrada numa
+     * sala. A validade só é renovada no banco uma vez por dia (RENOVAR_A_CADA), numa segunda consulta, rara.
+     */
+    public Optional<Contas.Usuario> conta(String segredo) {
         if (segredo == null || !SEGREDO.matcher(segredo).matches() || !contas.disponivel()) {
             return Optional.empty();
         }
+        byte[] resumo = resumo(segredo);
         try {
-            return banco.sql("""
-                    update sessoes set usada_em = now(), expira_em = now() + make_interval(days => :dias)
-                    where resumo = :resumo and expira_em > now()
-                      and usada_em < now() - make_interval(secs => :renovar)
-                    returning usuario_id""")
-                    .param("resumo", resumo(segredo)).param("dias", (int) VALIDADE.toDays())
-                    .param("renovar", (double) RENOVAR_A_CADA.toSeconds())
-                    .query(UUID.class).optional()
-                    .or(() -> banco.sql("select usuario_id from sessoes where resumo = :resumo and expira_em > now()")
-                            .param("resumo", resumo(segredo)).query(UUID.class).optional());
+            record Achada(Contas.Usuario usuario, boolean renovar) {}
+            Optional<Achada> achada = banco.sql("""
+                    select u.id, u.nome, u.foto_versao, u.foto is not null as tem_foto,
+                           s.usada_em < now() - make_interval(secs => :renovar) as renovar
+                    from sessoes s join usuarios u on u.id = s.usuario_id
+                    where s.resumo = :resumo and s.expira_em > now()""")
+                    .param("resumo", resumo).param("renovar", (double) RENOVAR_A_CADA.toSeconds())
+                    .query((linha, n) -> new Achada(new Contas.Usuario(linha.getObject("id", UUID.class), linha.getString("nome"),
+                            linha.getInt("foto_versao"), linha.getBoolean("tem_foto"), List.of()), linha.getBoolean("renovar")))
+                    .optional();
+            if (achada.isPresent() && achada.get().renovar()) {
+                banco.sql("update sessoes set usada_em = now(), expira_em = now() + make_interval(days => :dias) where resumo = :resumo")
+                        .param("dias", (int) VALIDADE.toDays()).param("resumo", resumo).update();
+            }
+            return achada.map(Achada::usuario);
         } catch (DataAccessException erro) {
-            log.warn("Sessões: o banco não respondeu ({}); a pessoa entra como convidada", erro.getMostSpecificCause().getMessage());
+            contas.bancoFalhou();
+            log.warn("Sessões: o banco não respondeu ({}); convidados por {} s", erro.getMostSpecificCause().getMessage(),
+                    Contas.FORA_POR.toSeconds());
             return Optional.empty();
         }
     }

@@ -19,6 +19,9 @@ import type { ImagemComprimida } from './imagens/compressor';
 import { FOLGA, FolgaAdaptativa } from './folga';
 import { NAO_ENTRAR_SOZINHO, deveEntrarSozinho } from './entradaAutomatica';
 import { voltouDoLogin } from './conta';
+
+/** O history.state dos endereços que a própria página escreve (trocarSala): recarregar não os confunde com um convite. */
+const ESCRITO_AQUI = { ozamigos: 'escrito-aqui' };
 import { LIMITE_POR_SALA, SALA_FIXA, codigoValido, ehASalaFixa, grupoDoCaminho, grupoValido, linkDaSala, linkDoGrupo, novoCodigo } from './conexao/codigoDaSala';
 import {
   FPS_MINIMO_DA_CAPTURA,
@@ -222,6 +225,8 @@ class Cliente {
   private readonly saidas = new Map<string, { momento: number; assistia: boolean }>();
   /** Sou convidado, e a conexão de reserva é só de quem tem conta: os avisos de "não conectou" dizem isso. */
   private reservaSoComConta = false;
+  /** A conexão nova é da conta que mudou (renovarConexao), e não de uma queda: sem o aviso de "restabelecida". */
+  private renovando = false;
   private proximoAviso = 1;
   private proximaMensagem = 1;
   private readonly imagensMinhas = new Map<string, ImagemComprimida>(); // para o "Tentar de novo"
@@ -259,7 +264,9 @@ class Cliente {
     const salaFixa = ehASalaFixa(location.pathname);
     const daUrl = new URLSearchParams(location.search).get('sala');
     // O convite para o app (Convite.tsx) é só das salas do grupo fixo: o app ainda não abre um grupo pelo link.
-    this.veioDeUmLink = !grupo && !salaFixa && Boolean(daUrl && codigoValido(daUrl)) && !voltouDoLogin();
+    // O ?sala= que a própria entrada escreveu (recarregar mantém o history.state) e a volta do login não são convites.
+    const escritoAqui = (history.state as { ozamigos?: string } | null)?.ozamigos === ESCRITO_AQUI.ozamigos;
+    this.veioDeUmLink = !grupo && !salaFixa && Boolean(daUrl && codigoValido(daUrl)) && !escritoAqui && !voltouDoLogin();
     // Sem sala no link, a entrada mostra a última em que a pessoa entrou (pedido do dono, 21/10/2026): o app abre
     // sempre na raiz, e era preciso colar o código de novo a cada vez. O botão ao lado do campo ainda sorteia uma nova.
     const ultima = lembrado(ULTIMA_SALA);
@@ -383,6 +390,7 @@ class Cliente {
   renovarConexao() {
     if (this.estado.fase !== 'sala' || this.recusado) return;
     this.registrar('conexão renovada: a conta mudou');
+    this.renovando = true;
     this.sinalizacao.conectar();
   }
 
@@ -446,7 +454,7 @@ class Cliente {
 
   trocarSala(codigo: string) {
     if (!codigoValido(codigo) || this.estado.grupo || this.estado.salaFixa) return;
-    history.replaceState(null, '', `?sala=${codigo}`);
+    history.replaceState(ESCRITO_AQUI, '', `?sala=${codigo}`);
     this.mudar({ sala: codigo });
   }
 
@@ -594,7 +602,9 @@ class Cliente {
     for (const id of msg.compartilhando) {
       if (this.voltandoQuemEuAssistia(id)) this.assistir(id);
     }
-    this.avisar('Conexão com o servidor restabelecida');
+    if (this.renovando) this.avisar(this.estado.minhaConta ? `Você está na sala com a sua conta, como ${this.estado.meuNome}.` : 'Você está na sala como convidado.');
+    else this.avisar('Conexão com o servidor restabelecida');
+    this.renovando = false;
   }
 
   /** O que o "bem-vindo" diz de mim: com conta, o nome dela (o servidor não usa o que a página mandou) e a foto. */
