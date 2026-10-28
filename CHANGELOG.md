@@ -9,6 +9,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ## [Não lançado]
 
 ### Novo
+- **Entrar com o Google ou o Discord:** na entrada, um clique e o seu nome e a sua foto aparecem para os amigos na sala, em qualquer grupo. Os volumes e o silenciado de cada amigo com conta valem em qualquer sala, e quem cai e volta é reconhecido mesmo com dois nomes iguais. Em Configurações → Conta, você troca o nome, liga a outra conta, sai, ou apaga tudo na hora. O Ozamigos não recebe o seu e-mail nem a sua senha. No app para Windows (1.3.0), o login abre no seu navegador e volta sozinho para o app. Entrar sem conta continua igual.
 - **Quem usa muito a conexão de reserva perde só o vídeo, e continua conversando:** para quem não consegue se conectar direto aos amigos, a voz e o vídeo passam por um caminho de reserva, que tem um limite diário. Agora, ao passar dele, só o vídeo por esse caminho para até o dia seguinte, com um aviso explicando o motivo; a voz continua normalmente.
 - **Conecta mesmo com redes mais fechadas:** quando dois amigos não conseguem se conectar direto (internet de operadora com IP compartilhado, 4G, rede de empresa), a voz, as imagens e a transmissão passam por um caminho de reserva, criptografadas. Quem conecta direto continua direto. (Servidor: a retransmissão TURN da Cloudflare, com credenciais por pessoa e limites de consumo para nunca passar da franquia gratuita; liga com as variáveis `OZAMIGOS_TURN_*` e `OZAMIGOS_CLOUDFLARE_*`.)
 

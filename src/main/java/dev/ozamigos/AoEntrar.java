@@ -85,7 +85,9 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
                 return;
             }
             log.info("Conta {} ligou o {}", login.ligarA(), provedor);
-            resposta.sendRedirect(login.voltar());
+            resposta.sendRedirect(login.portaDoApp() != null
+                    ? Login.voltaDoApp(login.portaDoApp(), login.estado(), "ligou", provedor)
+                    : login.voltar());
             return;
         }
 
@@ -93,7 +95,7 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
         fotos.atualizar(entrada.id(), perfil.foto(), entrada.fotoOrigem());
         if (login.portaDoApp() != null) {
             log.info("Conta {} entrou pelo {} (app)", entrada.id(), provedor);
-            resposta.sendRedirect(Login.voltaDoApp(login.portaDoApp(), login.estado(), "codigo", codigos.criar(entrada.id())));
+            resposta.sendRedirect(Login.voltaDoApp(login.portaDoApp(), login.estado(), "codigo", codigos.criar(entrada.id(), CodigosDoApp.Uso.LOGIN)));
         } else {
             log.info("Conta {} entrou pelo {}", entrada.id(), provedor);
             resposta.addHeader(HttpHeaders.SET_COOKIE, Sessoes.cookie(sessoes.criar(entrada.id(), "navegador")).toString());

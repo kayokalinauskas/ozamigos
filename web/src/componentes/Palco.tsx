@@ -133,7 +133,7 @@ export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
           <span className="rotulo">No ar agora</span>
           {disponiveis.map((id) => (
             <button key={id} type="button" className="cartao-disponivel" onClick={() => cliente.assistir(id)}>
-              <Avatar nome={cliente.nomeDe(id)} aoVivo tamanho={32} />
+              <Avatar nome={cliente.nomeDe(id)} foto={cliente.fotoDe(id)} aoVivo tamanho={32} />
               <span className="cartao-disponivel-nome">{cliente.nomeDe(id)}</span>
               <span className="botao botao-primario botao-pequeno">
                 <Eye size={14} /> Assistir

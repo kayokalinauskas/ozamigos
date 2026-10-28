@@ -16,7 +16,8 @@ import jakarta.servlet.http.HttpServletRequest;
 /**
  * O começo do login: {@code /conta/entrar/google} (ou {@code discord}) guarda para onde a pessoa volta e, no app, a
  * porta e o estado do login pelo navegador (CodigosDoApp); então segue para o provedor, pelo Spring Security. A volta
- * é do AoEntrar. {@code /conta/ligar/...} faz o mesmo para ligar mais um provedor a quem já tem conta.
+ * é do AoEntrar. {@code /conta/ligar/...} faz o mesmo para ligar mais um provedor a quem já tem conta: no navegador,
+ * pela sessão do cookie; no app, pelo código de ligação que a página dele pediu ({@code ligacao}, CodigosDoApp).
  *
  * <p>Erros voltam para a entrada com {@code ?erro-de-login=<motivo>}, ou, no app, para a porta dele com
  * {@code erro=<motivo>}.
@@ -35,13 +36,15 @@ public class Login {
     private final ProvedoresDeLogin provedores;
     private final Contas contas;
     private final Sessoes sessoes;
+    private final CodigosDoApp codigos;
     /** Cada endereço começa até 20 logins a cada 10 minutos (cada um é uma ida ao Google ou ao Discord). */
     private final Freio comecos = new Freio(20, Duration.ofMinutes(10));
 
-    public Login(ProvedoresDeLogin provedores, Contas contas, Sessoes sessoes) {
+    public Login(ProvedoresDeLogin provedores, Contas contas, Sessoes sessoes, CodigosDoApp codigos) {
         this.provedores = provedores;
         this.contas = contas;
         this.sessoes = sessoes;
+        this.codigos = codigos;
     }
 
     @GetMapping("/conta/entrar/{provedor}")
@@ -53,12 +56,17 @@ public class Login {
 
     @GetMapping("/conta/ligar/{provedor}")
     public String ligar(@PathVariable String provedor, @RequestParam(defaultValue = "/") String voltar,
-            HttpServletRequest pedido) {
-        Optional<UUID> usuario = sessoes.usuario(Sessoes.segredoDe(pedido));
+            @RequestParam(required = false) Integer app, @RequestParam(required = false) String estado,
+            @RequestParam(required = false) String ligacao, HttpServletRequest pedido) {
+        Optional<UUID> usuario = ligacao != null
+                ? codigos.trocar(ligacao, CodigosDoApp.Uso.LIGACAO)
+                : sessoes.usuario(Sessoes.segredoDe(pedido));
         if (usuario.isEmpty()) {
-            return "redirect:/?erro-de-login=sem-conta";
+            return app != null && estado != null && ESTADO.matcher(estado).matches() && app >= 1024 && app <= 65535
+                    ? "redirect:" + voltaDoApp(app, estado, "erro", "sem-conta")
+                    : "redirect:/?erro-de-login=sem-conta";
         }
-        return comecar(provedor, voltar, null, null, usuario.get(), pedido);
+        return comecar(provedor, voltar, app, estado, usuario.get(), pedido);
     }
 
     private String comecar(String provedor, String voltar, Integer app, String estado, UUID ligarA,

@@ -3,8 +3,10 @@ import { AppWindow, Download, Eye, EyeOff, LoaderCircle, Plus, RefreshCw, Server
 import { ULTIMA_SALA, cliente } from '../cliente';
 import { codigoDe, codigoValido, grupoDe, grupoReservado, grupoValido, linkDoApp, nomeDeGrupo, novoCodigo } from '../conexao/codigoDaSala';
 import { lembrado, lembrar } from '../armazenamento';
+import { useConta } from '../conta';
 import { ponte } from '../ponte';
 import { useCliente } from '../useCliente';
+import { ContaNaEntrada } from './Conta';
 import { Convite, FICA_NO_NAVEGADOR, SITE } from './Convite';
 import { Logo } from './Logo';
 import { Versao } from './Versao';
@@ -55,6 +57,7 @@ export function Entrada() {
 /** A entrada do grupo fixo: a senha de sempre e o código da sala. */
 function EntrarNaSala({ aoCriarGrupo }: { aoCriarGrupo: () => void }) {
   const { fase, erro, sala, meuNome } = useCliente();
+  const { conta } = useConta();
   const [nome, setNome] = useState(meuNome);
   const [senha, setSenha] = useState(() => lembrado('ozamigos-senha'));
   const [textoDaSala, setTextoDaSala] = useState(sala);
@@ -74,7 +77,7 @@ function EntrarNaSala({ aoCriarGrupo }: { aoCriarGrupo: () => void }) {
     }
     if (!salaOk) return;
     cliente.trocarSala(codigo);
-    cliente.entrar(nome, senha);
+    cliente.entrar(conta?.nome ?? nome, senha); // com conta, o servidor usa o nome dela
   }
 
   return (
@@ -82,8 +85,8 @@ function EntrarNaSala({ aoCriarGrupo }: { aoCriarGrupo: () => void }) {
       <Logo grande />
       <p className="subtitulo">Transmita seu jogo e converse com os amigos.</p>
 
-      <CampoDoNome nome={nome} setNome={setNome} />
-      <CampoDaSenha rotulo="Senha do grupo" senha={senha} setSenha={setSenha} focar={Boolean(nome)} />
+      <ContaNaEntrada campoDoNome={<CampoDoNome nome={nome} setNome={setNome} />} />
+      <CampoDaSenha rotulo="Senha do grupo" senha={senha} setSenha={setSenha} focar={Boolean(nome || conta)} />
 
       <label className="campo">
         <span>Sala</span>
@@ -132,13 +135,15 @@ function EntrarNaSala({ aoCriarGrupo }: { aoCriarGrupo: () => void }) {
  */
 function EntrarNoGrupo({ grupo, fixo = false }: { grupo: string; fixo?: boolean }) {
   const { fase, erro, recusa, meuNome } = useCliente();
+  const { conta } = useConta();
   const [nome, setNome] = useState(meuNome);
   const [senha, setSenha] = useState(() => lembrado(cliente.chaveDaSenha(fixo ? null : grupo)));
   const entrando = fase === 'entrando';
+  const nomeQueVale = conta?.nome ?? nome; // com conta, o servidor usa o nome dela
 
   function enviar(evento: FormEvent) {
     evento.preventDefault();
-    cliente.entrar(nome, senha);
+    cliente.entrar(nomeQueVale, senha);
   }
 
   return (
@@ -148,8 +153,8 @@ function EntrarNoGrupo({ grupo, fixo = false }: { grupo: string; fixo?: boolean 
         Grupo <strong>{grupo}</strong>
       </p>
 
-      <CampoDoNome nome={nome} setNome={setNome} />
-      <CampoDaSenha rotulo="Senha do grupo" senha={senha} setSenha={setSenha} focar={Boolean(nome)} />
+      <ContaNaEntrada campoDoNome={<CampoDoNome nome={nome} setNome={setNome} />} />
+      <CampoDaSenha rotulo="Senha do grupo" senha={senha} setSenha={setSenha} focar={Boolean(nome || conta)} />
 
       <Erro erro={erro} />
 
@@ -157,8 +162,8 @@ function EntrarNoGrupo({ grupo, fixo = false }: { grupo: string; fixo?: boolean 
         <button
           type="button"
           className="botao botao-primario botao-grande"
-          disabled={entrando || senha.length < SENHA_MINIMA || !nome.trim()}
-          onClick={() => cliente.entrar(nome, senha, true)}
+          disabled={entrando || senha.length < SENHA_MINIMA || !nomeQueVale.trim()}
+          onClick={() => cliente.entrar(nomeQueVale, senha, true)}
         >
           <Plus size={18} /> Criar o grupo de novo com esta senha
         </button>
@@ -178,6 +183,7 @@ function EntrarNoGrupo({ grupo, fixo = false }: { grupo: string; fixo?: boolean 
 /** Criar um grupo com nome e senha próprios. Ele fica só enquanto é usado; depois, é só criar de novo. */
 function CriarGrupo({ aoVoltar }: { aoVoltar: () => void }) {
   const { fase, erro, meuNome } = useCliente();
+  const { conta } = useConta();
   const [textoDoGrupo, setTextoDoGrupo] = useState('');
   const [nome, setNome] = useState(meuNome);
   const [senha, setSenha] = useState('');
@@ -190,7 +196,7 @@ function CriarGrupo({ aoVoltar }: { aoVoltar: () => void }) {
   function enviar(evento: FormEvent) {
     evento.preventDefault();
     if (!grupoOk || !senhaOk || !confere) return;
-    cliente.criarGrupo(grupo, nome, senha);
+    cliente.criarGrupo(grupo, conta?.nome ?? nome, senha);
   }
 
   return (
@@ -219,7 +225,7 @@ function CriarGrupo({ aoVoltar }: { aoVoltar: () => void }) {
         </small>
       </label>
 
-      <CampoDoNome nome={nome} setNome={setNome} focar={false} />
+      <ContaNaEntrada campoDoNome={<CampoDoNome nome={nome} setNome={setNome} focar={false} />} />
       <CampoDaSenha rotulo="Senha do grupo" senha={senha} setSenha={setSenha} nova />
       <label className="campo">
         <span>Confirme a senha</span>
