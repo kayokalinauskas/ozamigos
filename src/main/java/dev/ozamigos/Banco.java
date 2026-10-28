@@ -31,6 +31,13 @@ import com.zaxxer.hikari.HikariDataSource;
 public class Banco {
 
     static final int CONEXOES = 5;
+    /**
+     * As tabelas do Ozamigos ficam num esquema só delas, criado pelas migrações (VidaDoBanco). O {@code public} é do
+     * provedor: o Supabase põe coisas suas lá (a função do RLS automático), e o Flyway recusava um esquema que não estava
+     * vazio nem era dele (o primeiro deploy das contas, 27/10/2026). As consultas usam nomes sem esquema: a conexão já
+     * nasce com ele no search_path.
+     */
+    static final String ESQUEMA = "ozamigos";
 
     @Bean(destroyMethod = "close")
     HikariDataSource fonteDoBanco(@Value("${ozamigos.banco.url}") String url,
@@ -40,6 +47,7 @@ public class Banco {
         fonte.setJdbcUrl(url);
         if (StringUtils.hasText(usuario)) fonte.setUsername(usuario);
         if (StringUtils.hasText(senha)) fonte.setPassword(senha);
+        fonte.setSchema(ESQUEMA);
         fonte.setMaximumPoolSize(CONEXOES);
         fonte.setMinimumIdle(1);
         // Curto: com o banco fora, quem tem conta espera isso uma vez e entra como convidado (Contas.bancoFalhou).

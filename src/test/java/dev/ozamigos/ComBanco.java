@@ -23,6 +23,12 @@ abstract class ComBanco {
     static {
         if (DockerClientFactory.instance().isDockerAvailable()) {
             postgres.start();
+            // Como o Supabase: o public já tem coisas do provedor. As migrações não podem depender dele vazio.
+            try (var conexao = postgres.createConnection(""); var comando = conexao.createStatement()) {
+                comando.execute("create function public.do_provedor() returns int language sql as 'select 1'");
+            } catch (java.sql.SQLException e) {
+                throw new IllegalStateException(e);
+            }
         }
     }
 

@@ -96,6 +96,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - A saúde (`/actuator/health`) **não inclui o banco** (`management.health.db.enabled=false`): senão, o Render reiniciaria o servidor e o app ficaria em "Conectando..." com o banco fora.
   - Um sinal de vida por dia (`sinais_de_vida`): o Supabase grátis pausa o projeto depois de 7 dias sem uso.
   - **Migração aplicada nunca muda**: corrija com uma nova (`V2__...sql`). Acesso pelo `JdbcClient`, com SQL escrito à mão.
+  - **As tabelas ficam no esquema `ozamigos`** (`Banco.ESQUEMA`, no search_path da conexão), nunca no `public`: o Supabase põe coisas suas lá, e o Flyway recusou o `public` não vazio no primeiro deploy. O `ComBanco` dos testes imita isso.
   - Backup semanal criptografado pelo `backup.yml` (o repositório é público). Testes: `BancoTest`, num Postgres de verdade pelo Testcontainers (precisa do Docker ligado; sem ele, pula).
 - **Contas** (`Contas`, `Sessoes`, `Login`, `AoEntrar`, `ContaApi`, `FotosDoPerfil`, `CodigosDoApp`; migração `V2__contas.sql`; HTTP em `docs/protocolo.md`): login com o Google e o Discord.
   - **O mínimo de dados:** do provedor, só o id da conta, o nome e a foto. Os escopos (`openid profile`, `identify`) **não pedem o e-mail**; não peça sem o dono decidir (e a privacidade mudar junto). Sem senha, sem IP no banco.
