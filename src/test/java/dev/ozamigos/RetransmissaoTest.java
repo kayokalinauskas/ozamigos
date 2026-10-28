@@ -80,8 +80,13 @@ class RetransmissaoTest {
     private final Retransmissao retransmissao = new Retransmissao(cloudflare, json, relogio, false);
     private final Map<String, List<Retransmissao.Credenciais>> avisos = new HashMap<>();
 
+    /** Cada pessoa com a própria conta: os limites dos testes são os do endereço. */
     private Retransmissao.Credenciais entrar(String id, String endereco) {
-        return retransmissao.entrou(id, "Nome de " + id, endereco, credenciais -> avisos.computeIfAbsent(id, i -> new ArrayList<>()).add(credenciais));
+        return entrar(id, endereco, "conta-" + id);
+    }
+
+    private Retransmissao.Credenciais entrar(String id, String endereco, String conta) {
+        return retransmissao.entrou(id, "Nome de " + id, endereco, conta, credenciais -> avisos.computeIfAbsent(id, i -> new ArrayList<>()).add(credenciais));
     }
 
     private static String usuario(ArrayNode servidores) {
@@ -97,7 +102,31 @@ class RetransmissaoTest {
     void desligadaSemAsVariaveis() {
         Retransmissao desligada = new Retransmissao(null, json, relogio, false);
 
-        assertThat(desligada.entrou("a", "Ana", "1.1.1.1", c -> {})).isNull();
+        assertThat(desligada.entrou("a", "Ana", "1.1.1.1", "conta-a", c -> {})).isNull();
+    }
+
+    @Test
+    void soQuemTemContaRecebe() {
+        assertThat(retransmissao.entrou("convidado", "Convidado", "1.1.1.1", null, c -> {})).isNull();
+        passarMinutos(5);
+
+        assertThat(cloudflare.geradas).isZero();
+        assertThat(entrar("ana", "1.1.1.1")).isNotNull();
+    }
+
+    @Test
+    void oLimiteDaContaVaiJuntoParaOutraRede() {
+        entrar("kayo", "6.6.6.6", "conta-kayo"); // u1 voz, u2 vídeo
+
+        cloudflare.hoje.put("u2", Retransmissao.LIMITE_DE_VIDEO_POR_ENDERECO);
+        passarMinutos(5);
+
+        // Do 4G, outro endereço: a conta continua sem o vídeo. Outra conta naquele endereço também.
+        Retransmissao.Credenciais do4g = entrar("kayo-4g", "7.7.7.7", "conta-kayo");
+        assertThat(do4g.video().isEmpty()).isTrue();
+        assertThat(do4g.limiteDoVideo()).isEqualTo("seu");
+        assertThat(entrar("outra", "6.6.6.6", "conta-outra").video().isEmpty()).isTrue();
+        assertThat(entrar("longe", "8.8.8.8", "conta-longe").video().isEmpty()).isFalse();
     }
 
     @Test

@@ -12,7 +12,11 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 - **Quem usa muito a conexão de reserva perde só o vídeo, e continua conversando:** para quem não consegue se conectar direto aos amigos, a voz e o vídeo passam por um caminho de reserva, que tem um limite diário. Agora, ao passar dele, só o vídeo por esse caminho para até o dia seguinte, com um aviso explicando o motivo; a voz continua normalmente.
 - **Conecta mesmo com redes mais fechadas:** quando dois amigos não conseguem se conectar direto (internet de operadora com IP compartilhado, 4G, rede de empresa), a voz, as imagens e a transmissão passam por um caminho de reserva, criptografadas. Quem conecta direto continua direto. (Servidor: a retransmissão TURN da Cloudflare, com credenciais por pessoa e limites de consumo para nunca passar da franquia gratuita; liga com as variáveis `OZAMIGOS_TURN_*` e `OZAMIGOS_CLOUDFLARE_*`.)
 
+### Mudado
+- **A conexão de reserva passa a ser de quem entra com conta:** para quem não consegue se conectar direto aos amigos, a voz e a transmissão continuam passando pelo caminho de reserva, mas só para quem entrou com o Google ou o Discord. Quem entra sem conta continua conversando normalmente quando a conexão direta funciona, e é avisado quando entrar com a conta resolveria. (Servidor: só quem tem conta recebe as credenciais da retransmissão, e os limites contam a conta além do endereço.)
+
 ### Interno
+- **Contas no servidor:** login com o Google e o Discord, sem pedir e-mail nem guardar senha; sessão própria do Ozamigos no banco; API da conta (nome, sair, apagar a conta, provedores); o login do app pelo navegador do sistema, com um código de uso único; a conta e a foto dentro da sala. A interface vem a seguir. (Plano em `docs/plano-contas.md`.)
 - **Fundação das contas:** o servidor ganhou um banco de dados (PostgreSQL), opcional, para as contas e os servidores salvos que vêm a seguir. Nada muda para quem usa: sem o banco, ou com ele fora do ar, as salas funcionam como antes. Para desenvolver, `docker compose up --build` sobe o servidor com um banco local. (Plano em `docs/plano-contas.md`.)
 
 ### Corrigido

@@ -7,7 +7,11 @@ import type { Pacote } from '../desempenho/tipos';
 /** As duas conexões de vídeo, do ponto de vista de quem fala: quem me assiste (envio) e quem eu assisto (recebimento). */
 export type Canal = 'envio' | 'recebimento';
 
-export type Pessoa = { id: string; nome: string };
+/**
+ * Alguém da sala. Com conta (login pelo Google ou pelo Discord): `conta` é o id dela, que reconhece a pessoa mesmo com
+ * o id da conexão mudando, e `foto` o endereço da foto (no próprio servidor), se tiver. Sem `conta`, é convidado.
+ */
+export type Pessoa = { id: string; nome: string; conta?: string; foto?: string };
 
 /** Oferta e resposta do WebRTC. Sem `canal`, são do vídeo; com `canal: 'voz'`, da conversa por voz. */
 type Descricao = { sdp: RTCSessionDescriptionInit; canal?: 'voz' };
@@ -64,6 +68,10 @@ export type MensagemDoServidor =
       tipo: 'bem-vindo';
       id: string;
       ficha: string;
+      // O nome com que entrei: com conta, o dela (o servidor ignora o que a página mandou). Sem `conta`, convidado.
+      nome?: string;
+      conta?: string;
+      foto?: string;
       outros: Pessoa[];
       compartilhando: string[];
       plateias: Record<string, string[]>;
@@ -73,8 +81,10 @@ export type MensagemDoServidor =
       retransmissao?: RTCIceServer[];
       retransmissaoDaVoz?: RTCIceServer[];
       limiteDoVideo?: LimiteDoVideo;
+      // Convidado num servidor com a retransmissão ligada: entrando com a conta, ela vem (Retransmissao.java).
+      retransmissaoSoComConta?: true;
     }
-  | { tipo: 'entrou'; id: string; nome: string }
+  | ({ tipo: 'entrou' } & Pessoa)
   | { tipo: 'saiu'; id: string }
   | { tipo: 'pode-compartilhar' }
   | { tipo: 'compartilhando'; id: string }

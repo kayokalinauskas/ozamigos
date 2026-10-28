@@ -6,7 +6,7 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 
 | `tipo` | Campos | Efeito |
 |---|---|---|
-| `entrar` | `sala`, `senha`, `nome`, `ficha` (opcional), `grupo` e `criar` (opcionais) | Confere a senha e entra na sala. Na reconexão, a `ficha` recebida no `bem-vindo` anterior tira da sala a conexão antiga, se o servidor ainda não percebeu a queda. Com `grupo`, é um grupo criado na hora (`Grupos.java`): a senha é a dele, a sala é a única do grupo (`sala` vai vazia), e `criar: true` o cria se não existe (o cliente manda `criar` também ao reconectar, para o grupo voltar se o servidor reiniciou) |
+| `entrar` | `sala`, `senha`, `nome`, `ficha` (opcional), `grupo` e `criar` (opcionais) | Confere a senha e entra na sala. Com conta (o cookie da sessão na abertura do WebSocket), o `nome` mandado é ignorado: vale o da conta. Na reconexão, a `ficha` recebida no `bem-vindo` anterior tira da sala a conexão antiga, se o servidor ainda não percebeu a queda. Com `grupo`, é um grupo criado na hora (`Grupos.java`): a senha é a dele, a sala é a única do grupo (`sala` vai vazia), e `criar: true` o cria se não existe (o cliente manda `criar` também ao reconectar, para o grupo voltar se o servidor reiniciou) |
 | `comecei` / `parei` | — | Começa ou para de transmitir |
 | `assistir` / `deixar` | `para` | Entra ou sai da plateia de quem transmite |
 | `oferta` / `resposta` / `candidato` | `para`, `sdp` ou `candidato`, `canal` (`envio`, `recebimento` ou `voz`) | Repassado só ao destinatário, na mesma sala |
@@ -20,10 +20,10 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 
 | `tipo` | Campos | Quando |
 |---|---|---|
-| `bem-vindo` | `id`, `ficha`, `outros[]`, `compartilhando[]`, `plateias{}`, `gravando` (`id`, `nome`, se alguém grava a sala), `retransmissao[]` e `retransmissaoDaVoz[]` (os `iceServers` do TURN para o vídeo e para a voz, se ligada e dentro dos limites; a página de antes usa a do vídeo para tudo), `limiteDoVideo` (`seu` ou `geral`, se o vídeo veio sem por um limite) | Ao entrar. A `ficha` é secreta: só quem a recebeu pode usá-la para reconectar |
+| `bem-vindo` | `id`, `ficha`, `nome` (o nome com que entrou), `conta` e `foto` (com conta), `outros[]` (`id`, `nome`, `conta`?, `foto`?), `compartilhando[]`, `plateias{}`, `gravando` (`id`, `nome`, se alguém grava a sala), `retransmissao[]` e `retransmissaoDaVoz[]` (os `iceServers` do TURN para o vídeo e para a voz, se ligada e dentro dos limites; a página de antes usa a do vídeo para tudo), `limiteDoVideo` (`seu` ou `geral`, se o vídeo veio sem por um limite), `retransmissaoSoComConta` (convidado, com a retransmissão ligada: ela é só para quem tem conta) | Ao entrar. A `ficha` é secreta: só quem a recebeu pode usá-la para reconectar |
 | `retransmissao` | `servidores[]` (vídeo), `voz[]`, `limiteDoVideo`? | As credenciais do TURN que valem agora: renovadas (a cada 6 h), dadas depois da entrada, ou a lista vazia de um uso cortado por um limite de consumo. `limiteDoVideo`: `seu` (esta pessoa passou do limite de vídeo do dia; a página avisa que foi o uso dela) ou `geral` (o total de todos) |
 | `pong` | — | Resposta ao `ping`. Sem nenhuma mensagem por 70 s, o cliente considera a conexão morta e reconecta |
-| `entrou` / `saiu` | `id` (e `nome`) | Alguém entrou ou saiu |
+| `entrou` / `saiu` | `id` (e `nome`, `conta`?, `foto`?) | Alguém entrou ou saiu. `conta` é o id da conta (sem ele, convidado), o mesmo depois de uma reconexão; `foto`, o endereço da foto no servidor (`/api/fotos/<conta>?v=<versão>`) |
 | `pode-compartilhar` | — | Confirma o `comecei` |
 | `compartilhando` / `parou` | `id` | Alguém começou ou parou de transmitir |
 | `plateia` | `id`, `ids[]` | Mudou quem assiste uma transmissão |
@@ -37,3 +37,22 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `erro` | `motivo` | `senha-errada`, `muitas-tentativas`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `chat-rapido-demais`, `chamar-cedo-demais`, `mensagem-invalida`; dos grupos: `grupo-nao-existe`, `grupo-em-uso` (criar com um nome que existe, com outra senha), `grupo-invalido`, `senha-curta` (menos de 4 caracteres), `muitos-grupos` (3 criados pelo mesmo endereço em 10 minutos), `grupos-demais` (200 ao mesmo tempo, todos com gente dentro) |
 
 Com `senha-errada`, `muitas-tentativas` (10 senhas erradas do mesmo endereço em 5 minutos), `sala-cheia` e as recusas dos grupos, o servidor fecha a conexão logo depois de avisar. A senha errada de um grupo (e o `grupo-em-uso`) contam no mesmo freio. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.
+
+## Contas (HTTP)
+
+O login e a conta não passam pelo WebSocket: são páginas e uma API JSON no mesmo servidor (`Login.java`, `AoEntrar.java`, `ContaApi.java`). As ações (`POST`, `PATCH`, `DELETE`) só valem com o `Origin` do próprio servidor (`ProtecaoDaApi.java`); a sessão vai no cookie `__Host-ozamigos` (`HttpOnly`, `Secure`, `SameSite=Lax`).
+
+| Caminho | Efeito |
+|---|---|
+| `GET /conta/entrar/{google\|discord}?voltar=/caminho` | Começa o login no navegador; no fim, ganha o cookie e volta para `voltar`. Erro: volta com `?erro-de-login=<motivo>` (`indisponivel`, `muitas-tentativas`, `recusado`, `pedido-invalido`) |
+| `GET /conta/entrar/{provedor}?app=<porta>&estado=<estado>` | O login do app pelo navegador do sistema (RFC 8252): no fim, o navegador vai para `http://127.0.0.1:<porta>/login?codigo=<código>&estado=<estado>` (ou `erro=<motivo>`) |
+| `GET /conta/ligar/{provedor}?voltar=/caminho` | Liga mais um provedor à conta logada. Erros a mais: `sem-conta`, `de-outra-pessoa`, `ja-tem-desse-provedor` |
+| `GET /api/eu` | `{login: ["google", "discord"], conta: {id, nome, foto, provedores[]} \| null}`. `login` vazio: sem banco ou sem provedores |
+| `PATCH /api/eu` | `{nome}` → o nome novo, limpo como o da sala |
+| `POST /api/eu/sair` | Encerra a sessão e apaga o cookie |
+| `DELETE /api/eu` | `{confirmar: true}`: apaga a conta e tudo dela, na hora |
+| `DELETE /api/eu/provedores/{provedor}` | Desliga um provedor; o último não sai (409 `ultima`) |
+| `POST /api/conta/codigo` | `{codigo}`: o app troca o código de uso único pela sessão, no cookie da janela dele (400 `codigo-invalido`) |
+| `GET /api/fotos/{conta}?v=<versão>` | A foto (JPEG de 128 px), com cache de um ano |
+
+Erros da API: `{erro: <motivo>}`, com 401 `sem-conta`, 503 `contas-indisponiveis`, 403 `origem`, 429 `muitas-tentativas`.

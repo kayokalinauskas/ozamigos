@@ -1,10 +1,5 @@
 package dev.ozamigos;
 
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -12,7 +7,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -26,14 +20,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
-import javax.imageio.ImageReadParam;
-import javax.imageio.ImageReader;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
-import javax.imageio.stream.ImageInputStream;
-import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,8 +88,6 @@ public class PreviasDeLinks {
     static final int MAXIMO_DO_OEMBED = 100_000;
     static final int MAXIMO_DA_PAGINA = 3_000_000; // a página de um vídeo do YouTube tem ~1,3 MB
     static final int MAXIMO_DA_IMAGEM = 3_000_000;
-    /** Imagens maiores que isso (em pixels) nem são abertas: uma "bomba" de 50000×50000 encheria a memória. */
-    static final long PIXELS_NO_MAXIMO = 40_000_000;
     static final int LADO_DA_MINIATURA = 400;
     /** A miniatura vai dentro da mensagem do WebSocket: pequena. */
     static final int TETO_DA_MINIATURA = 48_000;
@@ -583,65 +568,10 @@ public class PreviasDeLinks {
     }
 
     static String reduzir(byte[] bytes) throws IOException {
-        BufferedImage imagem;
-        try (ImageInputStream entrada = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
-            Iterator<ImageReader> leitores = ImageIO.getImageReaders(entrada);
-            if (!leitores.hasNext()) {
-                return null; // um formato que o Java não abre (WebP, por exemplo): a prévia vai sem imagem
-            }
-            ImageReader leitor = leitores.next();
-            try {
-                leitor.setInput(entrada, true, true);
-                int lado = Math.max(leitor.getWidth(0), leitor.getHeight(0));
-                if ((long) leitor.getWidth(0) * leitor.getHeight(0) > PIXELS_NO_MAXIMO) {
-                    return null;
-                }
-                // Lê já reduzida (pulando pixels), até o dobro do lado da miniatura, que a redução bicúbica de baixo
-                // acaba de afinar. Inteira, uma imagem de 40 MP ocupava ~160 MB na memória do servidor (com até 4 prévias
-                // ao mesmo tempo, num servidor de 512 MB); assim, cabe em ~1 MB.
-                ImageReadParam parametros = leitor.getDefaultReadParam();
-                int passo = Math.max(1, lado / (LADO_DA_MINIATURA * 2));
-                parametros.setSourceSubsampling(passo, passo, 0, 0);
-                imagem = leitor.read(0, parametros);
-            } finally {
-                leitor.dispose();
-            }
-        }
-        double escala = Math.min(1.0, (double) LADO_DA_MINIATURA / Math.max(imagem.getWidth(), imagem.getHeight()));
-        int largura = Math.max(1, (int) Math.round(imagem.getWidth() * escala));
-        int altura = Math.max(1, (int) Math.round(imagem.getHeight() * escala));
-        BufferedImage pequena = new BufferedImage(largura, altura, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = pequena.createGraphics();
-        try {
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            g.drawImage(imagem, 0, 0, largura, altura, null);
-        } finally {
-            g.dispose();
-        }
-        for (float qualidade : new float[] {0.82f, 0.65f, 0.5f}) {
-            byte[] jpeg = emJpeg(pequena, qualidade);
-            String dados = "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(jpeg);
-            if (dados.length() <= TETO_DA_MINIATURA) {
-                return dados;
-            }
-        }
-        return null;
-    }
-
-    private static byte[] emJpeg(BufferedImage imagem, float qualidade) throws IOException {
-        ImageWriter escritor = ImageIO.getImageWritersByFormatName("jpeg").next();
-        ByteArrayOutputStream saida = new ByteArrayOutputStream();
-        try (MemoryCacheImageOutputStream destino = new MemoryCacheImageOutputStream(saida)) {
-            escritor.setOutput(destino);
-            ImageWriteParam parametros = escritor.getDefaultWriteParam();
-            parametros.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            parametros.setCompressionQuality(qualidade);
-            escritor.write(null, new IIOImage(imagem, null, null), parametros);
-        } finally {
-            escritor.dispose();
-        }
-        return saida.toByteArray();
+        // O teto é do texto em base64 (a miniatura vai dentro da mensagem): 3 bytes viram 4 caracteres.
+        int prefixo = "data:image/jpeg;base64,".length();
+        byte[] jpeg = Imagens.jpegReduzido(bytes, LADO_DA_MINIATURA, (TETO_DA_MINIATURA - prefixo) / 4 * 3, false);
+        return jpeg == null ? null : "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(jpeg);
     }
 
     private static String cortar(String texto, int maximo) {

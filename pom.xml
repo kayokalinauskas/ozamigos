@@ -69,6 +69,12 @@
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+		<!-- O login com Google e Discord (OAuth2), só ele: o resto do servidor não usa o Spring Security para nada
+		     (SegurancaConfig). As sessões são do Ozamigos, no banco (Sessoes). -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-oauth2-client</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -78,6 +84,11 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-websocket-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-oauth2-client-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<!-- Um Postgres de verdade, em Docker, nos testes do banco (BancoTest). -->
