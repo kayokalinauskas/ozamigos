@@ -5,15 +5,15 @@ import { useConta } from '../conta';
 import { servidores, useServidor, type PreviaDoConvite, type ResumoDoServidor } from '../servidores';
 import { useCliente } from '../useCliente';
 import { Avatar } from './Avatar';
-import { BotoesDeLogin, ContaNaEntrada, ErroDaConta } from './Conta';
+import { ContaNaEntrada } from './Conta';
 import { Logo } from './Logo';
-import { Versao } from './Versao';
+import { RodapeDaEntrada } from './RodapeDaEntrada';
 
 const membros = (n: number) => (n === 1 ? '1 membro' : `${n} membros`);
 
 /**
  * Na entrada, para quem tem conta: os servidores de que ela é membro (o que entrou por último primeiro) e criar um novo.
- * Um clique entra na sala do servidor, sem senha. Fica dentro do formulário da entrada: nada aqui é um <form>.
+ * Um clique entra na sala do servidor, sem senha.
  */
 export function MeusServidores() {
   const { conta } = useConta();
@@ -78,7 +78,7 @@ export function MeusServidores() {
               onChange={(e) => setNome(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  e.preventDefault(); // não envia o formulário da sala, em volta
+                  e.preventDefault();
                   void criar();
                 }
               }}
@@ -90,7 +90,7 @@ export function MeusServidores() {
               {salvando ? <LoaderCircle size={16} className="girando" /> : 'Criar'}
             </button>
           </span>
-          <small className="ajuda">O servidor fica guardado: quem você convidar entra sem senha, com a conta.</small>
+          <small className="ajuda">O servidor fica guardado: quem você convidar entra com a conta, quando quiser.</small>
         </label>
       ) : (
         <button type="button" className="botao botao-secundario" onClick={() => setCriando(true)}>
@@ -132,14 +132,8 @@ export function EntrarNoServidor({ codigo }: { codigo: string }) {
         <p className="ajuda">
           <LoaderCircle size={14} className="girando" /> Carregando…
         </p>
-      ) : conta ? (
-        <ContaNaEntrada campoDoNome={null} />
       ) : (
-        <div className="conta-convite">
-          <p className="ajuda">Para entrar neste servidor, entre com a sua conta.</p>
-          <BotoesDeLogin />
-          <ErroDaConta />
-        </div>
+        <ContaNaEntrada />
       )}
 
       {(erro || (conta && erroDoServidor)) && (
@@ -162,11 +156,10 @@ export function EntrarNoServidor({ codigo }: { codigo: string }) {
           'Entrar no servidor'
         )}
       </button>
-      {/* Com o ?entrada, a raiz mostra a entrada com a lista, e não volta ao último grupo. */}
-      <a className="botao botao-fantasma botao-pequeno trocar-servidor" href="/?entrada">
+      <a className="botao botao-fantasma botao-pequeno trocar-servidor" href="/">
         {conta ? 'Ver todos os seus servidores' : 'Ir para a entrada do Ozamigos'}
       </a>
-      <Versao />
+      <RodapeDaEntrada />
     </div>
   );
 }
@@ -217,14 +210,7 @@ export function AceitarConvite({ convite }: { convite: string }) {
         )
       )}
 
-      {previa && carregada && !conta && (
-        <div className="conta-convite">
-          <p className="ajuda">Para aceitar, entre com a sua conta. Depois, você entra no servidor sem senha, quando quiser.</p>
-          <BotoesDeLogin />
-          <ErroDaConta />
-        </div>
-      )}
-      {previa && conta && <ContaNaEntrada campoDoNome={null} />}
+      {previa && carregada && <ContaNaEntrada />}
 
       {erro && (
         <p className="erro" role="alert">
@@ -237,10 +223,10 @@ export function AceitarConvite({ convite }: { convite: string }) {
           {aceitando ? <LoaderCircle size={18} className="girando" /> : 'Aceitar e entrar'}
         </button>
       )}
-      <a className="botao botao-fantasma botao-pequeno trocar-servidor" href="/?entrada">
+      <a className="botao botao-fantasma botao-pequeno trocar-servidor" href="/">
         Ir para a entrada do Ozamigos
       </a>
-      <Versao />
+      <RodapeDaEntrada />
     </div>
   );
 }

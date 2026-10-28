@@ -1,5 +1,6 @@
 # O Ozamigos inteiro no seu PC, com o banco: `docker compose up --build`, e a página em http://localhost:8090
 # (a 8080 fica livre). O deploy no Render usa o mesmo Dockerfile, com o banco do Supabase (docs/plano-contas.md).
+# Para entrar, falta um login: o de teste (mock-oauth2-server) e as variáveis estão no README, em "Desenvolvimento".
 #
 # As senhas daqui são só deste banco local, que não sai do PC. As de verdade ficam nas variáveis do Render.
 # Para começar o banco do zero: `docker compose down -v`.
@@ -28,7 +29,6 @@ services:
       banco:
         condition: service_healthy
     environment:
-      OZAMIGOS_SENHA: teste
       OZAMIGOS_BANCO_URL: jdbc:postgresql://banco:5432/ozamigos
       OZAMIGOS_BANCO_USUARIO: ozamigos
       OZAMIGOS_BANCO_SENHA: ozamigos-local

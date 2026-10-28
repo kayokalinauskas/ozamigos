@@ -9,7 +9,6 @@ import { manterTelaAcordada } from './telaAcordada';
 import { avisarNaBarraDeTarefas } from './avisoNaBarra';
 import { cliente } from './cliente';
 import { carregarConta, lerErroDoEndereco } from './conta';
-import { ponte } from './ponte';
 import { atalhos } from './voz/atalhos';
 import { voz } from './voz/voz';
 
@@ -22,8 +21,6 @@ acompanharGravacaoDaSala();
 manterTelaAcordada();
 // No app: mensagens do chat não vistas viram um ponto (e uma piscada) no ícone da barra de tarefas.
 avisarNaBarraDeTarefas();
-// No app: um convite (link ozamigos://) aberto com o app já aberto.
-ponte?.aoAbrirSala?.((sala) => cliente.abrirConvite(sala));
 // Os atalhos de voz (mudo, som desligado e apertar para falar); no app, valem com o jogo na frente. Só numa sala:
 // na entrada, um Ctrl+Shift+M não muda nada sem a pessoa ver.
 atalhos.ligar((qual, apertado) => {
