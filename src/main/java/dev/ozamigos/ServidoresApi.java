@@ -1,6 +1,7 @@
 package dev.ozamigos;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -112,12 +113,20 @@ public class ServidoresApi {
 
     /** O ícone novo: a imagem no corpo (PNG, JPEG, WebP...), até ICONE_MAXIMO. */
     @PutMapping("/api/servidores/{codigo}/icone")
-    public ResponseEntity<?> trocarIcone(@PathVariable String codigo, HttpServletRequest pedido) throws IOException {
-        byte[] imagem = pedido.getInputStream().readNBytes(ICONE_MAXIMO + 1);
-        if (imagem.length == 0 || imagem.length > ICONE_MAXIMO) {
-            return ContaApi.erro(HttpStatus.BAD_REQUEST, Servidores.Motivo.ICONE_INVALIDO.texto);
-        }
-        return comConta(pedido, usuario -> mapaCom("icone", servidores.trocarIcone(codigo, usuario, imagem)));
+    public ResponseEntity<?> trocarIcone(@PathVariable String codigo, HttpServletRequest pedido) {
+        // A imagem só é lida depois de conferida a conta: sem ela, ninguém faz o servidor ler 2 MB.
+        return comConta(pedido, usuario -> {
+            byte[] imagem;
+            try {
+                imagem = pedido.getInputStream().readNBytes(ICONE_MAXIMO + 1);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            if (imagem.length == 0 || imagem.length > ICONE_MAXIMO) {
+                throw new Servidores.Recusa(Servidores.Motivo.ICONE_INVALIDO);
+            }
+            return mapaCom("icone", servidores.trocarIcone(codigo, usuario, imagem));
+        });
     }
 
     @DeleteMapping("/api/servidores/{codigo}/icone")

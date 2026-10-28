@@ -164,7 +164,11 @@ public class ContaApi {
 
     /** O endereço da foto de uma conta, com a versão; null sem foto. */
     static String enderecoDaFoto(Contas.Usuario usuario) {
-        return usuario.temFoto() ? "/api/fotos/" + usuario.id() + "?v=" + usuario.fotoVersao() : null;
+        return enderecoDaFoto(usuario.id(), usuario.temFoto(), usuario.fotoVersao());
+    }
+
+    static String enderecoDaFoto(UUID conta, boolean temFoto, int versao) {
+        return temFoto ? "/api/fotos/" + conta + "?v=" + versao : null;
     }
 
     private static Map<String, Object> emJson(Contas.Usuario usuario) {

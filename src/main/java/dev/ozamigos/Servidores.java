@@ -171,8 +171,7 @@ public class Servidores {
                 .param("s", acesso.id())
                 .query((linha, n) -> {
                     UUID id = linha.getObject("id", UUID.class);
-                    String foto = ContaApi.enderecoDaFoto(new Contas.Usuario(id, null, linha.getInt("foto_versao"),
-                            linha.getBoolean("tem_foto"), List.of()));
+                    String foto = ContaApi.enderecoDaFoto(id, linha.getBoolean("tem_foto"), linha.getInt("foto_versao"));
                     return new Membro(id, linha.getString("nome"), foto, Papel.doBanco(linha.getString("papel")));
                 })
                 .list();
