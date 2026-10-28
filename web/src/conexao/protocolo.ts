@@ -7,7 +7,11 @@ import type { Pacote } from '../desempenho/tipos';
 /** As duas conexões de vídeo, do ponto de vista de quem fala: quem me assiste (envio) e quem eu assisto (recebimento). */
 export type Canal = 'envio' | 'recebimento';
 
-export type Pessoa = { id: string; nome: string };
+/**
+ * Alguém da sala. Com conta (login pelo Google ou pelo Discord): `conta` é o id dela, que reconhece a pessoa mesmo com
+ * o id da conexão mudando, e `foto` o endereço da foto (no próprio servidor), se tiver. Sem `conta`, é convidado.
+ */
+export type Pessoa = { id: string; nome: string; conta?: string; foto?: string };
 
 /** Oferta e resposta do WebRTC. Sem `canal`, são do vídeo; com `canal: 'voz'`, da conversa por voz. */
 type Descricao = { sdp: RTCSessionDescriptionInit; canal?: 'voz' };
@@ -17,8 +21,8 @@ type Candidato = { candidato: RTCIceCandidateInit; canal: Canal | 'voz' };
 // ===== Do navegador para o servidor =====
 
 export type MensagemParaOServidor =
-  // Com `grupo`, um grupo criado na hora (a sala é a dele, e `sala` vai vazia); `criar` o cria se não existe.
-  | { tipo: 'entrar'; sala: string; senha: string; nome: string; ficha: string; grupo?: string; criar?: boolean }
+  // A sala de um servidor salvo, pelo código: quem entra é a conta (o cookie da sessão), sendo membro, sem senha.
+  | { tipo: 'entrar'; servidor: string; ficha: string }
   | { tipo: 'comecei' }
   | { tipo: 'parei' }
   | { tipo: 'assistir'; para: string }
@@ -40,16 +44,16 @@ export type SinalDeVozParaEnviar = Extract<MensagemParaOServidor, { tipo: 'ofert
 // ===== Do servidor para o navegador =====
 
 export type MotivoDoErro =
+  // Na entrada: sem conta, não é membro (ou o servidor não existe), banco fora do ar; e, já na sala, tirado dela.
+  | 'sem-conta'
+  | 'servidor-nao-existe'
+  | 'servidores-indisponiveis'
+  | 'expulso'
+  | 'servidor-apagado'
+  | 'fora-do-servidor'
+  // Só para as páginas de antes de 28/10/2026 (com senha), ainda abertas no deploy: a recusa que elas conhecem.
   | 'senha-errada'
-  | 'grupo-nao-existe'
-  | 'grupo-em-uso'
-  | 'grupo-invalido'
-  | 'senha-curta'
-  | 'muitos-grupos'
-  | 'grupos-demais'
-  | 'muitas-tentativas'
   | 'sala-cheia'
-  | 'codigo-invalido'
   | 'ja-esta-numa-sala'
   | 'entre-numa-sala-primeiro'
   | 'destinatario-nao-esta-na-sala'
@@ -64,14 +68,21 @@ export type MensagemDoServidor =
       tipo: 'bem-vindo';
       id: string;
       ficha: string;
+      // O nome com que entrei: com conta, o dela (o servidor ignora o que a página mandou). Sem `conta`, convidado.
+      nome?: string;
+      conta?: string;
+      foto?: string;
       outros: Pessoa[];
       compartilhando: string[];
       plateias: Record<string, string[]>;
       gravando?: { id: string; nome: string };
-      // A retransmissão para quem não conecta direto (Retransmissao.java); sem ela, só conexões diretas.
+      // A retransmissão para quem não conecta direto (Retransmissao.java), uma para o vídeo (`retransmissao`, o nome de
+      // antes) e outra para a voz; sem elas, só conexões diretas. limiteDoVideo: por que o vídeo veio sem.
       retransmissao?: RTCIceServer[];
+      retransmissaoDaVoz?: RTCIceServer[];
+      limiteDoVideo?: LimiteDoVideo;
     }
-  | { tipo: 'entrou'; id: string; nome: string }
+  | ({ tipo: 'entrou' } & Pessoa)
   | { tipo: 'saiu'; id: string }
   | { tipo: 'pode-compartilhar' }
   | { tipo: 'compartilhando'; id: string }
@@ -91,10 +102,13 @@ export type MensagemDoServidor =
   // A prévia de um link de vídeo do chat, buscada pelo servidor (PreviasDeLinks): chega logo depois da mensagem.
   | { tipo: 'previa'; url: string; site: string; titulo?: string; autor?: string; miniatura?: string; aoVivo?: boolean }
   | { tipo: 'chamado'; de: string }
-  // Credenciais novas da retransmissão (renovadas), ou a lista vazia: ela foi cortada.
-  | { tipo: 'retransmissao'; servidores: RTCIceServer[] }
+  // As credenciais da retransmissão que valem agora: `servidores` do vídeo, `voz` da voz; a lista vazia, cortada.
+  | { tipo: 'retransmissao'; servidores: RTCIceServer[]; voz?: RTCIceServer[]; limiteDoVideo?: LimiteDoVideo }
   | { tipo: 'erro'; motivo: MotivoDoErro }
   | { tipo: 'pong' };
+
+/** Por que o vídeo ficou sem a retransmissão: o uso desta pessoa passou do limite do dia, ou o de todos juntos. */
+export type LimiteDoVideo = 'seu' | 'geral';
 
 export type SinalDoServidor = Extract<MensagemDoServidor, { tipo: 'oferta' | 'resposta' | 'candidato' }>;
 

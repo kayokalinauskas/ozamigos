@@ -144,17 +144,17 @@ async function servidorAcordado(origem) {
   return ![502, 503, 504].includes(resposta.status);
 }
 
-/** sala: o código de um convite (link ozamigos://), para abrir já com a sala certa na entrada. */
-function abrirServidorOuInicio(erro, sala = null) {
+/** caminho: a página do servidor por onde começar (a de um convite ozamigos://, caminhoDoLink); sem ele, a raiz. */
+function abrirServidorOuInicio(erro, caminho = null) {
   const vez = ++esperaDoServidor;
   if (erro || !origemDoServidor()) {
     janela.loadFile(INICIO, { query: erro ? { erro } : {} });
     return;
   }
-  void esperarOServidor(vez, origemDoServidor(), sala);
+  void esperarOServidor(vez, origemDoServidor(), caminho);
 }
 
-async function esperarOServidor(vez, origem, sala) {
+async function esperarOServidor(vez, origem, caminho) {
   const vale = () => vez === esperaDoServidor && janela && !janela.isDestroyed();
   const comeco = Date.now();
   const acordando = setTimeout(() => vale() && janela.loadFile(INICIO, { query: { acordando: origem, desde: String(comeco) } }), MOSTRAR_ACORDANDO_DEPOIS);
@@ -176,7 +176,7 @@ async function esperarOServidor(vez, origem, sala) {
       if (!vale()) return;
       if (acordado) {
         // Sempre pergunta ao servidor pela página: um deploy novo aparece na hora, nunca a cópia guardada.
-        janela.loadURL(`${origem}/${sala ? `?sala=${sala}` : ''}`, { extraHeaders: 'pragma: no-cache\ncache-control: no-cache\n' });
+        janela.loadURL(`${origem}${caminho ?? '/'}`, { extraHeaders: 'pragma: no-cache\ncache-control: no-cache\n' });
         return;
       }
       if (Date.now() - comeco > PRAZO_PARA_ACORDAR) {
@@ -322,7 +322,7 @@ function criarJanela(atualizando) {
     abrirServidorOuInicio(`Não foi possível abrir ${origemDoServidor()} (${descricao}). Confira o endereço e a internet.`);
   });
 
-  abrirServidorOuInicio(null, salaDoLink(process.argv)); // aberto por um convite: já na sala dele
+  abrirServidorOuInicio(null, caminhoDoLink(linkDosArgumentos(process.argv))); // aberto por um convite: já nele
 }
 
 function abrirFora(url) {
@@ -976,36 +976,46 @@ ipcMain.handle('desempenho-amostra', (evento) => {
   return { processos, cpuDoPc: ultimaLeitura?.cpu ?? null, placa };
 });
 
-// ===== Convites: links ozamigos://sala/CODIGO abrem o app na sala =====
+// ===== Convites: links ozamigos://convite/CODIGO abrem o app no convite de um servidor =====
 
 const PROTOCOLO = 'ozamigos';
 
 /**
- * O código da sala de um link ozamigos://sala/CODIGO entre os argumentos (o Windows passa o link ao abrir o app),
- * ou null. O link só traz o código: o servidor continua o configurado no app. Um link que trocasse o servidor
- * seria uma isca para levar a senha do grupo a um servidor de outra pessoa.
+ * O link ozamigos:// entre os argumentos (o Windows passa o link ao abrir o app): um convite para um servidor
+ * (ozamigos://convite/CODIGO, 1.3.1 em diante) ou uma sala de antes dos servidores (ozamigos://sala/CODIGO, que a
+ * página só avisa que não vale mais). O link só traz o código: o servidor continua o configurado no app. Um link que
+ * trocasse o servidor seria uma isca para levar a pessoa (e o login dela) a um servidor de outra pessoa.
  */
-function salaDoLink(argumentos) {
+function linkDosArgumentos(argumentos) {
   for (const argumento of argumentos) {
     if (typeof argumento !== 'string' || !argumento.toLowerCase().startsWith(`${PROTOCOLO}://`)) continue;
     try {
       const link = new URL(argumento);
-      const codigo = link.hostname === 'sala' ? link.pathname.replace(/^\/+|\/+$/g, '') : '';
-      if (/^[A-Za-z0-9]{6,20}$/.test(codigo)) return codigo; // a mesma regra do servidor (CODIGO_VALIDO)
+      const codigo = link.pathname.replace(/^\/+|\/+$/g, '');
+      // As mesmas regras do servidor: Servidores.CODIGO (convite) e o código das salas de antes.
+      if (link.hostname === 'convite' && /^[A-Za-z0-9]{10}$/.test(codigo)) return { convite: codigo };
+      if (link.hostname === 'sala' && /^[A-Za-z0-9]{6,20}$/.test(codigo)) return { sala: codigo };
     } catch {
-      // link estragado: o app só abre, sem sala
+      // link estragado: o app só abre
     }
   }
   return null;
 }
 
+/** A página por onde o app começa, aberto por um link: a do convite; uma sala de antes, a entrada. */
+function caminhoDoLink(link) {
+  return link?.convite ? `/c/${link.convite}` : null;
+}
+
 /**
- * Um convite com o app já aberto: a página decide (na entrada, troca a sala; numa sala, pergunta antes de sair dela).
- * Na tela de início (sem servidor), só mostra a janela.
+ * Um link com o app já aberto: a página decide (fora de uma sala, vai ao convite; numa sala, pergunta antes de sair
+ * dela). Na tela de início (sem servidor), só mostra a janela.
  */
-function abrirConvite(sala) {
+function abrirLink(link) {
   if (!janela || janela.isDestroyed()) return;
-  if (origemDe(janela.webContents.getURL()) === origemDoServidor()) janela.webContents.send('abrir-sala', sala);
+  if (origemDe(janela.webContents.getURL()) !== origemDoServidor()) return;
+  if (link.convite) janela.webContents.send('abrir-convite', link.convite);
+  else janela.webContents.send('abrir-sala', link.sala);
 }
 
 /**
@@ -1115,6 +1125,86 @@ ipcMain.on('nao-lidas', (evento, quantas) => {
 ipcMain.on('chamar-atencao', (evento) => {
   if (!vindoDaPagina(evento) || !janela || janela.isDestroyed() || janela.isFocused()) return;
   janela.flashFrame(true);
+});
+
+// ===== Login pelo navegador do sistema (contas, 1.3.0 em diante) =====
+
+/*
+ * O Google não deixa entrar dentro de uma janela embutida (disallowed_useragent). Como recomenda a RFC 8252 para apps
+ * nativos, o app abre uma porta só no 127.0.0.1 e o navegador do sistema faz o login; no fim, o servidor manda o
+ * navegador para essa porta com um código de uso único, e a página troca o código pela sessão (POST /api/conta/codigo),
+ * no cookie desta janela. O estado sorteado aqui garante que a volta é do login que este app começou: um link de login
+ * forjado por outra pessoa não chega a nada. Ligar mais um provedor é igual, com o código de ligação que a página pediu.
+ * Funciona no instalado e na portátil (não depende do ozamigos://).
+ */
+const PROVEDORES_DE_LOGIN = new Set(['google', 'discord']);
+const ESPERA_DO_LOGIN_MS = 5 * 60_000;
+const CODIGO_DO_LOGIN = /^[A-Za-z0-9_-]{43}$/;
+let loginEmAndamento = null; // { cancelar(motivo) }, enquanto o navegador não volta
+
+/**
+ * Resolve { codigo } ou { erro: motivo }. No login, a página troca o código pela sessão; ligando outro provedor, ela o
+ * manda para confirmar a ligação (a ligação só vale com essa confirmação). Só um login por vez: um novo cancela o anterior.
+ */
+function loginPeloNavegador(provedor, ligacao) {
+  loginEmAndamento?.cancelar('outro-login');
+  const http = require('node:http');
+  const estado = require('node:crypto').randomBytes(24).toString('base64url');
+  return new Promise((resolver) => {
+    let terminou = false;
+    const local = http.createServer((pedido, resposta) => {
+      const url = new URL(pedido.url ?? '/', 'http://127.0.0.1');
+      if (pedido.method !== 'GET' || url.pathname !== '/login' || url.searchParams.get('estado') !== estado) {
+        resposta.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Não encontrado');
+        return;
+      }
+      const codigo = url.searchParams.get('codigo');
+      const erro = url.searchParams.get('erro');
+      const resultado =
+        codigo && CODIGO_DO_LOGIN.test(codigo) ? { codigo } : { erro: erro && /^[a-z-]{1,40}$/.test(erro) ? erro : 'recusado' };
+      resposta.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'close' });
+      resposta.end(paginaDaVoltaDoLogin(!resultado.erro));
+      terminar(resultado);
+    });
+    const prazo = setTimeout(() => terminar({ erro: 'tempo' }), ESPERA_DO_LOGIN_MS);
+    function terminar(resultado) {
+      if (terminou) return;
+      terminou = true;
+      clearTimeout(prazo);
+      local.close();
+      loginEmAndamento = null;
+      if (!resultado.erro) mostrarJanela(); // a pessoa está no navegador: o app volta para a frente
+      resolver(resultado);
+    }
+    loginEmAndamento = { cancelar: (motivo) => terminar({ erro: motivo }) };
+    local.on('error', () => terminar({ erro: 'porta' }));
+    local.listen(0, '127.0.0.1', () => {
+      const destino = new URL(`/conta/${ligacao ? 'ligar' : 'entrar'}/${provedor}`, origemDoServidor());
+      destino.searchParams.set('app', String(local.address().port));
+      destino.searchParams.set('estado', estado);
+      if (ligacao) destino.searchParams.set('ligacao', ligacao);
+      shell.openExternal(destino.toString()).catch(() => terminar({ erro: 'navegador' }));
+    });
+  });
+}
+
+/** O que o navegador mostra no fim: a pessoa volta para o app (que já veio para a frente). */
+function paginaDaVoltaDoLogin(deuCerto) {
+  const titulo = deuCerto ? 'Pronto!' : 'O login não terminou';
+  const texto = deuCerto
+    ? 'Pode fechar esta aba e voltar para o Ozamigos.'
+    : 'Volte para o Ozamigos e tente de novo. Esta aba pode ser fechada.';
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ozamigos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0e0a;color:#e8ede4;font:16px/1.5 system-ui,sans-serif;text-align:center}
+main{padding:24px}h1{color:#b6f24a;font-size:24px;margin:0 0 8px}p{margin:0;color:#a9b3a3}</style></head>
+<body><main><h1>${titulo}</h1><p>${texto}</p></main></body></html>`;
+}
+
+ipcMain.handle('login-pelo-navegador', (evento, provedor, ligacao) => {
+  if (!vindoDaPagina(evento) || !PROVEDORES_DE_LOGIN.has(provedor)) return { erro: 'pedido-invalido' };
+  if (ligacao !== undefined && !CODIGO_DO_LOGIN.test(String(ligacao))) return { erro: 'pedido-invalido' };
+  return loginPeloNavegador(provedor, ligacao === undefined ? undefined : String(ligacao));
 });
 
 // ===== Menu (sem barra de título, ele não aparece: fica pelos atalhos de teclado) =====
@@ -1234,8 +1324,8 @@ if (!app.requestSingleInstanceLock()) {
   // Abrir de novo (atalho, ou um convite ozamigos://) traz a janela para a frente, inclusive da bandeja.
   app.on('second-instance', (_evento, argumentos) => {
     mostrarJanela();
-    const sala = salaDoLink(argumentos);
-    if (sala) abrirConvite(sala);
+    const link = linkDosArgumentos(argumentos);
+    if (link) abrirLink(link);
   });
 
   app.setAppUserModelId('dev.ozamigos.share'); // necessário para as notificações do Windows

@@ -15,23 +15,23 @@ class SalasTest {
     @Test
     void nonaPessoaNaoEntra() {
         for (String id : new String[] {"a", "b", "c", "d", "e", "f", "g", "h"}) {
-            assertThat(salas.entrar("sala123", id, id, "", null)).isNotNull();
+            assertThat(salas.entrar("sala123", id, id, null, "", null)).isNotNull();
         }
 
-        assertThat(salas.entrar("sala123", "i", "Iara", "", null)).isNull();
+        assertThat(salas.entrar("sala123", "i", "Iara", null, "", null)).isNull();
     }
 
     @Test
     void quemChegaDepoisSabeQuemTransmiteEQuemAssiste() {
-        salas.entrar("sala123", "a", "Ana", "", null);
-        salas.entrar("sala123", "b", "Beto", "", null);
+        salas.entrar("sala123", "a", "Ana", null, "", null);
+        salas.entrar("sala123", "b", "Beto", null, "", null);
         salas.comecarACompartilhar("sala123", "a");
         salas.comecarACompartilhar("sala123", "b");
         salas.assistir("sala123", "b", "a");
 
-        Salas.Entrada entrada = salas.entrar("sala123", "c", "Caio", "", null);
+        Salas.Entrada entrada = salas.entrar("sala123", "c", "Caio", null, "", null);
 
-        assertThat(entrada.outros()).containsEntry("a", "Ana").containsEntry("b", "Beto");
+        assertThat(entrada.outros()).containsEntry("a", new Salas.Pessoa("Ana", null)).containsEntry("b", new Salas.Pessoa("Beto", null));
         assertThat(entrada.compartilhando()).containsExactly("a", "b");
         assertThat(entrada.plateias()).containsEntry("a", List.of("b")).containsEntry("b", List.of());
     }
@@ -42,8 +42,8 @@ class SalasTest {
         WebSocketSession beto = new StandardWebSocketSession(null, null, null, null);
 
         // Os dois voltando juntos (depois de um deploy): a Ana entra, e o Beto entra antes de ela ser anunciada.
-        Salas.Entrada daAna = salas.entrar("sala123", "a", "Ana", "", ana);
-        Salas.Entrada doBeto = salas.entrar("sala123", "b", "Beto", "", beto);
+        Salas.Entrada daAna = salas.entrar("sala123", "a", "Ana", null, "", ana);
+        Salas.Entrada doBeto = salas.entrar("sala123", "b", "Beto", null, "", beto);
 
         // O Beto recebe a Ana na lista do "bem-vindo"; avisá-lo também com o "entrou" da Ana a punha duas vezes na tela dele.
         assertThat(doBeto.outros()).containsOnlyKeys("a");
@@ -53,8 +53,8 @@ class SalasTest {
 
     @Test
     void soAssisteQuemEstaTransmitindoEQuemSaiDeixaAPlateia() {
-        salas.entrar("sala123", "a", "Ana", "", null);
-        salas.entrar("sala123", "b", "Beto", "", null);
+        salas.entrar("sala123", "a", "Ana", null, "", null);
+        salas.entrar("sala123", "b", "Beto", null, "", null);
 
         assertThat(salas.assistir("sala123", "b", "a")).isNull(); // Ana ainda não transmite
         salas.comecarACompartilhar("sala123", "a");
@@ -68,13 +68,13 @@ class SalasTest {
 
     @Test
     void umaGravacaoPorVezEElaAcabaQuandoQuemGravaSai() {
-        salas.entrar("sala123", "a", "Ana", "", null);
-        salas.entrar("sala123", "b", "Beto", "", null);
+        salas.entrar("sala123", "a", "Ana", null, "", null);
+        salas.entrar("sala123", "b", "Beto", null, "", null);
 
         assertThat(salas.comecarAGravar("sala123", "a")).isTrue();
         assertThat(salas.comecarAGravar("sala123", "b")).isFalse(); // a Ana já grava
         assertThat(salas.pararDeGravar("sala123", "b")).isFalse(); // só quem grava para
-        assertThat(salas.entrar("sala123", "c", "Caio", "", null).gravador()).isEqualTo("a");
+        assertThat(salas.entrar("sala123", "c", "Caio", null, "", null).gravador()).isEqualTo("a");
 
         assertThat(salas.sair("sala123", "a").gravacaoAcabou()).isTrue();
         assertThat(salas.gravador("sala123")).isNull();
@@ -82,8 +82,8 @@ class SalasTest {
 
     @Test
     void quemVoltaComAFichaEhReconhecido() {
-        salas.entrar("sala123", "a", "Ana", "ficha-da-ana", null);
-        salas.entrar("sala123", "b", "Beto", "ficha-do-beto", null);
+        salas.entrar("sala123", "a", "Ana", null, "ficha-da-ana", null);
+        salas.entrar("sala123", "b", "Beto", null, "ficha-do-beto", null);
 
         assertThat(salas.donoDaFicha("sala123", "ficha-da-ana")).isEqualTo("a");
         assertThat(salas.donoDaFicha("sala123", "ficha-errada")).isNull();

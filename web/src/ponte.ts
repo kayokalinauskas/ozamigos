@@ -50,8 +50,17 @@ export type PonteOzamigos = {
   };
   /** Volta para a tela de escolher o servidor. */
   trocarServidor(): void;
-  /** Um convite (link ozamigos://sala/CODIGO) chegou com o app aberto (app 1.2.16 em diante). */
+  /**
+   * O login pelo navegador do sistema (app 1.3.0 em diante; conta.ts): o app abre o navegador e espera a volta numa
+   * porta só do PC. Com `ligacao` (o código que a página pediu), liga mais um provedor à conta em vez de entrar.
+   */
+  conta?: {
+    loginPeloNavegador(provedor: 'google' | 'discord', ligacao?: string): Promise<{ codigo?: string; erro?: string }>;
+  };
+  /** Um link de sala (ozamigos://sala/CODIGO, de antes dos servidores) chegou com o app aberto (app 1.2.16 em diante). */
   aoAbrirSala?(ouvinte: (sala: string) => void): void;
+  /** Um convite para um servidor (ozamigos://convite/CODIGO) chegou com o app aberto (app 1.3.1 em diante). */
+  aoAbrirConvite?(ouvinte: (convite: string) => void): void;
   /** Cor dos botões da janela, para combinar com o que está embaixo deles (app 1.2.9 em diante). */
   corDaBarra?(cor: string): void;
   /** Teste de desempenho (app 1.2.10 em diante): o que o navegador não mede. */

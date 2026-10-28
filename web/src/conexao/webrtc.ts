@@ -4,39 +4,46 @@
 // Dois de empresas diferentes: se uma rede bloquear um, o outro responde.
 export const SERVIDORES_ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
 
+/** Para que é a conexão: a da voz (que leva também as imagens do chat) ou a de uma transmissão. */
+export type UsoDaConexao = 'voz' | 'video';
+
 /**
  * A retransmissão (TURN), que o servidor manda no `bem-vindo` e renova (`retransmissao`): o caminho de reserva para
  * quem não conecta direto. Com ela na lista, o navegador ainda prefere o caminho direto; só usa a retransmissão quando
- * ele falha. Vazia: o servidor não deu (desligada, ou o limite de consumo, Retransmissao.java).
+ * ele falha. Uma credencial para cada uso (Retransmissao.java): o servidor corta só o vídeo de quem gasta muito, e a
+ * voz continua. Vazia: o servidor não deu (desligada, ou um limite de consumo).
  */
-let retransmissao: RTCIceServer[] = [];
-const abertas = new Set<RTCPeerConnection>();
+const retransmissao: Record<UsoDaConexao, RTCIceServer[]> = { voz: [], video: [] };
+const abertas = new Map<RTCPeerConnection, UsoDaConexao>();
 
 /** Troca a retransmissão das conexões novas, e também das abertas (vale nas próximas buscas de caminho delas). */
-export function definirRetransmissao(servidores: RTCIceServer[]) {
-  if (JSON.stringify(servidores) === JSON.stringify(retransmissao)) return; // sem ela (desligada no servidor), nada muda
-  retransmissao = servidores;
-  for (const pc of abertas) {
+export function definirRetransmissao(uso: UsoDaConexao, servidores: RTCIceServer[]) {
+  if (JSON.stringify(servidores) === JSON.stringify(retransmissao[uso])) return; // sem ela (desligada no servidor), nada muda
+  retransmissao[uso] = servidores;
+  for (const [pc, usoDela] of abertas) {
     if (pc.signalingState === 'closed') {
       abertas.delete(pc);
       continue;
     }
+    if (usoDela !== uso) continue;
     try {
-      pc.setConfiguration({ ...pc.getConfiguration(), iceServers: [...SERVIDORES_ICE, ...retransmissao] });
+      pc.setConfiguration({ ...pc.getConfiguration(), iceServers: [...SERVIDORES_ICE, ...servidores] });
     } catch (erro) {
       console.warn('A conexão não aceitou a retransmissão nova', erro);
     }
   }
 }
 
-export function temRetransmissao(): boolean {
-  return retransmissao.length > 0;
+/** As conexões abertas de um uso (para saber se alguma passa pela retransmissão). */
+export function conexoesAbertas(uso: UsoDaConexao): RTCPeerConnection[] {
+  for (const pc of abertas.keys()) if (pc.signalingState === 'closed') abertas.delete(pc);
+  return [...abertas].filter(([, u]) => u === uso).map(([pc]) => pc);
 }
 
 /** Uma conexão nova, com vídeo e som pelo mesmo caminho de rede (max-bundle: menos candidatos, conecta mais rápido). */
-export function novaPeerConnection(): RTCPeerConnection {
-  const pc = new RTCPeerConnection({ iceServers: [...SERVIDORES_ICE, ...retransmissao], bundlePolicy: 'max-bundle' });
-  abertas.add(pc);
+export function novaPeerConnection(uso: UsoDaConexao): RTCPeerConnection {
+  const pc = new RTCPeerConnection({ iceServers: [...SERVIDORES_ICE, ...retransmissao[uso]], bundlePolicy: 'max-bundle' });
+  abertas.set(pc, uso);
   return pc;
 }
 

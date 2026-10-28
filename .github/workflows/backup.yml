@@ -1,0 +1,57 @@
+# Backup semanal do banco (o Supabase grátis não faz backup): pg_dump do esquema ozamigos, criptografado com a chave
+# BACKUP_CHAVE e guardado como artefato por 90 dias. O repositório é público: o backup nunca sobe sem criptografia.
+#
+# Secrets do repositório (Settings → Secrets and variables → Actions):
+#   BANCO_BACKUP_URL  a URI do Session pooler do Supabase, com a senha (postgresql://usuario:senha@host:5432/postgres)
+#   BACKUP_CHAVE      uma frase longa e aleatória, guardada também fora do GitHub (sem ela, o backup não abre)
+# Sem os dois, o workflow só avisa e termina.
+#
+# Para restaurar: baixe o artefato, `gpg -d ozamigos.dump.gpg > ozamigos.dump` e
+# `pg_restore --no-owner --no-privileges -d <url do banco novo> ozamigos.dump`.
+name: Backup do banco
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # segunda-feira, 3h17 em Brasília
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: pg_dump criptografado
+    runs-on: ubuntu-latest
+    env:
+      BANCO_BACKUP_URL: ${{ secrets.BANCO_BACKUP_URL }}
+      BACKUP_CHAVE: ${{ secrets.BACKUP_CHAVE }}
+    steps:
+      - name: Conferir os secrets
+        id: secrets
+        run: |
+          if [ -z "$BANCO_BACKUP_URL" ] || [ -z "$BACKUP_CHAVE" ]; then
+            echo "::notice::Sem BANCO_BACKUP_URL e BACKUP_CHAVE: nada a fazer."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # O pg_dump da mesma versão do Postgres do compose.yaml (ou mais nova que a do Supabase): um mais velho recusa.
+      - name: Exportar e criptografar
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm -e BANCO_BACKUP_URL postgres:18-alpine \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges --schema=ozamigos "$BANCO_BACKUP_URL"' > ozamigos.dump
+          test -s ozamigos.dump
+          gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase-fd 0 --output ozamigos.dump.gpg ozamigos.dump <<< "$BACKUP_CHAVE"
+          rm ozamigos.dump
+          ls -l ozamigos.dump.gpg
+
+      - name: Guardar
+        if: steps.secrets.outputs.ok == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: banco-${{ github.run_id }}
+          path: ozamigos.dump.gpg
+          retention-days: 90

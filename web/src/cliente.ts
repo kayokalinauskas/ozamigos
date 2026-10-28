@@ -4,7 +4,7 @@
 //   captura.ts      a captura da tela e o codificador             webrtc.ts     ajustes do WebRTC
 //   medidor.ts      as estatísticas de cada segundo               relatorio.ts  o relatório da sessão
 
-import { lembrado, lembrar } from './armazenamento';
+import { lembrar } from './armazenamento';
 import { QUALIDADE, QUALIDADES, aceitaHevc, type Qualidade } from './qualidade';
 import { qualidadeEscolhida } from './escolhaDeQualidade';
 import { notificacaoLigada, type TipoDeNotificacao } from './notificacoes';
@@ -17,8 +17,9 @@ import { trocaDeImagens } from './imagens/troca';
 import { novoIdDeImagem, type Chegada } from './imagens/protocolo';
 import type { ImagemComprimida } from './imagens/compressor';
 import { FOLGA, FolgaAdaptativa } from './folga';
-import { NAO_ENTRAR_SOZINHO, deveEntrarSozinho } from './entradaAutomatica';
-import { LIMITE_POR_SALA, SALA_FIXA, codigoValido, ehASalaFixa, grupoDoCaminho, grupoValido, linkDaSala, linkDoGrupo, novoCodigo } from './conexao/codigoDaSala';
+import { lerConta } from './conta';
+
+import { LIMITE_POR_SALA, servidorDoCaminho } from './conexao/codigoDaSala';
 import {
   FPS_MINIMO_DA_CAPTURA,
   capturarDoNavegador,
@@ -31,7 +32,7 @@ import {
   type Fonte,
 } from './conexao/captura';
 import { Medidor, type Metrica } from './conexao/medidor';
-import type { Canal, MensagemDoServidor, MensagemParaOServidor, MotivoDoErro, Pessoa } from './conexao/protocolo';
+import type { Canal, LimiteDoVideo, MensagemDoServidor, MensagemParaOServidor, MotivoDoErro, Pessoa } from './conexao/protocolo';
 import { Relatorio } from './conexao/relatorio';
 import { Sinalizacao } from './conexao/sinalizacao';
 import {
@@ -40,6 +41,7 @@ import {
   aquecerWebRtc,
   caminhoDaConexao,
   definirFolga,
+  conexoesAbertas,
   definirRetransmissao,
   novaPeerConnection,
   opusEstereo,
@@ -55,12 +57,15 @@ export type Aviso = {
 export type Estado = {
   fase: 'entrada' | 'entrando' | 'sala';
   erro: string;
-  recusa: MotivoDoErro | null; // o motivo do erro da entrada (o "Criar de novo" de um grupo que sumiu depende dele)
-  sala: string; // o código da sala, ou o nome do grupo criado na hora
-  grupo: string | null; // o grupo criado na hora (Grupos.java), ou null no grupo fixo
-  salaFixa: boolean; // o endereço /ozamigos: o grupo fixo, sempre na mesma sala (SALA_FIXA)
+  /**
+   * O código do servidor salvo (/s/<codigo>, Servidores.java) da página, ou null na entrada. São as únicas salas: entra
+   * quem é membro, com a conta, sem senha (decisão do dono, 28/10/2026).
+   */
+  servidor: string | null;
   meuId: string | null;
   meuNome: string;
+  minhaConta: string | null; // o id da minha conta, se entrei com uma (o servidor diz no "bem-vindo"); null: convidado
+  minhaFoto: string | null;
   pessoas: Pessoa[]; // as outras pessoas, na ordem em que entraram
   transmitindo: string[]; // quem está transmitindo agora (inclusive eu)
   plateias: Record<string, string[]>; // quem transmite -> quem assiste
@@ -84,6 +89,7 @@ export type MensagemDoChat = {
   numero: number;
   de: string;
   nome: string;
+  foto?: string | null; // a da conta, guardada na chegada junto com o nome
   texto: string;
   momento: number;
   minha: boolean;
@@ -154,16 +160,13 @@ export const CHAMADAS_JANELA = 60_000;
 
 // Recusas do servidor que mandam a pessoa de volta para a tela de entrada, com o motivo.
 const RECUSAS: Partial<Record<MotivoDoErro, string>> = {
-  'senha-errada': 'Senha errada. Confira com quem mandou o link.',
-  'muitas-tentativas': 'Muitas senhas erradas seguidas deste endereço. Espere 5 minutos e tente de novo.',
   'sala-cheia': `A sala está cheia (máximo de ${LIMITE_POR_SALA} pessoas).`,
-  'codigo-invalido': 'Código de sala inválido: use de 6 a 20 letras e números.',
-  'grupo-nao-existe': 'Esse grupo não existe mais: os grupos não ficam guardados para sempre. Dá para criar de novo, com a senha que vocês combinaram.',
-  'grupo-em-uso': 'Já existe um grupo com esse nome agora. Escolha outro nome.',
-  'grupo-invalido': 'Nome de grupo inválido: use de 3 a 32 letras minúsculas, números e hífen.',
-  'senha-curta': 'A senha do grupo precisa de pelo menos 4 caracteres.',
-  'muitos-grupos': 'Muitos grupos criados deste endereço. Espere 10 minutos e tente de novo.',
-  'grupos-demais': 'Não dá para criar grupos agora. Tente de novo mais tarde.',
+  'sem-conta': 'Para entrar num servidor, entre com a sua conta.',
+  'servidor-nao-existe': 'Esse servidor não existe, ou você não faz parte dele.',
+  'servidores-indisponiveis': 'Os servidores estão indisponíveis agora. Tente de novo daqui a pouco.',
+  expulso: 'Você foi removido deste servidor.',
+  'servidor-apagado': 'Este servidor foi apagado pelo dono.',
+  'fora-do-servidor': 'Você não faz mais parte deste servidor.',
 };
 
 /** Os ajustes de transmissão desta versão, como estão no código: vão no relatório do teste de desempenho. */
@@ -184,14 +187,6 @@ export const AJUSTES_DA_TRANSMISSAO = {
   somDaTransmissao: 'em outro MediaStream que o vídeo: quem assiste não sincroniza os dois, e a imagem não espera o som',
 };
 
-/** A última sala do grupo fixo em que a pessoa entrou: a entrada já vem com ela. */
-export const ULTIMA_SALA = 'ozamigos-ultima-sala';
-/**
- * O último grupo em que a pessoa entrou (um criado na hora, ou "ozamigos" para o /ozamigos), ou vazio se foi uma sala
- * do grupo fixo. A raiz sem link abre direto nele: o app abre sempre na raiz.
- */
-export const ULTIMO_GRUPO = 'ozamigos-ultimo-grupo';
-
 /** Uma conexão de vídeo com alguém da sala: quem me assiste (envio) ou quem eu assisto (recebimento). */
 export type Ligacao = { id: string; nome: string; pc: RTCPeerConnection };
 
@@ -205,16 +200,11 @@ class Cliente {
   });
   private readonly conexoes = new Map<string, Conexao>();
   private recusado = false;
-  private nome = '';
-  private senha = '';
-  private criar = false; // criar o grupo se ele não existe (só nos grupos criados na hora)
-  /** A página abriu na raiz, sem link, e voltou ao último lugar: o app pode entrar sozinho (entradaAutomatica.ts). */
-  private voltouAoUltimo = false;
-  private entrandoSozinho = false;
-  private salaDoGrupoFixo = ''; // para voltar a ela se criar um grupo der errado
   private ficha = ''; // dada pelo servidor; na reconexão, prova que somos a mesma pessoa
-  // Nome de quem saiu -> quando, e se eu assistia. Quem volta ganha outro id: o nome é o que liga.
+  // Quem saiu (chaveDe: a conta) -> quando, e se eu assistia. Quem volta ganha outro id.
   private readonly saidas = new Map<string, { momento: number; assistia: boolean }>();
+  /** A conexão nova é da conta que mudou (renovarConexao), e não de uma queda: sem o aviso de "restabelecida". */
+  private renovando = false;
   private proximoAviso = 1;
   private proximaMensagem = 1;
   private readonly imagensMinhas = new Map<string, ImagemComprimida>(); // para o "Tentar de novo"
@@ -224,7 +214,7 @@ class Cliente {
   private avisoDoChat: { de: string; aviso: number } | null = null; // o aviso da última mensagem, enquanto na tela
   private envioDoChat: number[] = []; // quando mandei as últimas mensagens (o freio)
   private avisoDoFreio: number | null = null;
-  // Nome de quem chamei -> quando. Pelo nome: quem reconecta ganha outro id, e o freio do servidor é por conexão.
+  // Quem chamei (chaveDe) -> quando. Não pelo id: quem reconecta ganha outro, e o freio do servidor é por conexão.
   private readonly chamadas = new Map<string, number[]>();
   private readonly tentativasDeVideo = new Map<string, number>(); // id -> conexões de vídeo refeitas seguidas
   private readonly folgas = new Map<string, FolgaAdaptativa>(); // quem eu assisto -> folga de rede (folga.ts)
@@ -238,36 +228,19 @@ class Cliente {
   /** O servidor recusou começar a gravação: outra pessoa já grava. */
   aoRecusarGravacao: (() => void) | null = null;
 
-  /** A página abriu num link de sala (o que um amigo mandou), e não na entrada com uma sala nova sorteada. */
-  readonly veioDeUmLink: boolean;
-
   constructor() {
-    // A raiz sem link (o app abre sempre nela) volta ao último grupo, com o endereço dele: sair, recarregar e copiar o
-    // link continuam valendo para o grupo. "Ir para a entrada do Ozamigos" leva a /?entrada, que não volta.
-    const naRaiz = location.pathname === '/' && !location.search;
-    const ultimoGrupo = lembrado(ULTIMO_GRUPO);
-    const voltaAoGrupo = naRaiz && (grupoValido(ultimoGrupo) || ultimoGrupo === SALA_FIXA);
-    if (voltaAoGrupo) history.replaceState(null, '', `/${ultimoGrupo}`);
-    const grupo = grupoDoCaminho(location.pathname);
-    const salaFixa = ehASalaFixa(location.pathname);
-    const daUrl = new URLSearchParams(location.search).get('sala');
-    // O convite para o app (Convite.tsx) é só das salas do grupo fixo: o app ainda não abre um grupo pelo link.
-    this.veioDeUmLink = !grupo && !salaFixa && Boolean(daUrl && codigoValido(daUrl));
-    // Sem sala no link, a entrada mostra a última em que a pessoa entrou (pedido do dono, 21/10/2026): o app abre
-    // sempre na raiz, e era preciso colar o código de novo a cada vez. O botão ao lado do campo ainda sorteia uma nova.
-    const ultima = lembrado(ULTIMA_SALA);
-    const sala = daUrl && codigoValido(daUrl) ? daUrl : codigoValido(ultima) ? ultima : novoCodigo();
-    this.voltouAoUltimo = voltaAoGrupo || (naRaiz && codigoValido(ultima));
+    // A página abre na entrada (a lista dos servidores, como o Discord), ou na de um servidor (/s/<codigo>). O app
+    // abre sempre na raiz, e não entra sozinho em sala nenhuma (pedido do dono, 28/10/2026).
     lembrar('ozamigos-qualidade', ''); // a escolha de qualidade saiu (14/10/2026): o que estava guardado não serve mais
+    this.esquecerOQueSaiu();
     this.estado = {
       fase: 'entrada',
       erro: '',
-      recusa: null,
-      sala: grupo ?? (salaFixa ? SALA_FIXA : sala),
-      grupo,
-      salaFixa,
+      servidor: servidorDoCaminho(location.pathname),
       meuId: null,
-      meuNome: lembrado('ozamigos-nome'),
+      meuNome: '', // o da conta, que chega no bem-vindo
+      minhaConta: null,
+      minhaFoto: null,
       pessoas: [],
       transmitindo: [],
       plateias: {},
@@ -283,7 +256,6 @@ class Cliente {
       conexaoPerdida: false,
       gravacaoDaSala: null,
     };
-    if (!grupo && !salaFixa) this.trocarSala(sala);
     aoPararVideoDoApp((aviso) => void this.videoDoAppParou(aviso));
     // Um "estou aqui" a cada 30 s: sem isso, proxies e hospedagens gratuitas fecham a conexão parada.
     setInterval(() => {
@@ -314,6 +286,7 @@ class Cliente {
     voz.ligar({
       enviar: (msg) => this.enviar(msg),
       nomeDe: (id) => this.nomeDe(id),
+      chaveDe: (id) => this.chaveDe(id),
       avisar: (texto, tipo) => this.avisar(texto, tipo),
       registrar: (evento) => this.registrar(evento),
     });
@@ -340,6 +313,33 @@ class Cliente {
   nomeDe(id: string): string {
     if (id === this.estado.meuId) return 'Você';
     return this.estado.pessoas.find((p) => p.id === id)?.nome ?? 'Amigo';
+  }
+
+  /**
+   * O que reconhece a pessoa mesmo quando o id da conexão muda (uma reconexão): a conta (todos têm uma). Também é a
+   * chave dos volumes e do silenciado de cada um, que valem em qualquer sala e com qualquer nome. Quem não está na
+   * lista (já saiu) fica com uma chave que não é de mais ninguém.
+   */
+  chaveDe(id: string): string {
+    const conta = this.estado.pessoas.find((p) => p.id === id)?.conta;
+    return conta ? `conta:${conta}` : `id:${id}`;
+  }
+
+  /** A foto da conta de alguém da sala (a minha também), ou null. */
+  fotoDe(id: string): string | null {
+    if (id === this.estado.meuId) return this.estado.minhaFoto;
+    return this.estado.pessoas.find((p) => p.id === id)?.foto ?? null;
+  }
+
+  /**
+   * Entrou ou saiu da conta com a sala aberta (Configurações → Conta, no app): uma conexão nova com o servidor, que lê
+   * a sessão nova, e as conexões com os amigos são refeitas (como numa reconexão). O nome e a reserva mudam na hora.
+   */
+  renovarConexao() {
+    if (this.estado.fase !== 'sala' || this.recusado) return;
+    this.registrar('conexão renovada: a conta mudou');
+    this.renovando = true;
+    this.sinalizacao.conectar();
   }
 
   /** O nome como os outros veem (o meu também), para relatórios. */
@@ -376,7 +376,7 @@ class Cliente {
   relatorio() {
     return {
       geradoEm: new Date().toISOString(),
-      sala: this.estado.grupo ? `grupo ${this.estado.grupo}` : this.estado.sala,
+      sala: `servidor ${this.estado.servidor}`,
       eu: this.estado.meuNome,
       app: noApp ? `app ${ponte?.versao ?? '?'}` : 'navegador',
       navegador: navigator.userAgent,
@@ -400,67 +400,39 @@ class Cliente {
 
   // ===== Entrada =====
 
-  trocarSala(codigo: string) {
-    if (!codigoValido(codigo) || this.estado.grupo || this.estado.salaFixa) return;
-    history.replaceState(null, '', `?sala=${codigo}`);
-    this.mudar({ sala: codigo });
+  /**
+   * O que as salas com senha guardavam (saíram em 28/10/2026): o nome de convidado, as senhas, o último lugar,
+   * a última sala e as marcas da entrada automática. Uma vez por abertura, é barato, e ninguém fica com uma senha velha.
+   */
+  private esquecerOQueSaiu() {
+    for (const chave of ['ozamigos-nome', 'ozamigos-senha', 'ozamigos-ultima-sala', 'ozamigos-ultimo-grupo', 'ozamigos-nao-entrar-sozinho', 'ozamigos-escolheu-convidado']) {
+      lembrar(chave, '');
+    }
+    try {
+      for (const chave of Object.keys(localStorage)) if (chave.startsWith('ozamigos-senha:')) localStorage.removeItem(chave);
+    } catch {
+      // sem o localStorage, não há o que esquecer
+    }
   }
 
-  /** O link que se manda aos amigos: o do grupo, ou o da sala. */
-  linkDeConvite(): string {
-    if (this.estado.salaFixa) return linkDoGrupo(SALA_FIXA);
-    return this.estado.grupo ? linkDoGrupo(this.estado.grupo) : linkDaSala(this.estado.sala);
-  }
-
-  /** A senha lembrada: a do grupo fixo, ou a de cada grupo criado na hora (quem participa de vários). */
-  chaveDaSenha(grupo = this.estado.grupo): string {
-    return grupo ? `ozamigos-senha:grupo:${grupo}` : 'ozamigos-senha';
-  }
-
+  /** Sem senha nem nome: quem entra é a conta (o cookie da sessão), e o servidor confere se ela é membro. */
   private pedidoDeEntrada(): MensagemParaOServidor {
-    const { grupo, sala, fase } = this.estado;
-    const pedido = { tipo: 'entrar' as const, senha: this.senha, nome: this.nome, ficha: this.ficha };
-    if (!grupo) return { ...pedido, sala };
-    // Voltando depois de uma queda, cria de novo: se o servidor reiniciou, o grupo volta com a mesma senha.
-    return { ...pedido, sala: '', grupo, criar: this.criar || fase === 'sala' };
-  }
-
-  /** Entra no grupo fixo, ou no grupo do endereço; `criar` cria o grupo se ele não existe. */
-  entrar(nome: string, senha: string, criar = false) {
-    if (this.estado.fase !== 'entrada') return; // dois cliques abririam duas conexões (uma "pessoa fantasma")
-    this.recusado = false;
-    this.nome = nome;
-    this.senha = senha;
-    this.criar = criar;
-    this.ficha = '';
-    this.mudar({ fase: 'entrando', erro: '', recusa: null, meuNome: nome.trim() || 'Amigo' });
-    voz.preparar(); // no clique: o navegador só deixa tocar som depois de um gesto
-    this.sinalizacao.conectar();
+    return { tipo: 'entrar', servidor: this.estado.servidor ?? '', ficha: this.ficha };
   }
 
   /**
-   * Ao abrir o app no último lugar (a entrada chama uma vez, ao aparecer), entra sozinho se tudo estiver lembrado e a
-   * pessoa não tiver saído de propósito (as regras em entradaAutomatica.ts). Num grupo, cria de novo se ele sumiu
-   * (o servidor reiniciou), com a senha lembrada: o mesmo que a reconexão faz. Recusada, a entrada fica na tela com o
-   * motivo, e a próxima abertura não tenta de novo.
+   * Entra na sala de um servidor salvo, da lista da entrada ou da página dele, sem recarregar: o endereço vira o do
+   * servidor (/s/<codigo>). Só com a conta, que é quem entra.
    */
-  entrarSozinhoSePuder() {
-    if (!this.voltouAoUltimo || this.estado.fase !== 'entrada') return;
-    this.voltouAoUltimo = false; // uma vez só por abertura
-    const nome = lembrado('ozamigos-nome');
-    const senha = lembrado(this.chaveDaSenha());
-    if (!deveEntrarSozinho({ voltouAoUltimo: true, noApp, nome, senha, naoEntrarSozinho: lembrado(NAO_ENTRAR_SOZINHO) === 'sim' })) return;
-    this.registrar('entrada automática no último lugar');
-    this.entrandoSozinho = true;
-    this.entrar(nome, senha, this.estado.grupo !== null);
-  }
-
-  /** Cria um grupo na hora, a partir da entrada do grupo fixo. Dando certo, o endereço vira o do grupo. */
-  criarGrupo(grupo: string, nome: string, senha: string) {
-    if (this.estado.fase !== 'entrada') return;
-    if (!this.estado.grupo) this.salaDoGrupoFixo = this.estado.sala;
-    this.mudar({ grupo, sala: grupo, salaFixa: false });
-    this.entrar(nome, senha, true);
+  entrarNoServidor(codigo: string) {
+    const { conta } = lerConta();
+    if (this.estado.fase !== 'entrada' || !conta) return; // dois cliques abririam duas conexões (uma "pessoa fantasma")
+    if (location.pathname !== `/s/${codigo}`) history.replaceState(null, '', `/s/${codigo}`);
+    this.recusado = false;
+    this.ficha = '';
+    this.mudar({ servidor: codigo, fase: 'entrando', erro: '', meuNome: conta.nome });
+    voz.preparar(); // no clique: o navegador só deixa tocar som depois de um gesto
+    this.sinalizacao.conectar();
   }
 
   private conexaoFechou() {
@@ -468,7 +440,6 @@ class Cliente {
     if (this.estado.fase === 'sala') {
       this.perderConexao();
     } else {
-      this.entrandoSozinho = false; // sem internet não é recusa: a próxima abertura tenta de novo
       this.mudar({ fase: 'entrada', erro: 'Não foi possível conectar. Confira a internet e tente de novo em instantes.' });
     }
   }
@@ -494,19 +465,49 @@ class Cliente {
     this.sinalizacao.reconectarAgora();
   }
 
-  /** De volta ao servidor, com um id novo: as conexões antigas não servem mais e são refeitas. */
   /** A retransmissão que o servidor deu (ou tirou): vale para as conexões novas. Só o fato vai para o relatório. */
-  private usarRetransmissao(servidores: RTCIceServer[]) {
-    definirRetransmissao(servidores);
-    this.registrar(servidores.length ? 'retransmissão disponível' : 'sem retransmissão: só conexões diretas');
+  private usarRetransmissao(video: RTCIceServer[], vozes: RTCIceServer[], limite?: LimiteDoVideo) {
+    definirRetransmissao('voz', vozes);
+    definirRetransmissao('video', video);
+    const doVideo = video.length ? 'disponível' : limite ? `cortada (limite ${limite})` : 'não';
+    this.registrar(`retransmissão: voz ${vozes.length ? 'disponível' : 'não'}, vídeo ${doVideo}`);
+    if (!limite) this.avisouDoLimite = false;
+    else if (!this.avisouDoLimite) void this.avisarDoLimiteDoVideo(limite, vozes.length > 0);
   }
 
+  /**
+   * O vídeo ficou sem a retransmissão por um limite de consumo (Retransmissao.java): quem depende dela fica sabendo por
+   * quê, uma vez (pedido do dono, 26/10/2026). Pelo limite geral, só quem tem uma transmissão passando por ela agora:
+   * quem conecta direto nem percebe o corte.
+   */
+  private avisouDoLimite = false;
+  private async avisarDoLimiteDoVideo(limite: LimiteDoVideo, vozContinua: boolean) {
+    this.avisouDoLimite = true;
+    if (limite === 'geral') {
+      const conexoes = [...conexoesAbertas('video'), ...(vozContinua ? [] : conexoesAbertas('voz'))];
+      const caminhos = await Promise.all(conexoes.map((pc) => caminhoDaConexao(pc)));
+      if (!caminhos.includes('retransmitido')) return;
+    }
+    // Sem a voz também: o teto de todos, ou a credencial da voz usada para outra coisa (Retransmissao.java).
+    const texto =
+      limite === 'seu'
+        ? vozContinua
+          ? 'Você assistiu bastante hoje pela conexão de reserva da sua internet, e o vídeo por ela chegou ao limite do dia. A voz continua normalmente, e o vídeo volta amanhã.'
+          : 'Você usou bastante hoje a conexão de reserva da sua internet, e ela chegou ao limite do dia. Ela volta amanhã.'
+        : vozContinua
+          ? 'O vídeo pela conexão de reserva chegou ao limite do Ozamigos por enquanto. A voz continua normalmente.'
+          : 'A conexão de reserva chegou ao limite do Ozamigos por enquanto.';
+    this.avisar(texto, 'erro');
+  }
+
+  /** De volta ao servidor, com um id novo: as conexões antigas não servem mais e são refeitas. */
   private voltei(msg: Extract<MensagemDoServidor, { tipo: 'bem-vindo' }>) {
-    for (const id of this.estado.assistindo) this.lembrarSaida(this.nomeDe(id), true);
+    for (const id of this.estado.assistindo) this.lembrarSaida(this.chaveDe(id), true);
     for (const { canal, id } of [...this.conexoes.values()]) this.fecharConexao(canal, id);
     this.sinalizacao.zerarEsperas();
     this.mudar({
       meuId: msg.id,
+      ...this.quemSouEu(msg),
       pessoas: msg.outros,
       transmitindo: msg.compartilhando,
       plateias: msg.plateias ?? {},
@@ -520,54 +521,56 @@ class Cliente {
     for (const id of msg.compartilhando) {
       if (this.voltandoQuemEuAssistia(id)) this.assistir(id);
     }
-    this.avisar('Conexão com o servidor restabelecida');
+    if (this.renovando) this.avisar(this.estado.minhaConta ? `Você está na sala com a sua conta, como ${this.estado.meuNome}.` : 'Você está na sala como convidado.');
+    else this.avisar('Conexão com o servidor restabelecida');
+    this.renovando = false;
   }
 
-  private lembrarSaida(nome: string, assistia: boolean) {
-    this.saidas.set(nome, { momento: Date.now(), assistia });
+  /** O que o "bem-vindo" diz de mim: com conta, o nome dela (o servidor não usa o que a página mandou) e a foto. */
+  private quemSouEu(msg: Extract<MensagemDoServidor, { tipo: 'bem-vindo' }>): Partial<Estado> {
+    return { meuNome: msg.nome ?? this.estado.meuNome, minhaConta: msg.conta ?? null, minhaFoto: msg.foto ?? null };
   }
 
-  /** Quem saiu há pouco com esse nome, ou null. */
-  private saidaRecente(nome: string) {
-    const saida = this.saidas.get(nome);
+  private lembrarSaida(chave: string, assistia: boolean) {
+    this.saidas.set(chave, { momento: Date.now(), assistia });
+  }
+
+  /** Quem saiu há pouco com essa chave (chaveDe), ou null. */
+  private saidaRecente(chave: string) {
+    const saida = this.saidas.get(chave);
     if (saida && Date.now() - saida.momento < JANELA_DE_VOLTA) return saida;
-    this.saidas.delete(nome);
+    this.saidas.delete(chave);
     return null;
   }
 
   /** É alguém que eu assistia, caiu e voltou com outro id? Responde uma vez só. */
   private voltandoQuemEuAssistia(id: string): boolean {
-    const nome = this.nomeDe(id);
-    if (!this.saidaRecente(nome)?.assistia) return false;
-    this.saidas.delete(nome);
+    const chave = this.chaveDe(id);
+    if (!this.saidaRecente(chave)?.assistia) return false;
+    this.saidas.delete(chave);
     return true;
   }
 
-  /** Sai da sala e volta para a entrada: na mesma sala do link, ou em outra (um convite aceito). */
-  sair(paraASala?: string) {
+  /** Sai da sala e volta para a lista dos servidores. */
+  sair(para = '/') {
     this.recusado = true;
     this.pararDeTransmitir(false);
     this.conexoes.forEach(({ pc }) => pc.close());
     voz.sair();
     this.sinalizacao.encerrar();
-    if (!paraASala) lembrar(NAO_ENTRAR_SOZINHO, 'sim'); // saiu de propósito: a próxima abertura não entra sozinha
-    if (paraASala) location.assign(`/?sala=${paraASala}`);
-    else location.reload(); // volta para a entrada, com a mesma sala no link
+    location.assign(para);
   }
 
   /**
-   * Um convite para uma sala (link ozamigos:// aberto com o app aberto). Na entrada, a sala do convite entra no campo.
-   * Já numa sala, não tira ninguém da conversa sem perguntar: um aviso com "Entrar" leva para a sala nova.
+   * Um convite aberto no app (ozamigos://convite/<codigo>, com o app já aberto): fora de uma sala, vai à página dele;
+   * numa sala, não tira ninguém da conversa sem perguntar, um aviso com "Abrir" é que leva.
    */
-  abrirConvite(codigo: string) {
-    if (!codigoValido(codigo)) return;
-    const { fase, sala, grupo, salaFixa } = this.estado;
-    if (fase === 'entrada' && (grupo || salaFixa)) {
-      location.assign(`/?sala=${codigo}`); // a sala do convite é do grupo fixo
-    } else if (fase === 'entrada') {
-      this.trocarSala(codigo);
-    } else if (fase === 'sala' && codigo !== sala) {
-      this.avisar(`Convite para a sala ${codigo}.`, 'info', { rotulo: 'Entrar', executar: () => this.sair(codigo) });
+  abrirConvite(convite: string) {
+    if (!/^[A-Za-z0-9]{10}$/.test(convite)) return;
+    if (this.estado.fase === 'sala') {
+      this.avisar('Você recebeu um convite para um servidor.', 'info', { rotulo: 'Abrir', executar: () => this.sair(`/c/${convite}`) });
+    } else {
+      location.assign(`/c/${convite}`);
     }
   }
 
@@ -580,22 +583,13 @@ class Cliente {
     switch (msg.tipo) {
       case 'bem-vindo': {
         this.ficha = msg.ficha ?? '';
-        this.usarRetransmissao(msg.retransmissao ?? []);
+        this.usarRetransmissao(msg.retransmissao ?? [], msg.retransmissaoDaVoz ?? [], msg.limiteDoVideo);
         if (e.fase === 'sala') {
           this.voltei(msg);
           break;
         }
-        this.registrar(`entrei ${e.grupo ? 'no grupo' : 'na sala'} ${this.estado.sala} como ${this.estado.meuNome}`);
-        lembrar('ozamigos-nome', this.nome);
-        lembrar(this.chaveDaSenha(), this.senha);
-        lembrar(ULTIMO_GRUPO, e.grupo ?? (e.salaFixa ? SALA_FIXA : ''));
-        lembrar(NAO_ENTRAR_SOZINHO, '');
-        if (this.entrandoSozinho) {
-          this.entrandoSozinho = false;
-          this.avisar(`Você voltou ${e.grupo || e.salaFixa ? `para o grupo ${e.grupo ?? SALA_FIXA}` : `para a sala ${e.sala}`}.`);
-        }
-        if (!e.grupo) lembrar(ULTIMA_SALA, e.sala);
-        if (e.grupo && location.pathname !== `/${e.grupo}`) history.replaceState(null, '', `/${e.grupo}`); // criado na raiz
+        this.mudar(this.quemSouEu(msg));
+        this.registrar(`entrei no servidor ${e.servidor} como ${this.estado.meuNome}`);
         this.mudar({
           fase: 'sala',
           meuId: msg.id,
@@ -614,11 +608,12 @@ class Cliente {
       }
       case 'entrou': {
         if (e.pessoas.some((p) => p.id === msg.id)) break; // já veio na lista do "bem-vindo" (entramos ao mesmo tempo)
-        this.mudar({ pessoas: [...e.pessoas, { id: msg.id, nome: msg.nome }] });
-        const saida = this.saidaRecente(msg.nome);
+        this.mudar({ pessoas: [...e.pessoas, { id: msg.id, nome: msg.nome, conta: msg.conta, foto: msg.foto }] });
+        const chaveDeQuemEntrou = this.chaveDe(msg.id);
+        const saida = this.saidaRecente(chaveDeQuemEntrou);
         if (saida) {
           this.avisar(`${msg.nome} reconectou`); // caiu e voltou: sem som nem notificação
-          if (!saida.assistia) this.saidas.delete(msg.nome);
+          if (!saida.assistia) this.saidas.delete(chaveDeQuemEntrou);
           break;
         }
         this.avisar(`${msg.nome} entrou na sala`);
@@ -628,7 +623,7 @@ class Cliente {
       }
       case 'saiu': {
         const nomeQueSaiu = this.nomeDe(msg.id);
-        this.lembrarSaida(nomeQueSaiu, e.assistindo.includes(msg.id));
+        this.lembrarSaida(this.chaveDe(msg.id), e.assistindo.includes(msg.id));
         this.fecharConexao('envio', msg.id);
         this.fecharConexao('recebimento', msg.id);
         voz.pessoaSaiu(msg.id);
@@ -738,7 +733,7 @@ class Cliente {
         this.tratarErro(msg.motivo);
         break;
       case 'retransmissao':
-        this.usarRetransmissao(msg.servidores);
+        this.usarRetransmissao(msg.servidores, msg.voz ?? [], msg.limiteDoVideo);
         break;
       case 'pong':
         break; // só mostra que o servidor ainda ouve (a Sinalizacao já anotou a hora)
@@ -763,41 +758,29 @@ class Cliente {
       return;
     }
     this.recusado = true;
-    if (motivo === 'senha-errada') lembrar(this.chaveDaSenha(), ''); // a senha pode ter mudado
-    if (this.entrandoSozinho) {
-      // A sala encheu, o nome do grupo agora é de outra pessoa...: a próxima abertura mostra a entrada, sem tentar de novo.
-      this.entrandoSozinho = false;
-      lembrar(NAO_ENTRAR_SOZINHO, 'sim');
-    }
     if (this.estado.fase === 'sala') {
-      // Recusado ao reconectar (a senha mudou, a sala encheu): desfaz tudo e volta para a entrada.
+      // Tirado da sala (expulso, o servidor apagado) ou recusado ao reconectar (a sala encheu): desfaz tudo e volta
+      // para a entrada do servidor, com o motivo.
       this.pararDeTransmitir(false);
       for (const { canal, id } of [...this.conexoes.values()]) this.fecharConexao(canal, id);
       voz.sair();
       this.mudar({ meuId: null, pessoas: [], transmitindo: [], plateias: {}, assistindo: [], videos: {}, conexaoPerdida: false, gravacaoDaSala: null });
     }
-    // Criar um grupo pela entrada do grupo fixo deu errado: a entrada volta a ser a do grupo fixo.
-    const voltarAoFixo = this.estado.grupo !== null && !grupoDoCaminho(location.pathname);
-    this.mudar({
-      fase: 'entrada',
-      erro: recusa,
-      recusa: motivo,
-      ...(voltarAoFixo ? { grupo: null, sala: this.salaDoGrupoFixo, salaFixa: ehASalaFixa(location.pathname) } : {}),
-    });
+    this.mudar({ fase: 'entrada', erro: recusa });
   }
 
   // ===== Chamar a atenção =====
 
   /** As vezes que chamei essa pessoa no último minuto. */
-  private chamadasRecentes(nome: string): number[] {
-    const recentes = (this.chamadas.get(nome) ?? []).filter((t) => Date.now() - t < CHAMADAS_JANELA);
-    this.chamadas.set(nome, recentes);
+  private chamadasRecentes(chaveDaPessoa: string): number[] {
+    const recentes = (this.chamadas.get(chaveDaPessoa) ?? []).filter((t) => Date.now() - t < CHAMADAS_JANELA);
+    this.chamadas.set(chaveDaPessoa, recentes);
     return recentes;
   }
 
   /** Quanto falta para poder chamar essa pessoa de novo (0: já pode; só espera quem já chamou 5 vezes no minuto). */
   chamarDeNovoEm(id: string): number {
-    const recentes = this.chamadasRecentes(this.nomeDe(id));
+    const recentes = this.chamadasRecentes(this.chaveDe(id));
     return recentes.length < CHAMADAS_POR_JANELA ? 0 : Math.max(0, recentes[0] + CHAMADAS_JANELA - Date.now());
   }
 
@@ -808,7 +791,8 @@ class Cliente {
   chamar(id: string) {
     if (this.chamarDeNovoEm(id) > 0 || !this.estado.pessoas.some((p) => p.id === id)) return;
     const nome = this.nomeDe(id);
-    this.chamadas.set(nome, [...this.chamadasRecentes(nome), Date.now()]);
+    const chaveDaPessoa = this.chaveDe(id);
+    this.chamadas.set(chaveDaPessoa, [...this.chamadasRecentes(chaveDaPessoa), Date.now()]);
     this.enviar({ tipo: 'chamar', para: id });
     this.registrar(`chamei a atenção de ${nome}`);
     this.mostrarAviso(`Você chamou ${nome}.`);
@@ -899,7 +883,8 @@ class Cliente {
   }
 
   private porNoChat(campos: Omit<MensagemDoChat, 'numero' | 'momento'>) {
-    const chat = [...this.estado.chat, { ...campos, numero: this.proximaMensagem++, momento: Date.now() }];
+    const mensagem = { foto: this.fotoDe(campos.de), ...campos, numero: this.proximaMensagem++, momento: Date.now() };
+    const chat = [...this.estado.chat, mensagem];
     chat.slice(0, -MENSAGENS_NA_TELA).forEach((velha) => this.soltarImagem(velha.imagem));
     this.mudar({ chat: chat.slice(-MENSAGENS_NA_TELA) });
   }
@@ -1303,7 +1288,7 @@ class Cliente {
   // ===== Conexões WebRTC =====
 
   private novaConexao(canal: Canal, idRemoto: string): Conexao {
-    const pc = novaPeerConnection();
+    const pc = novaPeerConnection('video');
     const conexao: Conexao = { pc, pendentes: [], canal, id: idRemoto };
     this.conexoes.set(chave(canal, idRemoto), conexao);
 

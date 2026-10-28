@@ -8,15 +8,53 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+## [1.3.2] - 2026-10-28
+
 ### Novo
+- **Sair de todos os aparelhos**, em Configurações → Conta: para quem perdeu um aparelho ou entrou no PC de outra pessoa.
+
+### Corrigido
+- Abrindo o app com o servidor acordando, a entrada podia ficar em "Entrar com a conta não está disponível agora" até reabrir. Agora ela espera e tenta de novo sozinha.
+- O ícone de um servidor aparecia recortado em círculo, com a cor das iniciais nos cantos. Agora aparece inteiro, com os cantos arredondados.
+
+### Segurança
+- O servidor recusa pedidos grandes demais e pedidos em excesso de um mesmo endereço, antes de qualquer outra coisa: eles podiam derrubar o servidor ou deixar todos sem entrar nos servidores por alguns segundos.
+- Ligar outro provedor pelo app só vale depois que o próprio app confirma: um link de ligação mandado por outra pessoa não liga mais a conta de quem o abre à dela. O app 1.3.2 não aceita mais a volta antiga, sem confirmação.
+- Freios por conta (criar e apagar servidores, convites, ícones, nome, sair de todos), um teto de contas novas por hora (por endereço e no servidor todo), e um limite de conexões abertas à sala por endereço.
+- A política de privacidade diz quanto tempo as cópias de segurança do banco guardam o que foi apagado (até 90 dias).
+
+## [1.3.1] - 2026-10-28
+
+### Novo
+- **O convite abre no app:** quem tem o app e clica no link de um convite no navegador do Windows pode abrir o convite direto no app (como no Discord), baixar o app ou continuar no navegador. Com o app já aberto, o convite chega a ele; numa conversa, um aviso pergunta antes de sair da sala.
+- **Servidores, como no Discord:** entre com o Google ou o Discord e crie o servidor do seu grupo, com nome e ícone. Ele fica guardado, e os amigos entram com um clique. Convide pelo botão Convidar (ou em Configurações do servidor, com validade e limite de usos); quem abre o convite entra com a conta e vira membro. O dono escolhe os admins, passa a posse e decide se os membros também convidam; o dono e os admins expulsam quem precisar, e quem é expulso não volta por convite até ser desbloqueado. O app abre na lista dos seus servidores.
+
+### Mudado
+- A entrada do app não mostra mais o endereço do servidor, e o botão "Criar um servidor" ocupa a largura toda.
+- **Sem senhas:** as salas com senha, o grupo `/ozamigos` e os grupos criados na hora deram lugar aos servidores. Entrar pede a conta do Google ou do Discord, e os links antigos levam à entrada. O app não entra mais sozinho na última sala.
+- **Entrou uma vez, não precisa entrar de novo:** a conta continua conectada enquanto você usar o Ozamigos (antes, o login vencia 60 dias depois de feito, mesmo com uso todo dia).
+
+### Corrigido
+- A entrada não passa mais da largura da tela no celular (a página ficava um pouco afastada, com o texto menor).
+
+## [1.3.0] - 2026-10-27
+
+### Novo
+- **Entrar com o Google ou o Discord:** na entrada, com os botões oficiais de cada um, um clique e o seu nome e a sua foto aparecem para os amigos na sala, em qualquer grupo. Os volumes e o silenciado de cada amigo com conta valem em qualquer sala, e quem cai e volta é reconhecido mesmo com dois nomes iguais. Em Configurações → Conta, você troca o nome, liga a outra conta, sai, ou apaga tudo na hora. O Ozamigos não recebe o seu e-mail nem a sua senha. No app para Windows (1.3.0), o login abre no seu navegador e volta sozinho para o app. Entrar sem conta continua igual.
+- **Quem usa muito a conexão de reserva perde só o vídeo, e continua conversando:** para quem não consegue se conectar direto aos amigos, a voz e o vídeo passam por um caminho de reserva, que tem um limite diário. Agora, ao passar dele, só o vídeo por esse caminho para até o dia seguinte, com um aviso explicando o motivo; a voz continua normalmente.
 - **Conecta mesmo com redes mais fechadas:** quando dois amigos não conseguem se conectar direto (internet de operadora com IP compartilhado, 4G, rede de empresa), a voz, as imagens e a transmissão passam por um caminho de reserva, criptografadas. Quem conecta direto continua direto. (Servidor: a retransmissão TURN da Cloudflare, com credenciais por pessoa e limites de consumo para nunca passar da franquia gratuita; liga com as variáveis `OZAMIGOS_TURN_*` e `OZAMIGOS_CLOUDFLARE_*`.)
+
+### Mudado
+- **A conexão de reserva passa a ser de quem entra com conta:** para quem não consegue se conectar direto aos amigos, a voz e a transmissão continuam passando pelo caminho de reserva, mas só para quem entrou com o Google ou o Discord. Quem entra sem conta continua conversando normalmente quando a conexão direta funciona, e é avisado quando entrar com a conta resolveria. (Servidor: só quem tem conta recebe as credenciais da retransmissão, e os limites contam a conta além do endereço.)
+- **O Ozamigos lembra onde você estava:** ao abrir de novo, o app para Windows entra sozinho no último grupo ou sala em que você estava, como o Discord. Se você tinha saído com "Sair da sala", ele só mostra a entrada, já preenchida. Se a senha mudou ou a sala está cheia, a entrada aparece com o motivo. No navegador, a entrada vem preenchida com o último lugar. Para escolher outro, use "Ir para a entrada do Ozamigos" (nos grupos) ou o botão ao lado do campo da sala.
+- **Chamar a atenção bem mais alto, e até 5 vezes por minuto:** o som de quem é chamado ficou bem mais alto que os outros avisos, para ser ouvido com o jogo ligado. E dá para chamar a mesma pessoa até 5 vezes por minuto (era uma).
+
+### Interno
+- **Contas no servidor:** login com o Google e o Discord, sem pedir e-mail nem guardar senha; sessão própria do Ozamigos no banco; API da conta (nome, sair, apagar a conta, provedores); o login do app pelo navegador do sistema, com um código de uso único; a conta e a foto dentro da sala. A interface vem a seguir. (Plano em `docs/plano-contas.md`.)
+- **Fundação das contas:** o servidor ganhou um banco de dados (PostgreSQL), opcional, para as contas e os servidores salvos que vêm a seguir. Nada muda para quem usa: sem o banco, ou com ele fora do ar, as salas funcionam como antes. Para desenvolver, `docker compose up --build` sobe o servidor com um banco local. (Plano em `docs/plano-contas.md`.)
 
 ### Corrigido
 - **A voz com um amigo que ficava em "conectando…" para sempre:** às vezes a combinação inicial entre os dois PCs não terminava (por exemplo, numa atualização do Ozamigos, com todos voltando juntos), e a voz entre aqueles dois nunca conectava, mesmo funcionando com os outros. Agora, se não conecta em 20 segundos, ela é refeita sozinha.
-
-### Mudado
-- **O Ozamigos lembra onde você estava:** ao abrir de novo, o app para Windows entra sozinho no último grupo ou sala em que você estava, como o Discord. Se você tinha saído com "Sair da sala", ele só mostra a entrada, já preenchida. Se a senha mudou ou a sala está cheia, a entrada aparece com o motivo. No navegador, a entrada vem preenchida com o último lugar. Para escolher outro, use "Ir para a entrada do Ozamigos" (nos grupos) ou o botão ao lado do campo da sala.
-- **Chamar a atenção bem mais alto, e até 5 vezes por minuto:** o som de quem é chamado ficou bem mais alto que os outros avisos, para ser ouvido com o jogo ligado. E dá para chamar a mesma pessoa até 5 vezes por minuto (era uma).
 
 ## [1.2.21] - 2026-10-18
 
@@ -316,7 +354,9 @@ do servidor); só as miniaturas em JPEG dependem desta versão.
 ### Adicionado
 - Primeira versão do app para Windows: salas com senha, várias transmissões ao mesmo tempo, volume por transmissão, grade ou destaque, até 1080p e som do PC sem o eco do Discord.
 
-[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.21...HEAD
+[Não lançado]: https://github.com/kayokalinauskas/ozamigos/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/kayokalinauskas/ozamigos/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.21...v1.3.0
 [1.2.21]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.20...v1.2.21
 [1.2.20]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.19...v1.2.20
 [1.2.19]: https://github.com/kayokalinauskas/ozamigos/compare/v1.2.18...v1.2.19

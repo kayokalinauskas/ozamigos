@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Eye, LayoutGrid, Link, MonitorUp, RectangleHorizontal, Volume2, VolumeX } from 'lucide-react';
+import { Eye, LayoutGrid, MonitorUp, RectangleHorizontal, UserPlus, Volume2, VolumeX } from 'lucide-react';
 import { cliente } from '../cliente';
 import { useCliente, useNumeroLembrado } from '../useCliente';
 import { Avatar } from './Avatar';
@@ -125,7 +125,7 @@ export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
           ))}
         </div>
       ) : (
-        <Vazio link={cliente.linkDeConvite()} sozinho={pessoas.length === 0} temAlguemNoAr={disponiveis.length > 0} />
+        <Vazio sozinho={pessoas.length === 0} temAlguemNoAr={disponiveis.length > 0} />
       )}
 
       {disponiveis.length > 0 && (
@@ -133,7 +133,7 @@ export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
           <span className="rotulo">No ar agora</span>
           {disponiveis.map((id) => (
             <button key={id} type="button" className="cartao-disponivel" onClick={() => cliente.assistir(id)}>
-              <Avatar nome={cliente.nomeDe(id)} aoVivo tamanho={32} />
+              <Avatar nome={cliente.nomeDe(id)} foto={cliente.fotoDe(id)} aoVivo tamanho={32} />
               <span className="cartao-disponivel-nome">{cliente.nomeDe(id)}</span>
               <span className="botao botao-primario botao-pequeno">
                 <Eye size={14} /> Assistir
@@ -146,7 +146,7 @@ export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
   );
 }
 
-function Vazio({ link, sozinho, temAlguemNoAr }: { link: string; sozinho: boolean; temAlguemNoAr: boolean }) {
+function Vazio({ sozinho, temAlguemNoAr }: { sozinho: boolean; temAlguemNoAr: boolean }) {
   if (temAlguemNoAr) {
     return (
       <div className="vazio">
@@ -163,7 +163,7 @@ function Vazio({ link, sozinho, temAlguemNoAr }: { link: string; sozinho: boolea
       <p>Clique em Transmitir, embaixo, para mostrar o seu jogo. Os amigos escolhem se querem assistir.</p>
       {sozinho && (
         <p className="vazio-link">
-          <Link size={14} aria-hidden="true" /> Convide os amigos: <code>{link}</code>
+          <UserPlus size={14} aria-hidden="true" /> Convide os amigos pelo botão Convidar, ao lado do nome do servidor.
         </p>
       )}
     </div>

@@ -56,6 +56,8 @@ export type EstadoDaVoz = {
 export type LigacaoComOCliente = {
   enviar(msg: SinalDeVozParaEnviar): void;
   nomeDe(id: string): string;
+  /** O que reconhece a pessoa entre salas e reconexões (a conta): a chave do volume e do silenciado. */
+  chaveDe(id: string): string;
   avisar(texto: string, tipo?: 'info' | 'erro'): void;
   registrar(evento: string): void;
 };
@@ -282,21 +284,21 @@ class Voz {
   }
 
   volumeDe(id: string): number {
-    return volumeDaVozDe(this.nomeDe(id));
+    return volumeDaVozDe(this.chaveDe(id));
   }
 
   silenciadoParaMim(id: string): boolean {
-    return silenciadoParaMim(this.nomeDe(id));
+    return silenciadoParaMim(this.chaveDe(id));
   }
 
   mudarVolumeDe(id: string, volume: number) {
-    guardarVolumeDaVozDe(this.nomeDe(id), volume);
+    guardarVolumeDaVozDe(this.chaveDe(id), volume);
     this.aplicarGanhoDe(id);
     this.mudar({}); // o menu do amigo redesenha
   }
 
   silenciarParaMim(id: string, silenciado: boolean) {
-    guardarSilenciadoParaMim(this.nomeDe(id), silenciado);
+    guardarSilenciadoParaMim(this.chaveDe(id), silenciado);
     this.aplicarGanhoDe(id);
     this.mudar({});
   }
@@ -317,6 +319,10 @@ class Voz {
 
   private nomeDe(id: string) {
     return this.cliente?.nomeDe(id) ?? id;
+  }
+
+  private chaveDe(id: string) {
+    return this.cliente?.chaveDe(id) ?? this.nomeDe(id);
   }
 
   private async montar() {
@@ -519,7 +525,7 @@ class Voz {
     // uma rede que não deixa conectar fazia ligar de novo para sempre, sem nunca avisar).
     const tentativas = this.conexoes.get(id)?.tentativas ?? 0;
     this.fechar(id);
-    const pc = novaPeerConnection();
+    const pc = novaPeerConnection('voz');
     // O canal de dados é combinado (mesmo id dos dois lados): não precisa de mais sinalização.
     const canal = pc.createDataChannel('estado', { negotiated: true, id: 0 });
     // As imagens do chat vão num segundo canal da mesma conexão (imagens/troca.ts): direto entre os PCs.
@@ -618,7 +624,10 @@ class Voz {
     if (c.tentativas >= TENTATIVAS_DE_VOZ) {
       if (!this.avisouSemVoz.has(c.id)) {
         this.avisouSemVoz.add(c.id);
-        this.cliente?.avisar(`Não foi possível ligar a voz com ${this.nomeDe(c.id)}. A rede de um de vocês pode estar bloqueando a conexão.`, 'erro');
+        this.cliente?.avisar(
+          `Não foi possível ligar a voz com ${this.nomeDe(c.id)}. A rede de um de vocês pode estar bloqueando a conexão.`,
+          'erro',
+        );
       }
       return;
     }
