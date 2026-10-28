@@ -72,7 +72,7 @@ export function MeusServidores() {
       {criando ? (
         <label className="campo">
           <span>Nome do servidor</span>
-          <span className="campo-com-botao">
+          <span className="conta-perfil-nome">
             <input
               value={nome}
               onChange={(e) => setNome(e.target.value)}
