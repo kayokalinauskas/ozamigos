@@ -8,13 +8,17 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import jakarta.servlet.FilterChain;
@@ -49,35 +53,54 @@ public class LimitesDaApi extends OncePerRequestFilter {
     private final Contador porEndereco;
 
     public LimitesDaApi(@Value("${ozamigos.limite.api-por-minuto:300}") int porMinuto) {
-        this.porEndereco = new Contador(porMinuto, 60_000, Clock.systemUTC());
+        this.porEndereco = new Contador(porMinuto, 60_000, Contador.CHAVES_NO_MAXIMO, Clock.systemUTC());
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest pedido, HttpServletResponse resposta, FilterChain cadeia)
             throws ServletException, IOException {
         if (pedido.getRequestURI().startsWith("/api/") && !porEndereco.passa(Enderecos.de(pedido))) {
-            recusar(resposta, HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
+            ProtecaoDaApi.recusar(resposta, HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
             return;
         }
         long maximo = maximoDoCorpo(pedido);
         if (pedido.getContentLengthLong() > maximo) {
-            recusar(resposta, HttpStatus.CONTENT_TOO_LARGE, "grande-demais");
+            ProtecaoDaApi.recusar(resposta, HttpStatus.CONTENT_TOO_LARGE, "grande-demais");
             return;
         }
-        // Sem o tamanho no cabeçalho (o corpo em pedaços), o limite vale na leitura.
-        cadeia.doFilter(new CorpoLimitado(pedido, maximo), resposta);
+        // Sem o tamanho no cabeçalho (o corpo em pedaços), o limite vale na leitura. Leituras não têm corpo, e o WebSocket
+        // abre por um GET: esses passam como vieram.
+        boolean comCorpo = !Set.of("GET", "HEAD", "OPTIONS").contains(pedido.getMethod());
+        cadeia.doFilter(comCorpo ? new CorpoLimitado(pedido, maximo) : pedido, resposta);
+    }
+
+    /** O corpo passou do limite no meio da leitura (sem o tamanho no cabeçalho). */
+    static final class GrandeDemais extends IOException {
+        GrandeDemais() {
+            super("corpo do pedido grande demais");
+        }
+    }
+
+    /**
+     * Um corpo que não deu para ler vira o erro da API ({@code {erro}}), e não a página de erro do Spring: 413
+     * {@code grande-demais} quando passou do limite em pedaços (GrandeDemais), senão 400 {@code pedido-invalido}.
+     */
+    @RestControllerAdvice
+    static class CorpoIlegivel {
+        @ExceptionHandler(HttpMessageNotReadableException.class)
+        ResponseEntity<?> corpoIlegivel(HttpMessageNotReadableException erro) {
+            for (Throwable causa = erro; causa != null; causa = causa.getCause()) {
+                if (causa instanceof GrandeDemais) {
+                    return ContaApi.erro(HttpStatus.CONTENT_TOO_LARGE, "grande-demais");
+                }
+            }
+            return ContaApi.erro(HttpStatus.BAD_REQUEST, "pedido-invalido");
+        }
     }
 
     private static long maximoDoCorpo(HttpServletRequest pedido) {
         return "PUT".equals(pedido.getMethod()) && pedido.getRequestURI().matches("/api/servidores/[^/]+/icone")
                 ? CORPO_DO_ICONE : CORPO_MAXIMO;
-    }
-
-    private static void recusar(HttpServletResponse resposta, HttpStatus status, String motivo) throws IOException {
-        resposta.setStatus(status.value());
-        resposta.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        resposta.setHeader("Cache-Control", "no-store");
-        resposta.getWriter().write("{\"erro\":\"" + motivo + "\"}");
     }
 
     /**
@@ -86,17 +109,25 @@ public class LimitesDaApi extends OncePerRequestFilter {
      */
     static final class Contador {
 
-        /** Mais que isso, as chaves de janelas que já passaram saem; ainda cheio, os endereços novos passam sem contar. */
-        private static final int CHAVES_NO_MAXIMO = 50_000;
+        /**
+         * Mais que isso, as chaves de janelas que já passaram saem (no máximo uma limpeza por segundo: com o mapa cheio,
+         * limpar a cada endereço novo seria uma varredura inteira por pedido, dentro da trava). Ainda cheio, os endereços
+         * novos dividem uma contagem só ({@link #EXCEDENTE}): numa enxurrada de endereços, eles não passam sem contar.
+         */
+        static final int CHAVES_NO_MAXIMO = 50_000;
+        static final String EXCEDENTE = "*";
 
         private final int limite;
         private final long janelaMs;
+        private final int chavesNoMaximo;
         private final Clock relogio;
         private final Map<String, long[]> contagens = new HashMap<>(); // {início da janela, vezes}
+        private long ultimaLimpeza = Long.MIN_VALUE;
 
-        Contador(int limite, long janelaMs, Clock relogio) {
+        Contador(int limite, long janelaMs, int chavesNoMaximo, Clock relogio) {
             this.limite = limite;
             this.janelaMs = janelaMs;
+            this.chavesNoMaximo = chavesNoMaximo;
             this.relogio = relogio;
         }
 
@@ -104,14 +135,16 @@ public class LimitesDaApi extends OncePerRequestFilter {
             long agora = relogio.millis();
             long[] contagem = contagens.get(chave);
             if (contagem == null) {
-                if (contagens.size() >= CHAVES_NO_MAXIMO) {
+                if (contagens.size() >= chavesNoMaximo && agora - ultimaLimpeza >= 1_000) {
+                    ultimaLimpeza = agora;
                     contagens.values().removeIf(c -> agora - c[0] >= janelaMs);
-                    if (contagens.size() >= CHAVES_NO_MAXIMO) {
-                        return true;
-                    }
                 }
-                contagens.put(chave, new long[] {agora, 1});
-                return true;
+                if (contagens.size() >= chavesNoMaximo) {
+                    contagem = contagens.computeIfAbsent(EXCEDENTE, c -> new long[] {agora, 0});
+                } else {
+                    contagem = new long[] {agora, 0};
+                    contagens.put(chave, contagem);
+                }
             }
             if (agora - contagem[0] >= janelaMs) {
                 contagem[0] = agora;
@@ -164,7 +197,7 @@ public class LimitesDaApi extends OncePerRequestFilter {
                     private void contar(int n) throws IOException {
                         lidos += n;
                         if (lidos > maximo) {
-                            throw new IOException("corpo do pedido grande demais");
+                            throw new GrandeDemais();
                         }
                     }
 

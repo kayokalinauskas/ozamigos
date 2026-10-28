@@ -56,6 +56,7 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
     @Override
     public void onAuthenticationSuccess(HttpServletRequest pedido, HttpServletResponse resposta, Authentication autenticacao)
             throws IOException {
+        String endereco = Enderecos.de(pedido);
         Login.Pedido login = pedidoDoLogin(pedido);
         if (login == null) {
             // Não dá para saber se o login era do app (e para qual porta) ou do navegador: logar este navegador deixaria
@@ -64,7 +65,7 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
             return;
         }
         try {
-            concluir(resposta, login, (OAuth2AuthenticationToken) autenticacao);
+            concluir(resposta, login, (OAuth2AuthenticationToken) autenticacao, endereco);
         } catch (DataAccessException erro) {
             // O banco caiu no meio do login: a pessoa volta para a entrada com o aviso, em vez de uma página de erro.
             log.warn("Login: o banco não respondeu ({})", erro.getMostSpecificCause().getMessage());
@@ -72,7 +73,8 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
         }
     }
 
-    private void concluir(HttpServletResponse resposta, Login.Pedido login, OAuth2AuthenticationToken token) throws IOException {
+    private void concluir(HttpServletResponse resposta, Login.Pedido login, OAuth2AuthenticationToken token, String endereco)
+            throws IOException {
         String provedor = token.getAuthorizedClientRegistrationId();
         Perfil perfil = perfil(provedor, token.getPrincipal());
         if (perfil == null || !contas.disponivel()) {
@@ -105,7 +107,7 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
 
         Contas.Entrada entrada;
         try {
-            entrada = contas.entrar(provedor, perfil.idExterno(), perfil.nome());
+            entrada = contas.entrar(provedor, perfil.idExterno(), perfil.nome(), endereco);
         } catch (Contas.NovasDemais e) {
             falhar(resposta, login, "contas-novas-demais");
             return;

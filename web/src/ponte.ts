@@ -55,7 +55,7 @@ export type PonteOzamigos = {
    * porta só do PC. Com `ligacao` (o código que a página pediu), liga mais um provedor à conta em vez de entrar.
    */
   conta?: {
-    loginPeloNavegador(provedor: 'google' | 'discord', ligacao?: string): Promise<{ codigo?: string; ligou?: string; erro?: string }>;
+    loginPeloNavegador(provedor: 'google' | 'discord', ligacao?: string): Promise<{ codigo?: string; erro?: string }>;
   };
   /** Um link de sala (ozamigos://sala/CODIGO, de antes dos servidores) chegou com o app aberto (app 1.2.16 em diante). */
   aoAbrirSala?(ouvinte: (sala: string) => void): void;

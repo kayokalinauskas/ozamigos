@@ -119,7 +119,7 @@ public class ServidoresApi {
         // A imagem só é lida depois de conferida a conta: sem ela, ninguém faz o servidor ler 2 MB.
         return comConta(pedido, usuario -> {
             if (!iconesPorConta.passa(usuario.toString())) {
-                return MUITAS_TENTATIVAS;
+                throw new Servidores.Recusa(Servidores.Motivo.MUITAS_TENTATIVAS);
             }
             byte[] imagem;
             try {
@@ -294,11 +294,9 @@ public class ServidoresApi {
     }
 
     private interface Acao {
-        /** O corpo da resposta, null para 204, ou MUITAS_TENTATIVAS para 429. */
+        /** O corpo da resposta, ou null para 204. */
         Object fazer(UUID usuario);
     }
-
-    private static final Object MUITAS_TENTATIVAS = new Object();
 
     /** Roda a ação com a conta da sessão; sem ela, 401 (ou 503 sem banco). As que mudam algo passam pelo freio da conta. */
     private ResponseEntity<?> comConta(HttpServletRequest pedido, Acao acao) {
@@ -310,10 +308,10 @@ public class ServidoresApi {
             return ContaApi.semConta(contas);
         }
         boolean leitura = "GET".equals(pedido.getMethod());
-        Object corpo = leitura || acoesPorConta.passa(usuario.get().toString()) ? acao.fazer(usuario.get()) : MUITAS_TENTATIVAS;
-        if (corpo == MUITAS_TENTATIVAS) {
-            return ContaApi.erro(HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
+        if (!leitura && !acoesPorConta.passa(usuario.get().toString())) {
+            throw new Servidores.Recusa(Servidores.Motivo.MUITAS_TENTATIVAS);
         }
+        Object corpo = acao.fazer(usuario.get());
         return corpo == null ? ResponseEntity.noContent().build() : ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(corpo);
     }
 

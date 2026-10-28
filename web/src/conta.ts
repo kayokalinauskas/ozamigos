@@ -66,16 +66,37 @@ export function lerConta(): EstadoDaConta {
   return estado;
 }
 
-/** Pergunta ao servidor quem é. Sem resposta (servidor antigo, sem internet), a página segue como convidado. */
+/** Sem resposta, ou com o banco ainda não pronto: pergunta de novo nesse ritmo, mais devagar depois de um tempo. */
+const NOVA_TENTATIVA_MS = 3_000;
+const NOVA_TENTATIVA_DEMORADA_MS = 10_000;
+/** Até lá, a entrada mostra "Carregando…"; depois, o aviso de indisponível (e continua tentando por trás). */
+const AVISAR_DEPOIS_MS = 20_000;
+let indisponivelDesde: number | null = null;
+let novaTentativa: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Pergunta ao servidor quem é. Sem resposta (sem internet), ou com o banco ainda não pronto (o servidor acabou de
+ * acordar: ele responde antes do banco), pergunta de novo sozinha, até dar: antes, a entrada ficava em "não está
+ * disponível agora" até a pessoa reabrir o app.
+ */
 export async function carregarConta(): Promise<void> {
+  clearTimeout(novaTentativa);
   try {
     const resposta = await fetch('/api/eu', { cache: 'no-store' });
     if (!resposta.ok) throw new Error(String(resposta.status));
-    const corpo = (await resposta.json()) as { login?: Provedor[]; conta?: Conta | null };
-    mudar({ carregada: true, login: LOGIN_POSSIVEL ? (corpo.login ?? []) : [], conta: corpo.conta ?? null });
+    const corpo = (await resposta.json()) as { login?: Provedor[]; conta?: Conta | null; indisponivel?: boolean };
+    if (!corpo.indisponivel) {
+      indisponivelDesde = null;
+      mudar({ carregada: true, login: LOGIN_POSSIVEL ? (corpo.login ?? []) : [], conta: corpo.conta ?? null });
+      return;
+    }
   } catch {
-    mudar({ carregada: true, login: [], conta: null });
+    // sem resposta: como indisponível
   }
+  indisponivelDesde ??= Date.now();
+  const esperou = Date.now() - indisponivelDesde;
+  if (esperou >= AVISAR_DEPOIS_MS) mudar({ carregada: true, login: [], conta: null });
+  novaTentativa = setTimeout(() => void carregarConta(), esperou >= AVISAR_DEPOIS_MS ? NOVA_TENTATIVA_DEMORADA_MS : NOVA_TENTATIVA_MS);
 }
 
 /**
@@ -229,7 +250,7 @@ export async function apagarConta(): Promise<boolean> {
 }
 
 /** A ponte do app recusou (a janela recarregou, um erro do processo principal): vira um erro comum, sem travar nada. */
-async function pelaPonte(chamar: () => Promise<{ codigo?: string; ligou?: string; erro?: string }>) {
+async function pelaPonte(chamar: () => Promise<{ codigo?: string; erro?: string }>) {
   try {
     return await chamar();
   } catch {

@@ -50,7 +50,7 @@ public class ContaApi {
     private final SinalizacaoHandler sinalizacao;
     /** Trocas de código por endereço: uma por login de verdade, então 20 a cada 10 minutos sobram. */
     private final Freio trocas = new Freio(20, Duration.ofMinutes(10));
-    /** As ações de cada conta que gravam no banco (o nome, os códigos de ligação): gente de verdade não passa disso. */
+    /** As ações de cada conta que gravam no banco (o nome, os provedores, sair de todos): gente de verdade não passa disso. */
     private final Freio acoes = new Freio(30, Duration.ofMinutes(1));
 
     public ContaApi(Contas contas, Sessoes sessoes, ProvedoresDeLogin provedores, CodigosDoApp codigos,
@@ -72,6 +72,8 @@ public class ContaApi {
         corpo.put("login", contas.disponivel() ? provedores.disponiveis() : List.of());
         Object conta = usuario(pedido).flatMap(contas::usuario).map(ContaApi::emJson).orElse(null);
         corpo.put("conta", conta);
+        // O banco existe mas não está pronto (o servidor acordando, uma falha há pouco): a página pergunta de novo.
+        corpo.put("indisponivel", contas.configurado() && !contas.disponivel());
         var resposta = ResponseEntity.ok().cacheControl(CacheControl.noStore());
         if (conta != null) {
             // O cookie também vence 60 dias depois do último uso, e não do login: a página pergunta isto a cada abertura,
@@ -112,6 +114,9 @@ public class ContaApi {
         if (usuario.isEmpty()) {
             return semConta();
         }
+        if (!acoes.passa(usuario.get().toString())) {
+            return erro(HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
+        }
         sessoes.encerrarTodas(usuario.get());
         sinalizacao.tirarDosServidores(usuario.get(), "sem-conta");
         log.info("Conta {} saiu de todos os aparelhos", usuario.get());
@@ -138,6 +143,9 @@ public class ContaApi {
         Optional<UUID> usuario = usuario(pedido);
         if (usuario.isEmpty()) {
             return semConta();
+        }
+        if (!acoes.passa(usuario.get().toString())) {
+            return erro(HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
         }
         return switch (contas.desligar(usuario.get(), provedor)) {
             case DESLIGADA, NAO_TINHA -> ResponseEntity.noContent().build();

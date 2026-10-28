@@ -179,6 +179,17 @@ class ContasTest extends ComBanco {
         HttpResponse<String> resposta = enviar("POST", "/api/servidores", null, origem(), enorme);
         assertThat(resposta.statusCode()).isEqualTo(413);
         assertThat(resposta.body()).contains("grande-demais");
+
+        // Em pedaços, sem o tamanho no cabeçalho: o limite vale na leitura, com a mesma resposta.
+        UUID ana = novaConta("Ana");
+        HttpRequest emPedacos = HttpRequest.newBuilder(URI.create(origem() + "/api/servidores"))
+                .header("Content-Type", "application/json").header("Origin", origem())
+                .header("Cookie", Sessoes.COOKIE + "=" + sessoes.criar(ana, "navegador"))
+                .POST(HttpRequest.BodyPublishers.ofInputStream(() -> new java.io.ByteArrayInputStream(enorme.getBytes())))
+                .build();
+        HttpResponse<String> lida = http.send(emPedacos, HttpResponse.BodyHandlers.ofString());
+        assertThat(lida.statusCode()).isEqualTo(413);
+        assertThat(lida.body()).contains("grande-demais");
     }
 
     @Test
@@ -194,6 +205,19 @@ class ContasTest extends ComBanco {
             assertThat(volta.getHeader("Set-Cookie")).isNull();
         } finally {
             contas.contasNovasPorHora = antes;
+        }
+
+        // Por endereço: quem cria contas descartáveis esbarra no próprio teto, e as contas dos outros continuam nascendo.
+        Freio antigo = contas.novasPorEndereco;
+        contas.novasPorEndereco = new Freio(1, java.time.Duration.ofHours(1));
+        try {
+            assertThat(contas.entrar("google", UUID.randomUUID().toString(), "Caio", "203.0.113.50")).isNotNull();
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                    () -> contas.entrar("google", UUID.randomUUID().toString(), "Caio 2", "203.0.113.50"))
+                    .isInstanceOf(Contas.NovasDemais.class);
+            assertThat(contas.entrar("google", UUID.randomUUID().toString(), "Duda", "203.0.113.51")).isNotNull();
+        } finally {
+            contas.novasPorEndereco = antigo;
         }
     }
 
