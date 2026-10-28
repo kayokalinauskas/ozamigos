@@ -29,7 +29,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p><b>Quem pode o quê</b> (as regras ficam todas aqui, e a API só traduz): o <b>dono</b> faz tudo, e é o único que
  * apaga o servidor, passa a posse, troca papéis e decide se os membros convidam; o <b>admin</b> muda o nome e o ícone,
  * convida, vê e apaga convites e expulsa membros (não outro admin); o <b>membro</b> entra e convida, se o dono deixar.
- * Todos saem quando querem, menos o dono (passa a posse ou apaga antes).
+ * Todos saem quando querem, menos o dono (passa a posse ou apaga antes). Quem é expulso fica bloqueado: não volta por
+ * convite nenhum até o dono ou um admin desbloquear (decisão do dono, 28/10/2026).
  *
  * <p>Para quem não é membro, um servidor que existe e um que não existe são iguais ({@link Motivo#NAO_EXISTE}): o
  * endereço de um servidor não revela nada a quem não foi convidado.
@@ -69,6 +70,7 @@ public class Servidores {
         SEM_PERMISSAO(HttpStatus.FORBIDDEN, "sem-permissao"),
         MEMBRO_NAO_EXISTE(HttpStatus.NOT_FOUND, "membro-nao-existe"),
         CONVITE_INVALIDO(HttpStatus.NOT_FOUND, "convite-invalido"),
+        BLOQUEADO(HttpStatus.FORBIDDEN, "bloqueado"),
         NOME_INVALIDO(HttpStatus.BAD_REQUEST, "nome-invalido"),
         ICONE_INVALIDO(HttpStatus.BAD_REQUEST, "icone-invalido"),
         PEDIDO_INVALIDO(HttpStatus.BAD_REQUEST, "pedido-invalido"),
@@ -108,6 +110,9 @@ public class Servidores {
 
     /** {@code usosMaximos} e {@code expiraEm} null: sem limite. {@code criadoPor}: o nome, ou null (a conta saiu). */
     public record Convite(String codigo, Instant expiraEm, Integer usosMaximos, int usos, String criadoPor) {}
+
+    /** Quem foi expulso e não volta por convite. {@code porQuem}: o nome, ou null (a conta saiu). */
+    public record Bloqueado(UUID conta, String nome, String foto, Instant desde, String porQuem) {}
 
     /** O que quem recebe um convite vê antes de aceitar (sem entrar, e mesmo sem conta). */
     public record PreviaDoConvite(String nome, String icone, int membros) {}
@@ -278,7 +283,10 @@ public class Servidores {
         });
     }
 
-    /** Tira alguém do servidor: o dono tira qualquer um; o admin, só membros. */
+    /**
+     * Tira alguém do servidor e o bloqueia: o dono tira qualquer um; o admin, só membros. Sem o bloqueio, um convite sem
+     * limite de usos traria a pessoa de volta na hora.
+     */
     public void expulsar(String codigo, UUID usuario, UUID alvo) {
         transacao.executeWithoutResult(estado -> {
             Acesso acesso = acesso(codigo, usuario, true);
@@ -286,7 +294,38 @@ public class Servidores {
             Papel doAlvo = papelDe(acesso.id(), alvo);
             exigir(acesso.papel() == Papel.DONO || (acesso.papel() == Papel.ADMIN && doAlvo == Papel.MEMBRO));
             tirar(acesso.id(), alvo);
+            banco.sql("""
+                    insert into bloqueios (servidor_id, usuario_id, bloqueado_por) values (:s, :alvo, :u)
+                    on conflict do nothing""")
+                    .param("s", acesso.id()).param("alvo", alvo).param("u", usuario).update();
         });
+    }
+
+    /** Quem está bloqueado (dono e admin), dos mais recentes para os mais antigos. */
+    public List<Bloqueado> bloqueados(String codigo, UUID usuario) {
+        Acesso acesso = acesso(codigo, usuario, false);
+        exigir(acesso.papel() != Papel.MEMBRO);
+        return banco.sql("""
+                select u.id, u.nome, u.foto is not null as tem_foto, u.foto_versao, b.bloqueado_em, q.nome as por
+                from bloqueios b join usuarios u on u.id = b.usuario_id left join usuarios q on q.id = b.bloqueado_por
+                where b.servidor_id = :s
+                order by b.bloqueado_em desc, u.id""")
+                .param("s", acesso.id())
+                .query((linha, n) -> {
+                    UUID id = linha.getObject("id", UUID.class);
+                    return new Bloqueado(id, linha.getString("nome"),
+                            ContaApi.enderecoDaFoto(id, linha.getBoolean("tem_foto"), linha.getInt("foto_versao")),
+                            linha.getTimestamp("bloqueado_em").toInstant(), linha.getString("por"));
+                })
+                .list();
+    }
+
+    /** Desfaz o bloqueio (dono e admin): a pessoa pode voltar por um convite. */
+    public void desbloquear(String codigo, UUID usuario, UUID alvo) {
+        Acesso acesso = acesso(codigo, usuario, false);
+        exigir(acesso.papel() != Papel.MEMBRO);
+        banco.sql("delete from bloqueios where servidor_id = :s and usuario_id = :alvo")
+                .param("s", acesso.id()).param("alvo", alvo).update();
     }
 
     /** A pessoa sai do servidor. O dono não sai: passa a posse ou apaga antes. */
@@ -398,6 +437,11 @@ public class Servidores {
             }
             if (!achado.vale()) {
                 throw new Recusa(Motivo.CONVITE_INVALIDO);
+            }
+            boolean bloqueado = banco.sql("select count(*) from bloqueios where servidor_id = :s and usuario_id = :u")
+                    .param("s", achado.servidor()).param("u", usuario).query(Integer.class).single() > 0;
+            if (bloqueado) {
+                throw new Recusa(Motivo.BLOQUEADO);
             }
             if (quantosParticipa(usuario) >= MEMBRO_DE_NO_MAXIMO) {
                 throw new Recusa(Motivo.MEMBRO_DE_DEMAIS);

@@ -194,6 +194,33 @@ public class ServidoresApi {
         });
     }
 
+    /** Quem foi expulso e não volta por convite (dono e admin). */
+    @GetMapping("/api/servidores/{codigo}/bloqueados")
+    public ResponseEntity<?> bloqueados(@PathVariable String codigo, HttpServletRequest pedido) {
+        return comConta(pedido, usuario -> Map.of("bloqueados", servidores.bloqueados(codigo, usuario).stream().map(bloqueado -> {
+            Map<String, Object> json = new LinkedHashMap<>();
+            json.put("conta", bloqueado.conta().toString());
+            json.put("nome", bloqueado.nome());
+            json.put("foto", bloqueado.foto());
+            json.put("desde", bloqueado.desde().toString());
+            json.put("porQuem", bloqueado.porQuem());
+            return json;
+        }).toList()));
+    }
+
+    /** Desbloqueia (dono e admin): a pessoa pode voltar por um convite. */
+    @DeleteMapping("/api/servidores/{codigo}/bloqueados/{conta}")
+    public ResponseEntity<?> desbloquear(@PathVariable String codigo, @PathVariable String conta, HttpServletRequest pedido) {
+        Optional<UUID> alvo = uuid(conta);
+        if (alvo.isEmpty()) {
+            return ContaApi.erro(HttpStatus.BAD_REQUEST, Servidores.Motivo.PEDIDO_INVALIDO.texto);
+        }
+        return comConta(pedido, usuario -> {
+            servidores.desbloquear(codigo, usuario, alvo.get());
+            return null;
+        });
+    }
+
     @GetMapping("/api/servidores/{codigo}/convites")
     public ResponseEntity<?> convites(@PathVariable String codigo, HttpServletRequest pedido) {
         return comConta(pedido, usuario -> Map.of("convites", servidores.convites(codigo, usuario).stream().map(convite -> {

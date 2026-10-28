@@ -58,7 +58,7 @@ class ServidoresTest extends ComBanco {
     @Test
     void osPapeisDecidemQuemPodeOQue() {
         UUID ana = conta("Ana"), beto = conta("Beto"), caio = conta("Caio"), dani = conta("Dani"), estranho = conta("Estranho");
-        String codigo = servidores.criar(ana, "  Os Amigos‮ ");
+        String codigo = servidores.criar(ana, "  Os Amigos\u202E ");
         for (UUID quem : new UUID[] {beto, caio, dani}) {
             servidores.aceitar(servidores.convidar(codigo, ana, null, null), quem);
         }
@@ -76,6 +76,12 @@ class ServidoresTest extends ComBanco {
         assertThat(servidores.renomear(codigo, beto, "Nome do Admin")).isEqualTo("Nome do Admin");
         servidores.expulsar(codigo, beto, caio);
         assertThat(servidores.papel(codigo, caio)).isEmpty();
+        // Expulso fica bloqueado: nem um convite novo o traz de volta, até um admin desbloquear.
+        String convite = servidores.convidar(codigo, beto, null, null);
+        recusado(Motivo.BLOQUEADO, () -> servidores.aceitar(convite, caio));
+        assertThat(servidores.bloqueados(codigo, dani)).singleElement().satisfies(b -> assertThat(b.porQuem()).isEqualTo("Beto"));
+        servidores.desbloquear(codigo, dani, caio);
+        assertThat(servidores.aceitar(convite, caio)).isEqualTo(codigo);
 
         servidores.passarPosse(codigo, ana, beto);
         assertThat(servidores.papel(codigo, beto)).contains(Papel.DONO);

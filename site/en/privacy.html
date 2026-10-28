@@ -89,7 +89,7 @@
           <ul>
             <li>your IP address and technical connection data, needed to deliver the service;</li>
 <li>with an account: the date it was created and when it was last used, and the session that keeps you signed in (a random code on your device, of which Ozamigos keeps only a digest, with the dates it was created and used). Your IP address is not stored with the account;</li>
-            <li>with an account, the servers you create or belong to: the server's name and icon, who is a member and with which role (owner, admin or member), since when, and the invites (who created them, when they expire and how many times they were used);</li>
+            <li>with an account, the servers you create or belong to: the server's name and icon, who is a member and with which role (owner, admin or member), since when, the invites (who created them, when they expire and how many times they were used) and who was blocked after being removed (by whom and when);</li>
             <li>technical operation logs, with a random connection identifier, the name you use in the room, the room code, timestamps, the account identifier when you sign in with one, and how much of the backup connection you used (voice and video), without passwords or conversation content. When an address is blocked for too many wrong passwords, its IP is logged as well;</li>
             <li>video and channel links sent in the chat (YouTube, Twitch, Kick, TikTok, Streamable and Medal): the Ozamigos server fetches the title and preview image from the site and sends them to the room. The server does the fetching, with none of your data; nobody in the room accesses the site just by receiving the link;</li>
             <li>technical stream quality measurements, only when someone in the room records the room's statistics for diagnostics. In that case, the app notifies everyone in the room, and the measurements go to whoever is recording, together with the name shown in the room.</li>
@@ -132,7 +132,7 @@
             <li>IP address of someone who enters a wrong password: 5 minutes, in memory.</li>
             <li>Created groups (the name and the password digest): in memory, until the server restarts (or earlier, if the server fills up with groups and an empty group makes room for another). The IP address of someone who creates a group stays in memory for 10 minutes, to limit how many groups each person creates.</li>
             <li>Account (the Google or Discord identifier, the name, the picture and the dates): until you delete the account.</li>
-            <li>Servers (name, icon, members and invites): until the owner deletes the server. Your place in a server: until you leave, are removed or delete your account. Servers you own pass to another member when you delete your account, and those that would be left empty are deleted.</li>
+            <li>Servers (name, icon, members, invites and blocks): until the owner deletes the server; a block, until the owner or an admin lifts it. Your place in a server: until you leave, are removed or delete your account. Servers you own pass to another member when you delete your account, and those that would be left empty are deleted.</li>
 <li>Sign-in session: until you sign out, or after 60 days without use.</li>
 <li>IP address and account identifier of someone who gets access to the relay: up to 2 days, in memory, to limit how much each person uses.</li>
             <li>Video links and their previews: up to 1 hour, in memory, so the same link isn't fetched again.</li>

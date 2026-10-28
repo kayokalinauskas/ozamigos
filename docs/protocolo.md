@@ -74,11 +74,13 @@ Erros da API: `{erro: <motivo>}`, com 401 `sem-conta`, 503 `contas-indisponiveis
 | `GET /api/servidores/{codigo}/icone?v=<versão>` | todos | O ícone (JPEG), com cache de um ano |
 | `POST /api/servidores/{codigo}/dono` | dono | `{para: <conta>}`: passa a posse; quem era dono vira admin |
 | `PATCH /api/servidores/{codigo}/membros/{conta}` | dono | `{papel: "admin" \| "membro"}` |
-| `DELETE /api/servidores/{codigo}/membros/{conta}` | todos, dono, admin | A própria conta: sair (o dono não sai, 409 `dono-nao-sai`). Outra: expulsar (o admin só tira membros), e ela sai da sala com `expulso` |
+| `DELETE /api/servidores/{codigo}/membros/{conta}` | todos, dono, admin | A própria conta: sair (o dono não sai, 409 `dono-nao-sai`). Outra: expulsar (o admin só tira membros), e ela sai da sala com `expulso` e fica bloqueada |
+| `GET /api/servidores/{codigo}/bloqueados` | dono, admin | `{bloqueados: [{conta, nome, foto, desde, porQuem}]}`: quem foi expulso e não volta por convite |
+| `DELETE /api/servidores/{codigo}/bloqueados/{conta}` | dono, admin | Desbloqueia: a pessoa pode voltar por um convite |
 | `GET /api/servidores/{codigo}/convites` | dono, admin | `{convites: [{codigo, expiraEm, usosMaximos, usos, criadoPor}]}`, só os que ainda valem |
 | `POST /api/servidores/{codigo}/convites` | dono, admin, membros (se `membrosConvidam`) | `{horas?, usos?}` (até 720 horas e 100 usos; sem eles, sem limite) → `{codigo}`. Até 20 ativos por servidor |
 | `DELETE /api/servidores/{codigo}/convites/{convite}` | dono, admin | O link deixa de valer |
 | `GET /api/convites/{convite}` | todos | A prévia: `{nome, icone, membros}`, ou 404 `convite-invalido` (não existe, venceu ou gastou os usos) |
-| `POST /api/convites/{convite}` | — | Aceita: vira membro → `{servidor: <codigo>}`. Quem já é membro só recebe o código, mesmo com o convite gasto |
+| `POST /api/convites/{convite}` | — | Aceita: vira membro → `{servidor: <codigo>}`. Quem já é membro só recebe o código, mesmo com o convite gasto; quem foi expulso recebe 403 `bloqueado` |
 
-As páginas `/s/<codigo>` (o servidor) e `/c/<convite>` (o convite) abrem a interface. Erros a mais: 403 `sem-permissao`, 404 `servidor-nao-existe`, `membro-nao-existe` e `convite-invalido`, 400 `nome-invalido`, `icone-invalido`, `pedido-invalido` e `confirme`, 409 `dono-nao-sai`, `servidores-demais`, `participa-demais`, `membros-demais` e `convites-demais`. A prévia e o aceite de convites têm um freio de 30 a cada 10 minutos por endereço.
+As páginas `/s/<codigo>` (o servidor) e `/c/<convite>` (o convite) abrem a interface. Erros a mais: 403 `sem-permissao` e `bloqueado`, 404 `servidor-nao-existe`, `membro-nao-existe` e `convite-invalido`, 400 `nome-invalido`, `icone-invalido`, `pedido-invalido` e `confirme`, 409 `dono-nao-sai`, `servidores-demais`, `participa-demais`, `membros-demais` e `convites-demais`. A prévia e o aceite de convites têm um freio de 30 a cada 10 minutos por endereço.

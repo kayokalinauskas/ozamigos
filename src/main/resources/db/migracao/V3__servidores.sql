@@ -36,3 +36,12 @@ create table convites (
     usos integer not null default 0
 );
 create index convites_por_servidor on convites (servidor_id);
+
+-- Quem foi expulso não volta por convite nenhum até o dono ou um admin desfazer (decisão do dono, 28/10/2026).
+create table bloqueios (
+    servidor_id uuid not null references servidores (id) on delete cascade,
+    usuario_id uuid not null references usuarios (id) on delete cascade,
+    bloqueado_por uuid references usuarios (id) on delete set null,
+    bloqueado_em timestamptz not null default now(),
+    primary key (servidor_id, usuario_id)
+);

@@ -223,6 +223,8 @@ convites   (codigo text, servidor_id, criado_por, expira_em null, usos_maximos n
 - Decidido na implementação (28/10/2026): o dono é o membro de papel `dono` (sem coluna própria); renomear e trocar o
   ícone são do dono e dos admins; apagar a conta passa o servidor ao admin mais antigo, **senão ao membro mais antigo**
   (some só se ficar vazio); um convite gasto ainda leva ao servidor quem já é membro.
+- **Expulsar também bloqueia** (decisão do dono, 28/10/2026): quem foi expulso não volta por convite nenhum até o dono ou
+  um admin desbloquear, numa lista de bloqueados nas configurações do servidor.
 
 ### Entrada
 
