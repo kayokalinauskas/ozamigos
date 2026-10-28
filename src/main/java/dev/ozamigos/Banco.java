@@ -15,8 +15,8 @@ import com.zaxxer.hikari.HikariDataSource;
 
 /**
  * O banco (PostgreSQL), para contas e servidores salvos (docs/plano-contas.md). <b>Opcional</b>, como a retransmissão:
- * sem OZAMIGOS_BANCO_URL, o servidor sobe como antes, sem nada do que depende dele. O grupo fixo, os grupos criados na
- * hora e os convidados nunca dependem do banco.
+ * sem OZAMIGOS_BANCO_URL, o servidor sobe, sem nada do que depende dele (e, desde 28/10/2026, sem salas: elas são as
+ * dos servidores salvos, no banco).
  *
  * <p>A fonte de dados é montada aqui, e não pelo Spring (o DataSourceAutoConfiguration fica de fora, em
  * application.properties): sem a URL, ele recusaria subir. O pool não testa a conexão ao nascer
@@ -31,6 +31,13 @@ import com.zaxxer.hikari.HikariDataSource;
 public class Banco {
 
     static final int CONEXOES = 5;
+    /**
+     * As tabelas do Ozamigos ficam num esquema só delas, criado pelas migrações (VidaDoBanco). O {@code public} é do
+     * provedor: o Supabase põe coisas suas lá (a função do RLS automático), e o Flyway recusava um esquema que não estava
+     * vazio nem era dele (o primeiro deploy das contas, 27/10/2026). As consultas usam nomes sem esquema: a conexão já
+     * nasce com ele no search_path.
+     */
+    static final String ESQUEMA = "ozamigos";
 
     @Bean(destroyMethod = "close")
     HikariDataSource fonteDoBanco(@Value("${ozamigos.banco.url}") String url,
@@ -40,9 +47,10 @@ public class Banco {
         fonte.setJdbcUrl(url);
         if (StringUtils.hasText(usuario)) fonte.setUsername(usuario);
         if (StringUtils.hasText(senha)) fonte.setPassword(senha);
+        fonte.setSchema(ESQUEMA);
         fonte.setMaximumPoolSize(CONEXOES);
         fonte.setMinimumIdle(1);
-        // Curto: com o banco fora, quem tem conta espera isso uma vez e entra como convidado (Contas.bancoFalhou).
+        // Curto: com o banco fora, quem entra espera isso uma vez, e o banco fica de fora por um tempo (Contas.bancoFalhou).
         fonte.setConnectionTimeout(Duration.ofSeconds(3).toMillis());
         fonte.setInitializationFailTimeout(-1);
         return fonte;

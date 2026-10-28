@@ -13,7 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 // RANDOM_PORT sobe o Tomcat de verdade, que é quem fornece o suporte a WebSocket.
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT, properties = "ozamigos.senha=teste")
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class OzamigosShareApplicationTests {
 
     @LocalServerPort
@@ -30,11 +30,15 @@ class OzamigosShareApplicationTests {
     }
 
     @Test
-    void oEnderecoDeUmGrupoAbreAInterfaceSemTomarOsCaminhosDoServidor() throws Exception {
-        assertThat(new PaginaDoGrupo().grupo("amigos-do-kayo")).isEqualTo("forward:/index.html");
-        assertThat(new PaginaDoGrupo().grupo("ozamigos")).isEqualTo("forward:/index.html"); // o grupo fixo, sala única
-        assertThat(get("/privacidade").statusCode()).isEqualTo(404);
-        // O WebSocket continua sendo do WebSocket (sem o pedido de upgrade, ele recusa), não da página do grupo.
+    void osLinksDeAntesLevamAEntradaSemTomarOsCaminhosDoServidor() throws Exception {
+        // O grupo fixo e os grupos com senha saíram (28/10/2026): o link antigo leva à entrada, e não a um erro.
+        for (String antigo : new String[] {"/ozamigos", "/amigos-do-kayo"}) {
+            HttpResponse<String> resposta = get(antigo);
+            assertThat(resposta.statusCode()).isEqualTo(302);
+            assertThat(resposta.headers().firstValue("Location").orElseThrow()).endsWith("/");
+        }
+        assertThat(new PaginasDoApp().servidorOuConvite("AbCdEfGh23")).isEqualTo("forward:/index.html");
+        // O WebSocket continua sendo do WebSocket (sem o pedido de upgrade, ele recusa), não um link antigo.
         assertThat(get("/sinal").statusCode()).isEqualTo(400);
     }
 
@@ -43,7 +47,7 @@ class OzamigosShareApplicationTests {
         HttpResponse<String> eu = get("/api/eu");
 
         assertThat(eu.statusCode()).isEqualTo(200);
-        assertThat(eu.body()).isEqualTo("{\"login\":[],\"conta\":null}");
+        assertThat(eu.body()).isEqualTo("{\"login\":[],\"conta\":null,\"indisponivel\":false}"); // sem banco, não é "indisponível": não há o que esperar
         assertThat(eu.headers().firstValue("Cache-Control").orElseThrow()).contains("no-store");
     }
 

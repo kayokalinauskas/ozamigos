@@ -26,7 +26,7 @@ public class Salas {
     public static final int LIMITE_POR_SALA = 8;
 
     /**
-     * A conta de quem entrou com uma (null: convidado): o id, que a página usa para reconhecer a pessoa (volume, volta
+     * A conta de quem entrou (todos, desde 28/10/2026): o id, que a página usa para reconhecer a pessoa (volume, volta
      * depois de uma queda), e o endereço da foto, ou null sem foto.
      */
     public record Conta(String id, String foto) {}
@@ -213,6 +213,33 @@ public class Salas {
     public synchronized WebSocketSession sessao(String codigo, String id) {
         Sala sala = salas.get(codigo);
         return sala == null ? null : sala.participantes.get(id);
+    }
+
+    /** As conexões de uma conta na sala (às vezes mais de uma: o app e o navegador); com {@code conta} null, todas. */
+    public synchronized List<WebSocketSession> daConta(String codigo, String conta) {
+        Sala sala = salas.get(codigo);
+        if (sala == null) {
+            return List.of();
+        }
+        List<WebSocketSession> achadas = new ArrayList<>();
+        sala.participantes.forEach((id, sessao) -> {
+            Conta dela = sala.contas.get(id);
+            if (conta == null || (dela != null && dela.id().equals(conta))) {
+                achadas.add(sessao);
+            }
+        });
+        return achadas;
+    }
+
+    /** As salas, de chave começando por {@code prefixo}, em que uma conta está. */
+    public synchronized List<String> salasDaConta(String conta, String prefixo) {
+        List<String> achadas = new ArrayList<>();
+        salas.forEach((codigo, sala) -> {
+            if (codigo.startsWith(prefixo) && sala.contas.values().stream().anyMatch(dela -> dela.id().equals(conta))) {
+                achadas.add(codigo);
+            }
+        });
+        return achadas;
     }
 
     /** Todo mundo da sala, inclusive quem pediu. */

@@ -1,7 +1,8 @@
-// Gera as telas e o GIF do README: cinco amigos fictícios numa sala do servidor local (porta 8090,
-// senha "teste"), cada um com um "jogo" desenhado por código (jogo-falso.js) e um microfone falso.
-// Na voz, a Ana está falando (anel verde) e o Caio está com o microfone desligado.
-// Uso, a partir da raiz do repositório, com o servidor rodando e o ffmpeg no PATH:
+// Gera as telas e o GIF do README: cinco amigos fictícios, cada um com a sua conta (o login de teste), no servidor
+// salvo "Ozamigos" do servidor local (porta 8090), cada um com um "jogo" desenhado por código (jogo-falso.js) e um
+// microfone falso. Na voz, a Ana está falando (anel verde) e o Caio está com o microfone desligado.
+// Uso, a partir da raiz do repositório, com o servidor, o banco e o login de teste rodando (docker compose up --build)
+// e o ffmpeg no PATH:
 //   desktop\node_modules\.bin\electron docs\vitrine\captura.js
 // As imagens saem em docs/imagens. Depois, para o logo e a prévia de link: desktop\node_modules\.bin\electron docs\vitrine\marca.js
 const { app, BrowserWindow, session } = require('electron');
@@ -13,7 +14,8 @@ const path = require('node:path');
 const AQUI = __dirname;
 const SAIDA = path.join(AQUI, '..', 'imagens');
 const QUADROS = path.join(os.tmpdir(), 'ozamigos-quadros');
-const SALA = `${process.env.OZAMIGOS_SERVIDOR ?? 'http://localhost:8090'}/?sala=Ozamigos26`;
+const BASE = process.env.OZAMIGOS_SERVIDOR ?? 'http://localhost:8090';
+const ICONE = path.join(AQUI, '..', '..', 'site', 'imagens', 'icone-180.png');
 
 // O microfone falso de todos toca um zumbido grave. A sensibilidade automática não o confunde com voz, então só
 // abre o microfone de quem tem a sensibilidade manual no mínimo (a Ana): é ela que aparece falando.
@@ -55,11 +57,20 @@ const CURSOR = `(() => {
   };
 })()`;
 
+let pessoas = 0;
+// Endereços novos a cada rodada: o teto de contas novas por endereço (5 por hora) seguraria a segunda rodada.
+const RODADA = Math.floor(Math.random() * 250);
+
 function janela(nome, largura, altura) {
   const sessao = session.fromPartition('demo-' + nome + '-' + Date.now());
   // Nada de notificação de verdade na área de trabalho de quem roda o script.
   sessao.setPermissionRequestHandler((_wc, permissao, ok) => ok(permissao !== 'notifications'));
   sessao.setPermissionCheckHandler((_wc, permissao) => permissao !== 'notifications');
+  // Cada amigo vem de um endereço próprio (o CF-Connecting-IP, como os e2e): senão, os freios por endereço (contas
+  // novas, logins) seguram a bancada, que roda todos no mesmo PC.
+  const endereco = `198.18.${RODADA}.${++pessoas}`;
+  sessao.webRequest.onBeforeSendHeaders((pedido, responder) =>
+    responder({ requestHeaders: { ...pedido.requestHeaders, 'CF-Connecting-IP': endereco } }));
   const w = new BrowserWindow({
     width: largura,
     height: altura,
@@ -74,33 +85,69 @@ function janela(nome, largura, altura) {
 
 const js = (w, codigo) => w.webContents.executeJavaScript(`(async () => { ${codigo} })()`, true);
 
-async function abrir(w, ajustesDeVoz) {
+async function carregar(w, endereco) {
   for (let tentativa = 1; ; tentativa++) {
     try {
-      await w.loadURL(SALA);
-      if (ajustesDeVoz) {
-        // Os ajustes de voz são lidos quando a página abre: grava e abre de novo.
-        await w.webContents.executeJavaScript(`localStorage.setItem('ozamigos-voz', ${JSON.stringify(JSON.stringify(ajustesDeVoz))})`);
-        await w.loadURL(SALA);
-      }
-      break;
+      await w.loadURL(endereco);
+      return;
     } catch (erro) {
       console.log('carregar falhou, tentativa', tentativa, erro.code);
       if (tentativa === 4) throw erro;
       await espera(700);
     }
   }
-  await w.webContents.executeJavaScript(JOGO);
 }
 
-async function entrar(w, nome) {
+/**
+ * Entra com a conta no login de teste (o mock-oauth2-server no lugar do Google): o nome na sala é o given_name. Os
+ * ajustes de voz são lidos quando a página da sala abre: ficam gravados antes dela.
+ */
+async function entrarNaConta(w, nome, ajustesDeVoz) {
+  await carregar(w, `${BASE}/conta/entrar/google?voltar=/`);
+  const voltou = new Promise((r) => w.webContents.once('did-finish-load', r));
   await js(w, `
-    const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-    const [n, p] = document.querySelectorAll('.cartao-entrada input');
-    s.call(n, ${JSON.stringify(nome)}); n.dispatchEvent(new Event('input', { bubbles: true }));
-    s.call(p, 'teste'); p.dispatchEvent(new Event('input', { bubbles: true }));
-    await new Promise((r) => setTimeout(r, 80));
-    document.querySelector('.cartao-entrada button[type=submit]').click();
+    document.querySelector('input[name=username]').value = ${JSON.stringify(`${nome.toLowerCase()}-${Date.now()}`)};
+    document.querySelector('textarea[name=claims]').value = ${JSON.stringify(JSON.stringify({ given_name: nome }))};
+    [...document.querySelectorAll('button, input[type=submit]')].find((b) => /sign-in/i.test(b.textContent || b.value)).click();`);
+  await voltou;
+  if (!w.webContents.getURL().startsWith(BASE)) throw new Error(`o login de ${nome} não voltou: ${w.webContents.getURL()}`);
+  if (ajustesDeVoz) await js(w, `localStorage.setItem('ozamigos-voz', ${JSON.stringify(JSON.stringify(ajustesDeVoz))})`);
+}
+
+/** Uma ação da API pela página (o cookie da sessão e o Origin são os dela). */
+const api = (w, metodo, caminho, corpo) => js(w, `
+  const r = await fetch(${JSON.stringify(caminho)}, { method: ${JSON.stringify(metodo)}, headers: { 'Content-Type': 'application/json' },
+    body: ${corpo === undefined ? 'undefined' : JSON.stringify(JSON.stringify(corpo))} });
+  if (!r.ok) throw new Error(${JSON.stringify(`${metodo} ${caminho}: `)} + r.status);
+  const t = await r.text();
+  return t ? JSON.parse(t) : null;`);
+
+/** O servidor salvo da bancada, criado pela Ana com o ícone do Ozamigos, e o convite que os outros aceitam. */
+async function criarServidor(w) {
+  const { codigo } = await api(w, 'POST', '/api/servidores', { nome: 'Ozamigos' });
+  const icone = fs.readFileSync(ICONE).toString('base64');
+  await js(w, `
+    const bytes = Uint8Array.from(atob(${JSON.stringify(icone)}), (c) => c.charCodeAt(0));
+    const r = await fetch('/api/servidores/${codigo}/icone', { method: 'PUT', body: new Blob([bytes], { type: 'image/png' }) });
+    if (!r.ok) throw new Error('ícone: ' + r.status);`);
+  const convite = (await api(w, 'POST', `/api/servidores/${codigo}/convites`, { horas: null, usos: null })).codigo;
+  return { codigo, convite };
+}
+
+/** Abre a página do servidor e entra na sala dele, com o "jogo" já preparado. */
+async function entrarNaSala(w, servidor) {
+  await carregar(w, `${BASE}/s/${servidor.codigo}`);
+  await w.webContents.executeJavaScript(JOGO);
+  await js(w, `
+    for (let i = 0; i < 50; i++) {
+      // O botão nasce desligado, até a página ler o servidor: o clique só vale nele ligado.
+      const b = [...document.querySelectorAll('button')].find((e) => e.textContent.includes('Entrar no servidor') && !e.disabled);
+      if (b) { b.click(); break; }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    // Na sala quando aparece o botão de transmitir (até 15 s: com o PC ocupado, a voz demora a ligar).
+    for (let i = 0; i < 150 && !document.querySelector('.menu-transmitir'); i++) await new Promise((r) => setTimeout(r, 100));
+    if (!document.querySelector('.menu-transmitir')) throw new Error('não entrou na sala: ' + location.href + ' ' + document.body.innerText.slice(0, 300));
     await new Promise((r) => setTimeout(r, 1200));`);
 }
 
@@ -157,12 +204,13 @@ async function arrastar(w, de, para, ms = 900) {
   w.webContents.sendInputEvent({ type: 'mouseUp', x: para.x, y: para.y, button: 'left', clickCount: 1 });
 }
 
-// A bancada roda cinco PCs num só e às vezes engasga: a foto espera todas as transmissões saudáveis (até 1 min).
+// A bancada roda cinco PCs num só e às vezes engasga: a foto espera todas as transmissões saudáveis (até 1,5 min). Os
+// engasgos são curtos e não acontecem juntos: conferindo a cada 200 ms, a foto pega um instante em que nenhuma travou.
 async function esperarSaude(w) {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 450; i++) {
     const ok = await js(w, `const s = [...document.querySelectorAll('.saude')].map((e) => e.textContent); return s.length > 0 && s.every((t) => !t.includes('instável') && +(t.match(/(\\d+) fps/) || [0, 0])[1] >= 24);`);
     if (ok) return;
-    await espera(1000);
+    await espera(200);
   }
   console.log('aviso: as transmissões não ficaram todas saudáveis; foto assim mesmo');
 }
@@ -210,45 +258,44 @@ app.on('window-all-closed', () => {}); // sem isso, fechar a janela da entrada e
 app.whenReady().then(async () => {
   fs.mkdirSync(SAIDA, { recursive: true });
   try {
-    // 1. Tela de entrada, com o nome já preenchido.
-    const entrada = janela('entrada', 1440, 900);
-    await abrir(entrada);
-    await js(entrada, `
-      const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-      const [n, p] = document.querySelectorAll('.cartao-entrada input');
-      s.call(n, 'Duda'); n.dispatchEvent(new Event('input', { bubbles: true }));
-      s.call(p, 'senhadogrupo'); p.dispatchEvent(new Event('input', { bubbles: true }));
-      document.activeElement?.blur();`);
-    await espera(800);
-    await foto(entrada, 'entrada.png');
-    entrada.destroy();
-
-    // 2. Os amigos: Ana e Beto já transmitem; Caio está na sala, ainda sem transmitir.
+    // 1. As contas: a Ana cria o servidor "Ozamigos" e o convite, e os outros entram nele pelo convite.
     const ana = janela('ana', 960, 600);
     const beto = janela('beto', 960, 600);
     const caio = janela('caio', 960, 600);
     const eli = janela('eli', 960, 600);
-    for (const [w, nome] of [[ana, 'Ana'], [beto, 'Beto'], [caio, 'Caio'], [eli, 'Eli']]) {
-      w.webContents.setFrameRate(4); // ninguém fotografa essas janelas: menos trabalho para a placa de vídeo
+    const duda = janela('duda', 1440, 900); // a janela que vira GIF e prints
+    let servidor = null;
+    for (const [w, nome] of [[ana, 'Ana'], [beto, 'Beto'], [caio, 'Caio'], [eli, 'Eli'], [duda, 'Duda']]) {
       // Cinco capturas de microfone num PC só pesam: quem não é fotografado usa a voz no modo mais leve.
       const leve = { supressao: 'nenhuma', cancelarEco: false, ganhoAutomatico: false };
-      await abrir(w, nome === 'Ana' ? { ...leve, sensibilidadeAutomatica: false, limiarDb: -100 } : leve);
-      await entrar(w, nome);
+      await entrarNaConta(w, nome, nome === 'Duda' ? null : nome === 'Ana' ? { ...leve, sensibilidadeAutomatica: false, limiarDb: -100 } : leve);
+      if (servidor) await api(w, 'POST', `/api/convites/${servidor.convite}`);
+      else servidor = await criarServidor(w);
+    }
+
+    // 2. A entrada da Duda, logada, com o servidor na lista.
+    await carregar(duda, `${BASE}/`);
+    await espera(1500);
+    await foto(duda, 'entrada.png');
+
+    // 3. Os amigos na sala: Ana e Beto já transmitem; Caio está na sala, ainda sem transmitir.
+    for (const w of [ana, beto, caio, eli]) {
+      w.webContents.setFrameRate(4); // ninguém fotografa essas janelas: menos trabalho para a placa de vídeo
+      await entrarNaSala(w, servidor);
     }
     await js(caio, `document.querySelector('[aria-label="Desligar o microfone"]').click()`);
     await transmitir(ana, 'corrida');
     await transmitir(beto, 'espaco');
     await transmitir(eli, 'estrategia');
 
-    // 3. Duda, a janela que vira GIF e prints, em 1920x1080.
-    const duda = janela('duda', 1440, 810);
-    await abrir(duda);
-    await entrar(duda, 'Duda');
+    // 4. Duda, a janela que vira GIF e prints (depois em 1920x1080).
+    duda.setContentSize(1440, 810);
+    await entrarNaSala(duda, servidor);
     await duda.webContents.executeJavaScript(CURSOR);
     await assistirPeloCodigo(duda, 'Ana');
     await espera(4000);
 
-    // 4. GIF: Caio começa a transmitir, Duda assiste pelo aviso, assiste o Beto, baixa o volume dele e destaca o Caio.
+    // 5. GIF: Caio começa a transmitir, Duda assiste pelo aviso, assiste o Beto, baixa o volume dele e destaca o Caio.
     gravando = true;
     const gravacao = gravar(duda);
     await espera(600);
@@ -273,7 +320,7 @@ app.whenReady().then(async () => {
     await gravacao;
     gerarGif();
 
-    // 5. Prints: grade com as três transmissões, e destaque com as estatísticas abertas.
+    // 6. Prints: grade com as três transmissões, e destaque com as estatísticas abertas.
     duda.setContentSize(1920, 1080);
     await mover(duda, { x: 1890, y: 1060 }, 200);
     await duda.webContents.executeJavaScript(`window.__cursor(-200, -200)`);
@@ -292,7 +339,7 @@ app.whenReady().then(async () => {
     await esperarSaude(duda);
     await foto(duda, 'sala-destaque.png', 1600);
 
-    // 6. A engrenagem da voz, só a caixa, em 2x (para o site): sala em 1440x900, ampliada.
+    // 7. A engrenagem da voz, só a caixa, em 2x (para o site): sala em 1440x900, ampliada.
     await js(duda, `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('Estatísticas')).click();`);
     duda.setContentSize(2880, 1800);
     duda.webContents.setZoomFactor(2);

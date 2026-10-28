@@ -56,6 +56,7 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
     @Override
     public void onAuthenticationSuccess(HttpServletRequest pedido, HttpServletResponse resposta, Authentication autenticacao)
             throws IOException {
+        String endereco = Enderecos.de(pedido);
         Login.Pedido login = pedidoDoLogin(pedido);
         if (login == null) {
             // Não dá para saber se o login era do app (e para qual porta) ou do navegador: logar este navegador deixaria
@@ -64,7 +65,7 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
             return;
         }
         try {
-            concluir(resposta, login, (OAuth2AuthenticationToken) autenticacao);
+            concluir(resposta, login, (OAuth2AuthenticationToken) autenticacao, endereco);
         } catch (DataAccessException erro) {
             // O banco caiu no meio do login: a pessoa volta para a entrada com o aviso, em vez de uma página de erro.
             log.warn("Login: o banco não respondeu ({})", erro.getMostSpecificCause().getMessage());
@@ -72,7 +73,8 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
         }
     }
 
-    private void concluir(HttpServletResponse resposta, Login.Pedido login, OAuth2AuthenticationToken token) throws IOException {
+    private void concluir(HttpServletResponse resposta, Login.Pedido login, OAuth2AuthenticationToken token, String endereco)
+            throws IOException {
         String provedor = token.getAuthorizedClientRegistrationId();
         Perfil perfil = perfil(provedor, token.getPrincipal());
         if (perfil == null || !contas.disponivel()) {
@@ -80,6 +82,14 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
             return;
         }
 
+        if (login.ligarA() != null && login.portaDoApp() != null) {
+            // Pelo app, a ligação só vale depois que a página do app (com a sessão da conta) confirmar, com o código que
+            // vai para a porta dele: sem isso, quem pediu o código de ligação o mandaria num link, e quem o abrisse
+            // ligaria o próprio Discord à conta de quem mandou. Para outro PC, o código não chega a ninguém.
+            String codigo = codigos.criarConfirmacao(login.ligarA(), provedor, perfil.idExterno());
+            resposta.sendRedirect(Login.voltaDoApp(login.portaDoApp(), login.estado(), "codigo", codigo));
+            return;
+        }
         if (login.ligarA() != null) {
             String resultado = switch (contas.ligar(login.ligarA(), provedor, perfil.idExterno())) {
                 case LIGADA, JA_ERA_SUA -> null;
@@ -91,13 +101,17 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
                 return;
             }
             log.info("Conta {} ligou o {}", login.ligarA(), provedor);
-            resposta.sendRedirect(login.portaDoApp() != null
-                    ? Login.voltaDoApp(login.portaDoApp(), login.estado(), "ligou", provedor)
-                    : login.voltar());
+            resposta.sendRedirect(login.voltar());
             return;
         }
 
-        Contas.Entrada entrada = contas.entrar(provedor, perfil.idExterno(), perfil.nome());
+        Contas.Entrada entrada;
+        try {
+            entrada = contas.entrar(provedor, perfil.idExterno(), perfil.nome(), endereco);
+        } catch (Contas.NovasDemais e) {
+            falhar(resposta, login, "contas-novas-demais");
+            return;
+        }
         fotos.atualizar(entrada.id(), perfil.foto(), entrada.fotoOrigem());
         if (login.portaDoApp() != null) {
             log.info("Conta {} entrou pelo {} (app)", entrada.id(), provedor);

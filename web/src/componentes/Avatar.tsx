@@ -15,19 +15,20 @@ function iniciais(nome: string): string {
   return letras.toUpperCase();
 }
 
-type Props = { nome: string; foto?: string | null; tamanho?: number; aoVivo?: boolean; falando?: boolean };
+type Props = { nome: string; foto?: string | null; tamanho?: number; aoVivo?: boolean; falando?: boolean; quadrado?: boolean };
 
 /**
  * falando: o anel verde de quem está falando na voz (vale mais que o vermelho de ao vivo). foto: a da conta, servida
- * pelo próprio servidor (/api/fotos); sem ela, ou se não carregar, as iniciais.
+ * pelo próprio servidor (/api/fotos); sem ela, ou se não carregar, as iniciais. quadrado: o ícone de um servidor salvo.
  */
-export function Avatar({ nome, foto, tamanho = 36, aoVivo = false, falando = false }: Props) {
+export function Avatar({ nome, foto, tamanho = 36, aoVivo = false, falando = false, quadrado = false }: Props) {
   const [falhou, setFalhou] = useState<string | null>(null);
   const comFoto = Boolean(foto) && falhou !== foto;
   return (
     <span
-      className={['avatar', comFoto && 'com-foto', aoVivo && 'ao-vivo', falando && 'falando'].filter(Boolean).join(' ')}
-      style={{ width: tamanho, height: tamanho, background: corDe(nome), fontSize: tamanho * 0.38 }}
+      className={['avatar', quadrado && 'quadrado', comFoto && 'com-foto', aoVivo && 'ao-vivo', falando && 'falando'].filter(Boolean).join(' ')}
+      // Com foto, sem a cor das iniciais por trás: ela vazava na borda da imagem (o serrilhado do recorte).
+      style={{ width: tamanho, height: tamanho, background: comFoto ? undefined : corDe(nome), fontSize: tamanho * 0.38 }}
       aria-hidden="true"
     >
       {comFoto ? <img src={foto!} alt="" width={tamanho} height={tamanho} draggable={false} onError={() => setFalhou(foto!)} /> : iniciais(nome)}

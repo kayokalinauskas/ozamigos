@@ -32,8 +32,10 @@ Os relatórios saem em HTML (com gráficos), em Markdown (para colar numa IA) e 
 
 | Sintoma | Solução |
 |---|---|
-| O servidor não sobe: "Defina a senha do grupo…" | Defina a variável `OZAMIGOS_SENHA` |
+| A entrada fica em "Entrar com a conta não está disponível agora" | O banco não respondeu: a página tenta de novo sozinha. No servidor local, confira as variáveis `OZAMIGOS_BANCO_*` e o `docker compose up -d banco` |
+| A entrada não mostra os botões de login | Faltam `OZAMIGOS_GOOGLE_ID`/`_SEGREDO` ou `OZAMIGOS_DISCORD_ID`/`_SEGREDO` (no PC, o login de teste do README) |
 | `localhost:8080` dá 404 | Monte a interface: `npm install` e `npm run build` em `web/` |
+| "Muitas tentativas em pouco tempo" | Um freio contra abuso (logins, convites, ações da conta, pedidos por endereço): espere um minuto (ou alguns, nos logins) |
 | O app diz "Não foi possível abrir…" | Confira o endereço, espere um minuto e clique em **Conectar** |
 | Os amigos não me ouvem | Na engrenagem, escolha o microfone certo e use **Testar o microfone** |
 | O começo das palavras some | Ligue **Ajustar sozinho** na sensibilidade |

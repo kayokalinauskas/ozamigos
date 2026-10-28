@@ -16,7 +16,7 @@ import org.springframework.util.StringUtils;
 
 /**
  * O Google e o Discord, para o login (docs/plano-contas.md, fase 1). Cada um só existe com o id e o segredo do cliente
- * OAuth nas variáveis de ambiente; sem nenhum, não há login e todos entram como convidados, como antes.
+ * OAuth nas variáveis de ambiente; sem nenhum, não há login (e ninguém entra numa sala: elas pedem conta).
  *
  * <p>Os escopos pedem o mínimo: {@code openid profile} no Google e {@code identify} no Discord. <b>Nenhum dos dois traz o
  * e-mail</b>, de propósito: o Ozamigos não precisa dele.

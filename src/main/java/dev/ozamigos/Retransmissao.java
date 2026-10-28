@@ -40,7 +40,7 @@ import tools.jackson.databind.node.ArrayNode;
  *
  * <p>A Cloudflare dá 1.000 GB por mês e cobra o que passar (US$ 0,05/GB), não tem teto de gastos, e <b>o dono tem um
  * cartão cadastrado nela</b>: o teto é este. <b>Só quem entrou com conta recebe credenciais</b> (decisão do dono,
- * 27/10/2026; até então, qualquer pessoa numa sala): convidados conectam só direto. O abuso é contido assim:
+ * 27/10/2026; até então, qualquer pessoa numa sala; desde 28/10/2026, todos têm conta). O abuso é contido assim:
  * <ul>
  * <li>cada pessoa recebe <b>duas credenciais, uma para a voz e outra para o vídeo</b> ({@link Uso}; 26/10/2026, pedido
  * do dono): a Cloudflare mede cada uma, e quem gasta muito perde só o vídeo e continua conversando. A voz (com as

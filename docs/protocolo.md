@@ -6,7 +6,7 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 
 | `tipo` | Campos | Efeito |
 |---|---|---|
-| `entrar` | `sala`, `senha`, `nome`, `ficha` (opcional), `grupo` e `criar` (opcionais) | Confere a senha e entra na sala. Com conta (o cookie da sessão na abertura do WebSocket), o `nome` mandado é ignorado: vale o da conta. Na reconexão, a `ficha` recebida no `bem-vindo` anterior tira da sala a conexão antiga, se o servidor ainda não percebeu a queda. Com `grupo`, é um grupo criado na hora (`Grupos.java`): a senha é a dele, a sala é a única do grupo (`sala` vai vazia), e `criar: true` o cria se não existe (o cliente manda `criar` também ao reconectar, para o grupo voltar se o servidor reiniciou) |
+| `entrar` | `servidor` (o código), `ficha` (opcional) | Entra na sala de um servidor salvo (`Servidores.java`). Só com conta (o cookie da sessão, lido na abertura do WebSocket) e sendo membro: sem senha, e o nome é o da conta. Na reconexão, a `ficha` recebida no `bem-vindo` anterior tira da sala a conexão antiga, se o servidor ainda não percebeu a queda. Desde 28/10/2026, são as únicas salas: a senha, o grupo fixo, os grupos criados na hora e as salas por código saíram |
 | `comecei` / `parei` | — | Começa ou para de transmitir |
 | `assistir` / `deixar` | `para` | Entra ou sai da plateia de quem transmite |
 | `oferta` / `resposta` / `candidato` | `para`, `sdp` ou `candidato`, `canal` (`envio`, `recebimento` ou `voz`) | Repassado só ao destinatário, na mesma sala |
@@ -20,10 +20,10 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 
 | `tipo` | Campos | Quando |
 |---|---|---|
-| `bem-vindo` | `id`, `ficha`, `nome` (o nome com que entrou), `conta` e `foto` (com conta), `outros[]` (`id`, `nome`, `conta`?, `foto`?), `compartilhando[]`, `plateias{}`, `gravando` (`id`, `nome`, se alguém grava a sala), `retransmissao[]` e `retransmissaoDaVoz[]` (os `iceServers` do TURN para o vídeo e para a voz, se ligada e dentro dos limites; a página de antes usa a do vídeo para tudo), `limiteDoVideo` (`seu` ou `geral`, se o vídeo veio sem por um limite), `retransmissaoSoComConta` (convidado, com a retransmissão ligada: ela é só para quem tem conta) | Ao entrar. A `ficha` é secreta: só quem a recebeu pode usá-la para reconectar |
+| `bem-vindo` | `id`, `ficha`, `nome` (o nome com que entrou), `conta` e `foto`, `outros[]` (`id`, `nome`, `conta`?, `foto`?), `compartilhando[]`, `plateias{}`, `gravando` (`id`, `nome`, se alguém grava a sala), `retransmissao[]` e `retransmissaoDaVoz[]` (os `iceServers` do TURN para o vídeo e para a voz, se ligada e dentro dos limites; a página de antes usa a do vídeo para tudo), `limiteDoVideo` (`seu` ou `geral`, se o vídeo veio sem por um limite) | Ao entrar. A `ficha` é secreta: só quem a recebeu pode usá-la para reconectar |
 | `retransmissao` | `servidores[]` (vídeo), `voz[]`, `limiteDoVideo`? | As credenciais do TURN que valem agora: renovadas (a cada 6 h), dadas depois da entrada, ou a lista vazia de um uso cortado por um limite de consumo. `limiteDoVideo`: `seu` (esta pessoa passou do limite de vídeo do dia; a página avisa que foi o uso dela) ou `geral` (o total de todos) |
 | `pong` | — | Resposta ao `ping`. Sem nenhuma mensagem por 70 s, o cliente considera a conexão morta e reconecta |
-| `entrou` / `saiu` | `id` (e `nome`, `conta`?, `foto`?) | Alguém entrou ou saiu. `conta` é o id da conta (sem ele, convidado), o mesmo depois de uma reconexão; `foto`, o endereço da foto no servidor (`/api/fotos/<conta>?v=<versão>`) |
+| `entrou` / `saiu` | `id` (e `nome`, `conta`, `foto`?) | Alguém entrou ou saiu. `conta` é o id da conta, o mesmo depois de uma reconexão; `foto`, o endereço da foto no servidor (`/api/fotos/<conta>?v=<versão>`) |
 | `pode-compartilhar` | — | Confirma o `comecei` |
 | `compartilhando` / `parou` | `id` | Alguém começou ou parou de transmitir |
 | `plateia` | `id`, `ids[]` | Mudou quem assiste uma transmissão |
@@ -34,9 +34,9 @@ WebSocket em `/sinal`, com mensagens JSON que têm sempre o campo `tipo`. O serv
 | `chat` | `de`, `texto` | Uma mensagem do chat, para todos da sala (inclusive quem mandou, que assim sabe que chegou). O servidor não guarda nada: quem entra depois não vê as anteriores |
 | `previa` | `url`, `site`, `titulo`?, `autor`?, `miniatura`?, `aoVivo`? | A prévia do primeiro link de vídeo ou de canal de uma mensagem do chat (`aoVivo` num canal transmitindo agora), para todos da sala, logo depois da mensagem. O servidor busca no site e guarda na memória por 1 hora; a `miniatura` é um JPEG pequeno embutido (`data:`) |
 | `chamado` | `de` | Alguém chamou a sua atenção: a página toca um som mesmo com os sons desligados |
-| `erro` | `motivo` | `senha-errada`, `muitas-tentativas`, `sala-cheia`, `codigo-invalido`, `ja-esta-numa-sala`, `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `chat-rapido-demais`, `chamar-cedo-demais`, `mensagem-invalida`; dos grupos: `grupo-nao-existe`, `grupo-em-uso` (criar com um nome que existe, com outra senha), `grupo-invalido`, `senha-curta` (menos de 4 caracteres), `muitos-grupos` (3 criados pelo mesmo endereço em 10 minutos), `grupos-demais` (200 ao mesmo tempo, todos com gente dentro) |
+| `erro` | `motivo` | Na entrada: `sem-conta`, `servidor-nao-existe` (também para quem não é membro), `servidores-indisponiveis` (banco fora do ar), `sala-cheia`, `ja-esta-numa-sala`; já na sala: `expulso`, `servidor-apagado`, `fora-do-servidor` (saiu do servidor, ou apagou a conta, com a sala aberta); e `destinatario-nao-esta-na-sala`, `sala-ja-gravando`, `chat-rapido-demais`, `chamar-cedo-demais`, `mensagem-invalida`, `entre-numa-sala-primeiro`, `tipo-desconhecido` |
 
-Com `senha-errada`, `muitas-tentativas` (10 senhas erradas do mesmo endereço em 5 minutos), `sala-cheia` e as recusas dos grupos, o servidor fecha a conexão logo depois de avisar. A senha errada de um grupo (e o `grupo-em-uso`) contam no mesmo freio. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.
+Com as recusas da entrada e as que tiram da sala (`expulso`, `servidor-apagado`, `fora-do-servidor`), o servidor fecha a conexão logo depois de avisar. Um `entrar` do formato de antes (com `senha` e sem `servidor`, de uma página aberta antes de 28/10/2026) recebe `senha-errada`, a recusa que essa página conhece: ela volta para a entrada e para de tentar. Uma mensagem que não é um objeto JSON recebe `mensagem-invalida`, e a conexão continua.
 
 ## Contas (HTTP)
 
@@ -44,17 +44,47 @@ O login e a conta não passam pelo WebSocket: são páginas e uma API JSON no me
 
 | Caminho | Efeito |
 |---|---|
-| `GET /conta/entrar/{google\|discord}?voltar=/caminho` | Começa o login no navegador; no fim, ganha o cookie e volta para `voltar`. Erro: volta com `?erro-de-login=<motivo>` (`indisponivel`, `muitas-tentativas`, `recusado`, `pedido-invalido`) |
+| `GET /conta/entrar/{google\|discord}?voltar=/caminho` | Começa o login no navegador; no fim, ganha o cookie e volta para `voltar`. Erro: volta com `?erro-de-login=<motivo>` (`indisponivel`, `muitas-tentativas`, `recusado`, `pedido-invalido`, `contas-novas-demais`: o teto de contas novas por hora, por endereço ou no servidor todo) |
 | `GET /conta/entrar/{provedor}?app=<porta>&estado=<estado>` | O login do app pelo navegador do sistema (RFC 8252): no fim, o navegador vai para `http://127.0.0.1:<porta>/login?codigo=<código>&estado=<estado>` (ou `erro=<motivo>`) |
 | `GET /conta/ligar/{provedor}?voltar=/caminho` | Liga mais um provedor à conta logada. Erros a mais: `sem-conta`, `de-outra-pessoa`, `ja-tem-desse-provedor` |
-| `GET /conta/ligar/{provedor}?app=<porta>&estado=<estado>&ligacao=<código>` | O mesmo, no app: a sessão é da janela do app, e o navegador do sistema leva o código de ligação. No fim, `http://127.0.0.1:<porta>/login?ligou=<provedor>&estado=` |
+| `GET /conta/ligar/{provedor}?app=<porta>&estado=<estado>&ligacao=<código>` | O mesmo, no app: a sessão é da janela do app, e o navegador do sistema leva o código de ligação (só com `app`: sem ele, `pedido-invalido`). No fim, `http://127.0.0.1:<porta>/login?codigo=<confirmação>&estado=`, e **nada foi ligado ainda**: a página do app confirma (abaixo). Assim, um link com o código de ligação de outra pessoa não liga a conta de quem o abre |
 | `POST /api/eu/ligacao` | `{ligacao}`: o código de ligação (2 minutos, uma vez só; não vira sessão) |
-| `GET /api/eu` | `{login: ["google", "discord"], conta: {id, nome, foto, provedores[]} \| null}`. `login` vazio: sem banco ou sem provedores |
+| `POST /api/eu/ligacao/confirmar` | `{codigo}`: a página do app confirma a ligação com o código que chegou à porta dela, na sessão da mesma conta → `{ligou}`. Erros: 400 `codigo-invalido`, 409 `de-outra-pessoa`, `ja-tem-desse-provedor` |
+| `GET /api/eu` | `{login: ["google", "discord"], conta: {id, nome, foto, provedores[]} \| null}`. `login` vazio: sem banco ou sem provedores. `indisponivel: true`: o banco existe mas não está pronto (o servidor acordando, uma falha há pouco), e a página pergunta de novo. Com conta, devolve o cookie de novo: ele vence 60 dias depois do último uso, e não do login |
 | `PATCH /api/eu` | `{nome}` → o nome novo, limpo como o da sala |
 | `POST /api/eu/sair` | Encerra a sessão e apaga o cookie |
+| `POST /api/eu/sair-de-todos` | Encerra todas as sessões da conta e apaga o cookie; quem estava numa sala com ela sai (`sem-conta`) |
 | `DELETE /api/eu` | `{confirmar: true}`: apaga a conta e tudo dela, na hora |
 | `DELETE /api/eu/provedores/{provedor}` | Desliga um provedor; o último não sai (409 `ultima`) |
 | `POST /api/conta/codigo` | `{codigo}`: o app troca o código de uso único pela sessão, no cookie da janela dele (400 `codigo-invalido`) |
 | `GET /api/fotos/{conta}?v=<versão>` | A foto (JPEG de 128 px), com cache de um ano |
 
-Erros da API: `{erro: <motivo>}`, com 401 `sem-conta`, 503 `contas-indisponiveis`, 403 `origem`, 429 `muitas-tentativas`.
+Erros da API: `{erro: <motivo>}`, com 401 `sem-conta`, 503 `contas-indisponiveis`, 403 `origem`, 429 `muitas-tentativas`, 413 `grande-demais`, 400 `pedido-invalido` (corpo que não dá para ler).
+
+**Limites de todo pedido** (`LimitesDaApi`, antes de conferir a conta): corpo até 16 KB (o ícone de um servidor, até 2 MB), e até 300 pedidos à API (e aberturas do WebSocket) por minuto por endereço (429). As ações de cada conta (as que mudam algo em `/api/servidores/**`, o nome e o código de ligação) têm um freio de 30 por minuto, e trocar o ícone, de 10 a cada 10 minutos. O WebSocket aceita até 20 conexões abertas por endereço, e fecha a que não entra numa sala em 10 s.
+
+## Servidores salvos (HTTP)
+
+`ServidoresApi.java`, com as regras em `Servidores.java`. Tudo pede conta, menos a prévia de um convite e o ícone. Para quem não é membro, um servidor que existe dá o mesmo 404 de um que não existe. Papéis: `dono`, `admin`, `membro`.
+
+| Caminho | Quem | Efeito |
+|---|---|---|
+| `GET /api/servidores` | — | `{servidores: [{codigo, nome, icone, papel, membros}]}`, do que entrou por último para o primeiro |
+| `POST /api/servidores` | — | `{nome}` → `{codigo}`. Até 10 servidores como dono e 100 no total por pessoa |
+| `GET /api/servidores/{codigo}` | membros | `{codigo, nome, icone, papel, membrosConvidam, membros: [{conta, nome, foto, papel}]}` |
+| `PATCH /api/servidores/{codigo}` | dono, admin | `{nome?, membrosConvidam?}` (o segundo, só o dono) → o servidor |
+| `DELETE /api/servidores/{codigo}` | dono | `{confirmar: true}`: apaga com membros e convites; quem está na sala sai com `servidor-apagado` |
+| `PUT /api/servidores/{codigo}/icone` | dono, admin | A imagem no corpo (até 2 MB) → `{icone}`, já reduzida a 128 px. `DELETE` tira o ícone |
+| `GET /api/icones/{id}?v=<versão>` | todos | O ícone (JPEG), com cache de um ano. Pelo id interno do servidor, não pelo código: a prévia de um convite não revela o endereço |
+| `POST /api/servidores/{codigo}/dono` | dono | `{para: <conta>}`: passa a posse; quem era dono vira admin |
+| `PATCH /api/servidores/{codigo}/membros/{conta}` | dono | `{papel: "admin" \| "membro"}` |
+| `DELETE /api/servidores/{codigo}/membros/{conta}` | todos, dono, admin | A própria conta: sair (o dono não sai, 409 `dono-nao-sai`), e a sala aberta fecha com `fora-do-servidor`. Outra: expulsar (o admin só tira membros), e ela sai da sala com `expulso` e fica bloqueada |
+| `GET /api/servidores/{codigo}/bloqueados` | dono, admin | `{bloqueados: [{conta, nome, foto, desde, porQuem}]}`: quem foi expulso e não volta por convite |
+| `DELETE /api/servidores/{codigo}/bloqueados/{conta}` | dono, admin | Desbloqueia: a pessoa pode voltar por um convite |
+| `GET /api/servidores/{codigo}/convites` | dono, admin | `{convites: [{codigo, expiraEm, usosMaximos, usos, criadoPor}]}`, só os que ainda valem |
+| `POST /api/servidores/{codigo}/convites` | dono, admin, membros (se `membrosConvidam`) | `{horas?, usos?}` (até 720 horas e 100 usos; sem eles, sem limite) → `{codigo}`. Até 20 ativos por servidor |
+| `DELETE /api/servidores/{codigo}/convites/{convite}` | dono, admin | O link deixa de valer |
+| `GET /api/convites/{convite}` | todos | A prévia: `{nome, icone, membros}`, ou 404 `convite-invalido` (não existe, venceu ou gastou os usos) |
+| `POST /api/convites/{convite}` | — | Aceita: vira membro → `{servidor: <codigo>}`. Quem já é membro só recebe o código, mesmo com o convite gasto; quem foi expulso recebe 403 `bloqueado` |
+
+As páginas `/s/<codigo>` (o servidor) e `/c/<convite>` (o convite) abrem a interface. Erros a mais: 403 `sem-permissao` e `bloqueado`, 404 `servidor-nao-existe`, `membro-nao-existe` e `convite-invalido`, 400 `nome-invalido`, `icone-invalido`, `pedido-invalido` e `confirme`, 409 `dono-nao-sai`, `servidores-demais`, `participa-demais`, `membros-demais` e `convites-demais`. A prévia e o aceite de convites têm um freio de 30 a cada 10 minutos por endereço.

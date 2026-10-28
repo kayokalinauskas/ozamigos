@@ -27,7 +27,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * As sessões de quem entrou com conta. São do Ozamigos, no banco, e não do Spring: sobrevivem aos reinícios do Render
- * (deploy, o servidor dormindo), e o banco fora do ar só deixa todo mundo como convidado (nada quebra).
+ * (deploy, o servidor dormindo), e o banco fora do ar não derruba quem já está numa sala.
  *
  * <p>O cookie {@value #COOKIE} leva um segredo aleatório de 256 bits; o banco guarda só o resumo (SHA-256). Valem
  * {@link #VALIDADE} desde o último uso. {@code __Host-}: só por HTTPS (ou localhost), sem domínio, para o caminho
@@ -70,7 +70,7 @@ public class Sessoes {
 
     /**
      * De quem é a sessão desse segredo. Vazio: sem cookie, segredo inválido, vencido ou apagado, e também com o banco
-     * fora do ar (a pessoa entra como convidada, em vez de não entrar).
+     * fora do ar (aí as contas ficam indisponíveis por um tempo, Contas.bancoFalhou, e a página pergunta de novo).
      */
     public Optional<UUID> usuario(String segredo) {
         return conta(segredo).map(Contas.Usuario::id);
@@ -103,7 +103,7 @@ public class Sessoes {
             return achada.map(Achada::usuario);
         } catch (DataAccessException erro) {
             contas.bancoFalhou();
-            log.warn("Sessões: o banco não respondeu ({}); convidados por {} s", erro.getMostSpecificCause().getMessage(),
+            log.warn("Sessões: o banco não respondeu ({}); contas indisponíveis por {} s", erro.getMostSpecificCause().getMessage(),
                     Contas.FORA_POR.toSeconds());
             return Optional.empty();
         }
@@ -113,6 +113,11 @@ public class Sessoes {
         if (segredo != null && SEGREDO.matcher(segredo).matches()) {
             banco.sql("delete from sessoes where resumo = :resumo").param("resumo", resumo(segredo)).update();
         }
+    }
+
+    /** Encerra todas as sessões da conta, em todos os aparelhos (um cookie roubado deixa de valer). */
+    public void encerrarTodas(UUID usuario) {
+        banco.sql("delete from sessoes where usuario_id = :u").param("u", usuario).update();
     }
 
     static ResponseCookie cookie(String segredo) {

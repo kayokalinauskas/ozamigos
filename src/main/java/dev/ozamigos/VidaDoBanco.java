@@ -54,6 +54,7 @@ public class VidaDoBanco {
         try {
             var resultado = Flyway.configure()
                     .dataSource(fonte)
+                    .schemas(Banco.ESQUEMA) // criado na primeira vez, com o histórico das migrações dentro
                     .locations("classpath:db/migracao")
                     .load()
                     .migrate();

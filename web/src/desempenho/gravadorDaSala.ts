@@ -89,10 +89,10 @@ class GravadorDaSala {
       cliente.avisar('Termine o teste de desempenho antes de gravar a sala.', 'erro');
       return;
     }
-    const pasta = nomeDaPasta(e.sala);
+    const pasta = nomeDaPasta(e.servidor ?? '');
     this.g = {
       formato: FORMATO_DA_SALA,
-      sala: e.sala,
+      sala: e.servidor ?? '',
       gravadoPor: cliente.nomeReal(e.meuId),
       inicio: new Date().toISOString(),
       duracao: 0,

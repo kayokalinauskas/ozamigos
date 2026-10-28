@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppWindow, Check, Download, Globe, LoaderCircle } from 'lucide-react';
 import { lembrado, lembrar } from '../armazenamento';
-import { linkDoApp } from '../conexao/codigoDaSala';
+import { linkDoAppParaConvite } from '../conexao/codigoDaSala';
+import { SITE } from './RodapeDaEntrada';
 
-/** O site do Ozamigos (GitHub Pages, pasta site/): apresenta e baixa o app para Windows. */
-export const SITE = 'https://kayokalinauskas.github.io/ozamigos/';
 /** Este navegador já abriu um convite no app: os próximos tentam o app sozinhos. */
 export const TEM_O_APP = 'ozamigos-tem-o-app';
-/** A pessoa escolheu ficar no navegador: os próximos links vão direto para a entrada. */
+/** A pessoa escolheu ficar no navegador: os próximos convites vão direto para a página do convite. */
 export const FICA_NO_NAVEGADOR = 'ozamigos-fica-no-navegador';
 /** Quanto esperar o Windows passar para o app antes de oferecer o download. */
 const PRAZO_DO_APP = 2500;
@@ -17,12 +16,13 @@ type Etapa = 'pergunta' | 'abrindo' | 'abriu' | 'nao-abriu';
 let jaTentouSozinho = false; // o StrictMode monta duas vezes: o app só pode ser chamado uma
 
 /**
- * Quem abre o link de uma sala no navegador do Windows escolhe: abrir no app, baixar o app ou ficar no navegador.
- * A página não tem como saber se o app está instalado (o navegador esconde isso de propósito: seria um jeito de
- * identificar o PC). Ela tenta abrir o link ozamigos:// e observa: se a janela perde o foco, o Windows passou para
- * o app (ou o navegador perguntou se pode abrir); se nada acontece, o app provavelmente não está instalado.
+ * Quem abre o link de um convite (/c/<codigo>) no navegador do Windows escolhe, como no Discord: abrir no app, baixar
+ * o app ou ficar no navegador. A página não tem como saber se o app está instalado (o navegador esconde isso de
+ * propósito: seria um jeito de identificar o PC). Ela tenta abrir o link ozamigos://convite/<codigo> e observa: se a
+ * janela perde o foco, o Windows passou para o app (ou o navegador perguntou se pode abrir); se nada acontece, o app
+ * provavelmente não está instalado.
  */
-export function Convite({ sala, aoContinuar }: { sala: string; aoContinuar: () => void }) {
+export function AbrirNoApp({ convite, aoContinuar }: { convite: string; aoContinuar: () => void }) {
   const [etapa, setEtapa] = useState<Etapa>('pergunta');
   const desligar = useRef<(() => void) | null>(null);
 
@@ -45,7 +45,7 @@ export function Convite({ sala, aoContinuar }: { sala: string; aoContinuar: () =
       window.removeEventListener('blur', abriu);
       document.removeEventListener('visibilitychange', escondeu);
     };
-    location.href = linkDoApp(sala);
+    location.href = linkDoAppParaConvite(convite);
   }
 
   function continuar() {
@@ -68,7 +68,7 @@ export function Convite({ sala, aoContinuar }: { sala: string; aoContinuar: () =
       {etapa === 'abriu' ? (
         <>
           <p className="convite-titulo">
-            <Check size={20} /> Sala {sala} aberta no app
+            <Check size={20} /> Convite aberto no app
           </p>
           <p className="subtitulo">Pode fechar esta aba.</p>
           <button type="button" className="botao botao-fantasma botao-pequeno trocar-servidor" onClick={continuar}>
@@ -77,9 +77,7 @@ export function Convite({ sala, aoContinuar }: { sala: string; aoContinuar: () =
         </>
       ) : (
         <>
-          <p className="convite-titulo">
-            Convite para a sala <strong>{sala}</strong>
-          </p>
+          <p className="convite-titulo">Convite para um servidor do Ozamigos</p>
           <p className="subtitulo">
             {etapa === 'nao-abriu'
               ? 'O app não abriu. Se o navegador perguntou, escolha Abrir; se você ainda não tem o app, baixe para Windows.'

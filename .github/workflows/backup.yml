@@ -1,4 +1,4 @@
-# Backup semanal do banco (o Supabase grátis não faz backup): pg_dump do esquema public, criptografado com a chave
+# Backup semanal do banco (o Supabase grátis não faz backup): pg_dump do esquema ozamigos, criptografado com a chave
 # BACKUP_CHAVE e guardado como artefato por 90 dias. O repositório é público: o backup nunca sobe sem criptografia.
 #
 # Secrets do repositório (Settings → Secrets and variables → Actions):
@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm -e BANCO_BACKUP_URL postgres:18-alpine \
-            sh -c 'pg_dump --format=custom --no-owner --no-privileges --schema=public "$BANCO_BACKUP_URL"' > ozamigos.dump
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges --schema=ozamigos "$BANCO_BACKUP_URL"' > ozamigos.dump
           test -s ozamigos.dump
           gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase-fd 0 --output ozamigos.dump.gpg ozamigos.dump <<< "$BACKUP_CHAVE"
           rm ozamigos.dump

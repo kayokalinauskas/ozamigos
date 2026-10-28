@@ -73,7 +73,12 @@ contextBridge.exposeInMainWorld('ozamigos', {
   canalDoSom() {
     ipcRenderer.send('som-canal');
   },
-  /** Um convite (link ozamigos://sala/CODIGO) chegou com o app aberto (app 1.2.16 em diante). */
+  /** Um convite para um servidor (link ozamigos://convite/CODIGO) chegou com o app aberto (app 1.3.1 em diante). */
+  aoAbrirConvite(ouvinte) {
+    ipcRenderer.removeAllListeners('abrir-convite');
+    ipcRenderer.on('abrir-convite', (_evento, convite) => ouvinte(String(convite)));
+  },
+  /** Um link de sala de antes dos servidores (ozamigos://sala/CODIGO) chegou com o app aberto (app 1.2.16 em diante). */
   aoAbrirSala(ouvinte) {
     ipcRenderer.removeAllListeners('abrir-sala');
     ipcRenderer.on('abrir-sala', (_evento, sala) => ouvinte(String(sala)));
@@ -122,7 +127,7 @@ contextBridge.exposeInMainWorld('ozamigos', {
   },
   /**
    * O login pelo navegador do sistema (1.3.0 em diante): o app abre o navegador e espera a volta numa porta local.
-   * Resolve { codigo } (a página troca pela sessão), { ligou: provedor } (com ligacao, o código de ligação) ou { erro }.
+   * Resolve { codigo } (no login, a página troca pela sessão; com ligacao, ela confirma a ligação) ou { erro }.
    */
   conta: {
     loginPeloNavegador: (provedor, ligacao) =>

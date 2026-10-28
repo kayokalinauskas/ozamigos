@@ -284,7 +284,7 @@ code {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 50%;
+  border-radius: inherit; /* redonda na pessoa, quadrada no ícone do servidor: com 50% fixo, a cor das iniciais aparecia nos cantos do ícone */
 }
 
 .avatar.ao-vivo {
@@ -3373,5 +3373,179 @@ input[type='range'].medidor-controle::-moz-range-progress {
 @media (max-width: 600px) {
   .configuracoes-duas {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Servidores salvos (Servidores.tsx, ConfiguracoesDoServidor.tsx) ===== */
+
+/* O ícone de um servidor: as iniciais ou a imagem, num quadrado arredondado (as pessoas são redondas). */
+.avatar.quadrado {
+  border-radius: var(--raio-pequeno);
+}
+
+.meus-servidores {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.meus-servidores > .botao {
+  align-self: stretch; /* a largura da lista, como os outros botões da entrada */
+}
+
+.lista-de-servidores {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.servidor-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-pequeno);
+  background: var(--painel-2);
+  color: var(--texto);
+  text-align: left;
+  cursor: pointer;
+}
+
+.servidor-item:hover:not(:disabled) {
+  border-color: var(--destaque);
+  background: var(--painel-3);
+}
+
+.servidor-item:focus-visible {
+  outline: none;
+  box-shadow: var(--foco);
+}
+
+.servidor-item-texto,
+.servidor-titulo-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.servidor-item-texto strong,
+.servidor-titulo strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.servidor-item-texto small {
+  color: var(--texto-2);
+  font-size: 12px;
+}
+
+.servidor-titulo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.servidor-titulo strong {
+  font-size: 18px;
+}
+
+/* O cartão de um servidor na barra lateral: o nome em cima (com a engrenagem), e o "Convidar" embaixo. */
+.cartao-do-servidor {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.cartao-sala > .cartao-sala-servidor {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.cartao-sala-servidor-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nome-do-servidor {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+.membros-do-servidor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.membro {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.membro-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.selo-papel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--painel-3);
+  color: var(--texto-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.selo-dono {
+  background: var(--destaque);
+  color: var(--no-destaque);
+}
+
+/* A entrada no celular: o cartão nunca passa da tela. A coluna da grade não cresce até o texto mais largo que não
+   quebra (o link de baixar o app, o separador), e os botões e o separador da entrada quebram linha. */
+.entrada {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 640px) {
+  .cartao-entrada {
+    padding: 24px 20px;
+  }
+
+  .cartao-entrada .botao {
+    height: auto;
+    min-height: 40px;
+    padding-block: 8px;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .cartao-entrada .separador-ou span {
+    text-align: center;
   }
 }

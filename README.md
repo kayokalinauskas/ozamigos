@@ -27,13 +27,13 @@
 
 - Voz sempre ligada, com redução de ruído (RNNoise) e atalhos que funcionam com o jogo na frente.
 - Todos podem transmitir ao mesmo tempo, em salas de até 8 pessoas.
-- Grupos com nome e senha próprios.
+- Servidores salvos, como no Discord: entre com o Google ou o Discord, crie o do seu grupo e convide os amigos por um link.
 - Chat com imagens e prévia de links.
 - Reconexão automática.
 
 ## Instalação
 
-Baixe o instalador na [última versão](../../releases/latest) e entre com o seu nome e a senha do grupo. O app se atualiza sozinho.
+Baixe o instalador na [última versão](../../releases/latest) e entre com a sua conta do Google ou do Discord. O app se atualiza sozinho.
 
 Pelo navegador (Chrome ou Edge), também dá para conversar, assistir e transmitir.
 
@@ -41,15 +41,20 @@ Requer Windows 10 (versão 2004 ou mais nova) ou Windows 11.
 
 ## Desenvolvimento
 
-Requisitos: JDK 25 e Node.js 22. Para o app do Windows, também o .NET SDK 10.
+Requisitos: JDK 25, Node.js 22 e o Docker (o banco, e um login de teste no lugar do Google). Para o app do Windows,
+também o .NET SDK 10.
 
 ```powershell
 cd web; npm install; npm run build; cd ..
-$env:OZAMIGOS_SENHA = "teste"
+docker compose up -d banco
+docker run -d --rm -p 127.0.0.1:8091:8080 -e 'JSON_CONFIG={"interactiveLogin":true}' ghcr.io/navikt/mock-oauth2-server:2.1.10
+$env:PORT = "8090"; $env:OZAMIGOS_BANCO_URL = "jdbc:postgresql://localhost:5433/ozamigos"; $env:OZAMIGOS_BANCO_USUARIO = "ozamigos"; $env:OZAMIGOS_BANCO_SENHA = "ozamigos-local"
+$env:OZAMIGOS_GOOGLE_ID = "local"; $env:OZAMIGOS_GOOGLE_SEGREDO = "local"; $env:OZAMIGOS_GOOGLE_EMISSOR = "http://localhost:8091/default"
 .\mvnw.cmd spring-boot:run
 ```
 
-Abra `http://localhost:8080` e entre com a senha `teste`.
+Abra `http://localhost:8090`, clique em "Continuar com o Google" e entre no login de teste com qualquer nome. Ou tudo
+pelo Docker, com o banco e o login de teste: `docker compose up --build`, na mesma página.
 
 | Comando | O que faz |
 |---|---|
@@ -57,13 +62,13 @@ Abra `http://localhost:8080` e entre com a senha `teste`.
 | `cd desktop; npm install; npm start` | Abre o app do Windows |
 | `git tag vX.Y.Z; git push origin vX.Y.Z` | Publica uma versão do app (antes, aumente a versão em `desktop/package.json`) |
 
-Para publicar o servidor, use a imagem do `Dockerfile`, com a variável `OZAMIGOS_SENHA` e o health check em `/actuator/health`. Para rodar tudo no seu PC com o banco, `docker compose up --build` (página em `http://localhost:8090`, senha `teste`).
+Para publicar o servidor, use a imagem do `Dockerfile`, com as variáveis do banco e do login (veja o `AGENTS.md`) e o health check em `/actuator/health`.
 
 ## Feito com
 
 | Parte | Ferramentas |
 |---|---|
-| Servidor | Java 25, Spring Boot 4 (WebSocket e Actuator), imageio-webp |
+| Servidor | Java 25, Spring Boot 4 (WebSocket, Security com OAuth2 e Actuator), PostgreSQL com Flyway, imageio-webp |
 | Interface | React 19, TypeScript, Vite, ícones Lucide, fontes Inter e Sora |
 | Voz e vídeo | WebRTC (H.265/H.264 e Opus), RNNoise ([web-noise-suppressor](https://github.com/sapphi-red/web-noise-suppressor)) |
 | Imagens do chat | libwebp, via [jSquash](https://github.com/jamsinclair/jSquash) |
