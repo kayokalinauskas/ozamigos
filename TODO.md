@@ -14,8 +14,6 @@ aparece; baixar, abrir com a `BACKUP_CHAVE` (`gpg -d`) e conferir com `pg_restor
 
 ## Depois da revisão de segurança (PR #21)
 
-- Ligar o Discord pelo app instalado, numa conta sem ele (nenhum teste automático passa pela confirmação no app de
-  verdade).
 - Na próxima versão do app: tirar do `loginPeloNavegador` (`desktop/main.js`) a volta `ligou`, que o servidor não manda
   mais (a ligação volta com um `codigo`, que a página confirma).
 
