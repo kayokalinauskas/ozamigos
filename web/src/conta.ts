@@ -26,7 +26,9 @@ const MOTIVOS: Record<string, string> = {
   indisponivel: 'Não foi possível entrar com a conta agora. Entre como convidado ou tente de novo daqui a pouco.',
   recusado: 'O login não foi concluído. Tente de novo.',
   'muitas-tentativas': 'Muitas tentativas de entrar em pouco tempo. Espere alguns minutos e tente de novo.',
-  'de-outra-pessoa': 'Essa conta já está ligada a outra conta do Ozamigos.',
+  // Quem testou os dois logins separados tem duas contas: o texto diz como juntar (sem mesclar contas no servidor).
+  'de-outra-pessoa':
+    'Essa conta já entrou no Ozamigos sozinha, como outra conta. Para juntar as duas: saia, entre com ela, apague-a em Configurações → Conta, e ligue de novo aqui.',
   'ja-tem-desse-provedor': 'A sua conta já tem uma conta desse tipo ligada.',
   'sem-conta': 'Entre na sua conta primeiro.',
   tempo: 'O login demorou demais. Tente de novo.',
