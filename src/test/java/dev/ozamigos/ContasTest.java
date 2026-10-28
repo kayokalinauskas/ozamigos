@@ -174,6 +174,67 @@ class ContasTest extends ComBanco {
     }
 
     @Test
+    void umCorpoGrandeDemaisEhRecusadoAntesDeLerOuConferirAConta() throws Exception {
+        String enorme = "{\"nome\":\"" + "a".repeat(LimitesDaApi.CORPO_MAXIMO) + "\"}";
+        HttpResponse<String> resposta = enviar("POST", "/api/servidores", null, origem(), enorme);
+        assertThat(resposta.statusCode()).isEqualTo(413);
+        assertThat(resposta.body()).contains("grande-demais");
+    }
+
+    @Test
+    void comContasNovasDemaisNaHoraQuemJaTemContaEntraEQuemNaoTemEspera() throws Exception {
+        String doGoogle = UUID.randomUUID().toString();
+        UUID ana = contas.entrar("google", doGoogle, "Ana").id();
+        int antes = contas.contasNovasPorHora;
+        contas.contasNovasPorHora = 0;
+        try {
+            assertThat(contas.entrar("google", doGoogle, "Ana").id()).isEqualTo(ana);
+            MockHttpServletResponse volta = voltarDoDiscord(new Login.Pedido("/", null, null, null), "nova", "Beto");
+            assertThat(volta.getRedirectedUrl()).isEqualTo("/?erro-de-login=contas-novas-demais");
+            assertThat(volta.getHeader("Set-Cookie")).isNull();
+        } finally {
+            contas.contasNovasPorHora = antes;
+        }
+    }
+
+    @Test
+    void sairDeTodosOsAparelhosEncerraTodasAsSessoesDaConta() throws Exception {
+        UUID ana = novaConta("Ana");
+        String noApp = sessoes.criar(ana, "app");
+        String cookie = Sessoes.COOKIE + "=" + sessoes.criar(ana, "navegador");
+
+        HttpResponse<String> saiu = enviar("POST", "/api/eu/sair-de-todos", cookie, origem(), "");
+        assertThat(saiu.statusCode()).isEqualTo(204);
+        assertThat(saiu.headers().firstValue("Set-Cookie").orElseThrow()).contains("Max-Age=0");
+        assertThat(sessoes.usuario(noApp)).isEmpty();
+        assertThat(contas.usuario(ana)).isPresent();
+    }
+
+    @Test
+    void umLinkComOCodigoDeLigacaoDeOutraPessoaNaoLigaNada() throws Exception {
+        UUID ana = novaConta("Ana");
+        String cookie = Sessoes.COOKIE + "=" + sessoes.criar(ana, "app");
+        String ligacao = json.readTree(enviar("POST", "/api/eu/ligacao", cookie, origem(), "").body()).path("ligacao").asString();
+
+        // Aberto no navegador de outra pessoa, sem o app: recusado antes de ir ao provedor.
+        assertThat(get("/conta/ligar/discord?ligacao=" + ligacao, null).headers().firstValue("Location").orElseThrow())
+                .endsWith("/?erro-de-login=pedido-invalido");
+
+        // Com uma porta de app inventada: o código de confirmação vai para o PC de quem abriu, e a conta de quem
+        // mandou não consegue confirmar sem ele. Nem quem abriu, com outra conta.
+        String estado = "estado-do-app-0123456789";
+        MockHttpServletResponse volta = voltarDoDiscord(new Login.Pedido("/", 50125, estado, ana), "222", "Beto");
+        assertThat(contas.usuario(ana).orElseThrow().provedores()).containsExactly("google");
+        String codigo = codigoDa(volta.getRedirectedUrl());
+        String deBeto = Sessoes.COOKIE + "=" + sessoes.criar(novaConta("Beto"), "app");
+        assertThat(enviar("POST", "/api/eu/ligacao/confirmar", deBeto, origem(), "{\"codigo\":\"" + codigo + "\"}").statusCode())
+                .isEqualTo(400);
+        assertThat(enviar("POST", "/api/eu/ligacao/confirmar", cookie, origem(), "{\"codigo\":\"" + codigo + "\"}").statusCode())
+                .isEqualTo(400); // uma vez só
+        assertThat(contas.usuario(ana).orElseThrow().provedores()).containsExactly("google");
+    }
+
+    @Test
     void peloAppOCodigoDeLigacaoLigaOutroProvedorENaoViraSessao() throws Exception {
         UUID ana = novaConta("Ana");
         String cookie = Sessoes.COOKIE + "=" + sessoes.criar(ana, "app");
@@ -189,8 +250,14 @@ class ContasTest extends ComBanco {
         assertThat(get("/conta/ligar/discord?app=50124&estado=" + estado + "&ligacao=" + outra, null)
                 .headers().firstValue("Location").orElseThrow()).contains("erro=sem-conta"); // uma vez só
 
+        // A volta leva à porta do app um código, que a página do app (com a sessão da conta) confirma.
         MockHttpServletResponse volta = voltarDoDiscord(new Login.Pedido("/", 50124, estado, ana), "111", "Ana");
-        assertThat(volta.getRedirectedUrl()).isEqualTo("http://127.0.0.1:50124/login?ligou=discord&estado=" + estado);
+        assertThat(volta.getRedirectedUrl()).startsWith("http://127.0.0.1:50124/login?codigo=").endsWith("&estado=" + estado);
+        assertThat(contas.usuario(ana).orElseThrow().provedores()).containsExactly("google");
+        HttpResponse<String> confirmou = enviar("POST", "/api/eu/ligacao/confirmar", cookie, origem(),
+                "{\"codigo\":\"" + codigoDa(volta.getRedirectedUrl()) + "\"}");
+        assertThat(confirmou.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(confirmou.body()).path("ligou").asString()).isEqualTo("discord");
         assertThat(contas.usuario(ana).orElseThrow().provedores()).containsExactly("discord", "google");
     }
 
@@ -220,6 +287,10 @@ class ContasTest extends ComBanco {
         aoEntrar.onAuthenticationSuccess(volta, resposta, new OAuth2AuthenticationToken(usuario, usuario.getAuthorities(), "discord"));
         assertThat(volta.getSession(false)).isNull(); // a sessão do login (com o token do provedor) foi descartada
         return resposta;
+    }
+
+    private static String codigoDa(String volta) {
+        return volta.substring(volta.indexOf("codigo=") + 7, volta.indexOf('&'));
     }
 
     private String origem() {

@@ -87,6 +87,8 @@ export default async function preparar(): Promise<() => Promise<void>> {
         OZAMIGOS_GOOGLE_ID: 'ozamigos-e2e',
         OZAMIGOS_GOOGLE_SEGREDO: 'segredo-e2e',
         OZAMIGOS_GOOGLE_EMISSOR: emissor,
+        // Os testes criam muitas contas seguidas: o teto de contas novas por hora é de quem usa de verdade.
+        OZAMIGOS_CONTAS_NOVAS_POR_HORA: '100000',
       },
     });
     await esperar(pronto, 'o servidor com o banco e o login');

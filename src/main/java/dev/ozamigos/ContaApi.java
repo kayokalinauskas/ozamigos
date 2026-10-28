@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -33,6 +35,8 @@ import jakarta.servlet.http.HttpServletRequest;
 @RestController
 public class ContaApi {
 
+    private static final Logger log = LoggerFactory.getLogger(ContaApi.class);
+
     record NovoNome(String nome) {}
 
     record Codigo(String codigo) {}
@@ -46,6 +50,8 @@ public class ContaApi {
     private final SinalizacaoHandler sinalizacao;
     /** Trocas de código por endereço: uma por login de verdade, então 20 a cada 10 minutos sobram. */
     private final Freio trocas = new Freio(20, Duration.ofMinutes(10));
+    /** As ações de cada conta que gravam no banco (o nome, os códigos de ligação): gente de verdade não passa disso. */
+    private final Freio acoes = new Freio(30, Duration.ofMinutes(1));
 
     public ContaApi(Contas contas, Sessoes sessoes, ProvedoresDeLogin provedores, CodigosDoApp codigos,
             SinalizacaoHandler sinalizacao) {
@@ -81,6 +87,9 @@ public class ContaApi {
         if (usuario.isEmpty()) {
             return semConta();
         }
+        if (!acoes.passa(usuario.get().toString())) {
+            return erro(HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
+        }
         String nome = contas.renomear(usuario.get(), novo.nome() == null ? "" : novo.nome());
         return nome == null ? semConta() : ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of("nome", nome));
     }
@@ -90,6 +99,22 @@ public class ContaApi {
         if (contas.disponivel()) {
             sessoes.encerrar(Sessoes.segredoDe(pedido));
         }
+        return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, Sessoes.cookieApagado().toString()).build();
+    }
+
+    /**
+     * Sai da conta em todos os aparelhos, este inclusive: as sessões são apagadas, e quem estava numa sala com a conta
+     * sai dela (com {@code sem-conta}, a mesma recusa de quem chega sem conta).
+     */
+    @PostMapping("/api/eu/sair-de-todos")
+    public ResponseEntity<?> sairDeTodos(HttpServletRequest pedido) {
+        Optional<UUID> usuario = usuario(pedido);
+        if (usuario.isEmpty()) {
+            return semConta();
+        }
+        sessoes.encerrarTodas(usuario.get());
+        sinalizacao.tirarDosServidores(usuario.get(), "sem-conta");
+        log.info("Conta {} saiu de todos os aparelhos", usuario.get());
         return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, Sessoes.cookieApagado().toString()).build();
     }
 
@@ -130,8 +155,40 @@ public class ContaApi {
         if (usuario.isEmpty()) {
             return semConta();
         }
+        if (!acoes.passa(usuario.get().toString())) {
+            return erro(HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
+        }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(Map.of("ligacao", codigos.criar(usuario.get(), CodigosDoApp.Uso.LIGACAO)));
+    }
+
+    /**
+     * A página do app confirma a ligação com o código que chegou à porta dela (AoEntrar): só a própria conta que pediu
+     * a ligação, e só com o código que foi para o PC dela. Devolve {@code {"ligou": provedor}}; 409 {@code de-outra-pessoa}
+     * ou {@code ja-tem-desse-provedor}; 400 {@code codigo-invalido}.
+     */
+    @PostMapping("/api/eu/ligacao/confirmar")
+    public ResponseEntity<?> confirmarLigacao(@RequestBody Codigo codigo, HttpServletRequest pedido) {
+        Optional<UUID> usuario = usuario(pedido);
+        if (usuario.isEmpty()) {
+            return semConta();
+        }
+        if (!trocas.passa(Enderecos.de(pedido))) {
+            return erro(HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
+        }
+        Optional<CodigosDoApp.Confirmacao> confirmacao = codigos.trocarConfirmacao(codigo.codigo());
+        if (confirmacao.isEmpty() || !confirmacao.get().usuario().equals(usuario.get())) {
+            return erro(HttpStatus.BAD_REQUEST, "codigo-invalido");
+        }
+        String provedor = confirmacao.get().provedor();
+        return switch (contas.ligar(usuario.get(), provedor, confirmacao.get().idExterno())) {
+            case LIGADA, JA_ERA_SUA -> {
+                log.info("Conta {} ligou o {}", usuario.get(), provedor);
+                yield ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of("ligou", provedor));
+            }
+            case DE_OUTRA_PESSOA -> erro(HttpStatus.CONFLICT, "de-outra-pessoa");
+            case JA_TEM_DESSE_PROVEDOR -> erro(HttpStatus.CONFLICT, "ja-tem-desse-provedor");
+        };
     }
 
     /** O app troca o código que recebeu na porta local (CodigosDoApp) pela sessão, no cookie da janela dele. */

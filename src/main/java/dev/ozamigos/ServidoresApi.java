@@ -60,6 +60,13 @@ public class ServidoresApi {
      * Quem recebe um link abre e aceita uma vez; 30 em 10 minutos sobram.
      */
     private final Freio convitesPorEndereco = new Freio(30, Duration.ofMinutes(10));
+    /**
+     * As ações de cada conta (criar, apagar, renomear, convidar...): gente de verdade não passa disso, e quem passa está
+     * enchendo o banco de gravações (criar e apagar servidores sem parar, por exemplo).
+     */
+    private final Freio acoesPorConta = new Freio(30, Duration.ofMinutes(1));
+    /** Trocar o ícone redesenha uma imagem de até 2 MB no servidor: poucas por conta. */
+    private final Freio iconesPorConta = new Freio(10, Duration.ofMinutes(10));
 
     public ServidoresApi(Servidores servidores, Contas contas, Sessoes sessoes, SinalizacaoHandler sinalizacao) {
         this.servidores = servidores;
@@ -111,6 +118,9 @@ public class ServidoresApi {
     public ResponseEntity<?> trocarIcone(@PathVariable String codigo, HttpServletRequest pedido) {
         // A imagem só é lida depois de conferida a conta: sem ela, ninguém faz o servidor ler 2 MB.
         return comConta(pedido, usuario -> {
+            if (!iconesPorConta.passa(usuario.toString())) {
+                return MUITAS_TENTATIVAS;
+            }
             byte[] imagem;
             try {
                 imagem = pedido.getInputStream().readNBytes(ICONE_MAXIMO + 1);
@@ -284,11 +294,13 @@ public class ServidoresApi {
     }
 
     private interface Acao {
-        /** O corpo da resposta, ou null para 204. */
+        /** O corpo da resposta, null para 204, ou MUITAS_TENTATIVAS para 429. */
         Object fazer(UUID usuario);
     }
 
-    /** Roda a ação com a conta da sessão; sem ela, 401 (ou 503 sem banco). */
+    private static final Object MUITAS_TENTATIVAS = new Object();
+
+    /** Roda a ação com a conta da sessão; sem ela, 401 (ou 503 sem banco). As que mudam algo passam pelo freio da conta. */
     private ResponseEntity<?> comConta(HttpServletRequest pedido, Acao acao) {
         if (!contas.disponivel()) {
             return ContaApi.erro(HttpStatus.SERVICE_UNAVAILABLE, "contas-indisponiveis");
@@ -297,7 +309,11 @@ public class ServidoresApi {
         if (usuario.isEmpty()) {
             return ContaApi.semConta(contas);
         }
-        Object corpo = acao.fazer(usuario.get());
+        boolean leitura = "GET".equals(pedido.getMethod());
+        Object corpo = leitura || acoesPorConta.passa(usuario.get().toString()) ? acao.fazer(usuario.get()) : MUITAS_TENTATIVAS;
+        if (corpo == MUITAS_TENTATIVAS) {
+            return ContaApi.erro(HttpStatus.TOO_MANY_REQUESTS, "muitas-tentativas");
+        }
         return corpo == null ? ResponseEntity.noContent().build() : ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(corpo);
     }
 

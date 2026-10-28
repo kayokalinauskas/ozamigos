@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +28,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
+
+import jakarta.annotation.PreDestroy;
 
 /**
  * O servidor de sinalização: põe as pessoas em salas e repassa as mensagens
@@ -45,6 +50,12 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
      */
     static final int CHAMADAS_POR_JANELA = 5;
     static final long CHAMADAS_JANELA_MS = 60_000;
+    /**
+     * Conexões abertas ao mesmo tempo por endereço, e quanto uma conexão pode ficar sem entrar numa sala (a página
+     * manda o "entrar" assim que abre). Sem isso, qualquer um abria conexões sem conta que ficavam abertas para sempre.
+     */
+    static final int CONEXOES_POR_ENDERECO = 20;
+    static final long SEM_SALA_NO_MAXIMO_MS = 10_000;
 
     private final Salas salas;
     private final JsonMapper json;
@@ -63,6 +74,10 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
      */
     private final Map<String, Long> tiradosEm = new ConcurrentHashMap<>();
     private static final long LEMBRAR_TIRADOS_NS = 60_000_000_000L;
+    /** As conexões abertas de cada endereço (só na memória, enquanto estão abertas). */
+    private final Map<String, Integer> conexoesPorEndereco = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService relogio =
+            Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().name("sinal").factory());
 
     public SinalizacaoHandler(Salas salas, JsonMapper json, PreviasDeLinks previas, Retransmissao retransmissao,
             Servidores servidores, Contas contas) {
@@ -84,6 +99,23 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
         atributos.put("ficha", UUID.randomUUID().toString());
         // Envios de threads diferentes na mesma sessão precisam ser em fila.
         atributos.put("segura", new ConcurrentWebSocketSessionDecorator(sessao, 5_000, 512 * 1024));
+        String endereco = Enderecos.de(sessao.getHandshakeHeaders(), sessao.getRemoteAddress());
+        if (conexoesPorEndereco.merge(endereco, 1, Integer::sum) > CONEXOES_POR_ENDERECO) {
+            conexoesPorEndereco.computeIfPresent(endereco, (e, n) -> n > 1 ? n - 1 : null);
+            fecharSemErro(sessao); // a página tenta de novo depois de esperar
+            return;
+        }
+        atributos.put("endereco", endereco); // conta na saída
+        relogio.schedule(() -> {
+            if (sessao.isOpen() && !sessao.getAttributes().containsKey("sala")) {
+                fecharSemErro(sessao);
+            }
+        }, SEM_SALA_NO_MAXIMO_MS, TimeUnit.MILLISECONDS);
+    }
+
+    @PreDestroy
+    void parar() {
+        relogio.shutdownNow();
     }
 
     @Override
@@ -526,6 +558,10 @@ public class SinalizacaoHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession sessao, CloseStatus status) throws IOException {
         String id = (String) sessao.getAttributes().get("id");
         String sala = (String) sessao.getAttributes().get("sala");
+        String endereco = (String) sessao.getAttributes().get("endereco");
+        if (endereco != null) {
+            conexoesPorEndereco.computeIfPresent(endereco, (e, n) -> n > 1 ? n - 1 : null);
+        }
         retransmissao.saiu(id);
         if (sala != null) {
             retirar(sala, id);

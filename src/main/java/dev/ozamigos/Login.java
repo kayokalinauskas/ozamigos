@@ -58,6 +58,11 @@ public class Login {
     public String ligar(@PathVariable String provedor, @RequestParam(defaultValue = "/") String voltar,
             @RequestParam(required = false) Integer app, @RequestParam(required = false) String estado,
             @RequestParam(required = false) String ligacao, HttpServletRequest pedido) {
+        // O código de ligação é do app: a volta precisa ir para a porta dele (AoEntrar), onde a página confirma. Sem o
+        // app, um link com o código de outra pessoa ligaria a conta de quem o abrisse à conta dela.
+        if (ligacao != null && app == null) {
+            return "redirect:/?erro-de-login=pedido-invalido";
+        }
         Optional<UUID> usuario = ligacao != null
                 ? codigos.trocar(ligacao, CodigosDoApp.Uso.LIGACAO)
                 : sessoes.usuario(Sessoes.segredoDe(pedido));

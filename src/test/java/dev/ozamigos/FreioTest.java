@@ -45,6 +45,20 @@ class FreioTest {
     }
 
     @Test
+    void oContadorDaApiSeguraOEnderecoAteOMinutoSeguinte() {
+        Relogio relogio = new Relogio();
+        LimitesDaApi.Contador contador = new LimitesDaApi.Contador(3, 60_000, relogio);
+        for (int i = 0; i < 3; i++) {
+            assertThat(contador.passa("1.2.3.4")).isTrue();
+        }
+
+        assertThat(contador.passa("1.2.3.4")).isFalse();
+        assertThat(contador.passa("5.6.7.8")).isTrue();
+        relogio.agora = relogio.agora.plusSeconds(60);
+        assertThat(contador.passa("1.2.3.4")).isTrue();
+    }
+
+    @Test
     void liberaDepoisDaJanela() {
         Relogio relogio = new Relogio();
         Freio freio = new Freio(3, Duration.ofMinutes(5), relogio);

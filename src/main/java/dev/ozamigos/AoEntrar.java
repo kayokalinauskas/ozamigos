@@ -80,6 +80,14 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
             return;
         }
 
+        if (login.ligarA() != null && login.portaDoApp() != null) {
+            // Pelo app, a ligação só vale depois que a página do app (com a sessão da conta) confirmar, com o código que
+            // vai para a porta dele: sem isso, quem pediu o código de ligação o mandaria num link, e quem o abrisse
+            // ligaria o próprio Discord à conta de quem mandou. Para outro PC, o código não chega a ninguém.
+            String codigo = codigos.criarConfirmacao(login.ligarA(), provedor, perfil.idExterno());
+            resposta.sendRedirect(Login.voltaDoApp(login.portaDoApp(), login.estado(), "codigo", codigo));
+            return;
+        }
         if (login.ligarA() != null) {
             String resultado = switch (contas.ligar(login.ligarA(), provedor, perfil.idExterno())) {
                 case LIGADA, JA_ERA_SUA -> null;
@@ -91,13 +99,17 @@ public class AoEntrar implements AuthenticationSuccessHandler, AuthenticationFai
                 return;
             }
             log.info("Conta {} ligou o {}", login.ligarA(), provedor);
-            resposta.sendRedirect(login.portaDoApp() != null
-                    ? Login.voltaDoApp(login.portaDoApp(), login.estado(), "ligou", provedor)
-                    : login.voltar());
+            resposta.sendRedirect(login.voltar());
             return;
         }
 
-        Contas.Entrada entrada = contas.entrar(provedor, perfil.idExterno(), perfil.nome());
+        Contas.Entrada entrada;
+        try {
+            entrada = contas.entrar(provedor, perfil.idExterno(), perfil.nome());
+        } catch (Contas.NovasDemais e) {
+            falhar(resposta, login, "contas-novas-demais");
+            return;
+        }
         fotos.atualizar(entrada.id(), perfil.foto(), entrada.fotoOrigem());
         if (login.portaDoApp() != null) {
             log.info("Conta {} entrou pelo {} (app)", entrada.id(), provedor);

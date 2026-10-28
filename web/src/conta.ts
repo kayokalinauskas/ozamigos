@@ -26,6 +26,7 @@ const MOTIVOS: Record<string, string> = {
   indisponivel: 'Não foi possível entrar com a conta agora. Entre como convidado ou tente de novo daqui a pouco.',
   recusado: 'O login não foi concluído. Tente de novo.',
   'muitas-tentativas': 'Muitas tentativas de entrar em pouco tempo. Espere alguns minutos e tente de novo.',
+  'contas-novas-demais': 'Muitas contas novas no Ozamigos agora. Tente de novo daqui a uma hora.',
   // Quem testou os dois logins separados tem duas contas: o texto diz como juntar (sem mesclar contas no servidor).
   'de-outra-pessoa':
     'Essa conta já entrou no Ozamigos sozinha, como outra conta. Para juntar as duas: saia, entre com ela, apague-a em Configurações → Conta, e ligue de novo aqui.',
@@ -162,8 +163,15 @@ export async function ligar(provedor: Provedor): Promise<void> {
   }
   const ligacao = pedido.corpo.ligacao;
   const volta = await pelaPonte(() => ponte!.conta!.loginPeloNavegador(provedor, ligacao));
-  if (!volta.ligou) {
+  if (!volta.codigo) {
     falhou(volta.erro);
+    return;
+  }
+  // A ligação só vale com esta confirmação: o código chegou à porta deste app, e a sessão é a desta janela. Um link
+  // de ligação aberto por outra pessoa não liga nada (ContaApi.confirmarLigacao).
+  const confirmacao = await enviar('POST', '/api/eu/ligacao/confirmar', { codigo: volta.codigo });
+  if (!confirmacao.ok) {
+    falhou(confirmacao.motivo);
     return;
   }
   await carregarConta();
@@ -197,6 +205,15 @@ export async function renomear(nome: string): Promise<string | null> {
 export async function sairDaConta(): Promise<boolean> {
   mudar({ ocupada: true, erro: '' });
   const resposta = await enviar('POST', '/api/eu/sair');
+  if (!resposta.ok) return falhou(resposta.motivo);
+  mudar({ ocupada: false, conta: null });
+  return true;
+}
+
+/** Sai da conta em todos os aparelhos, este inclusive (e quem estava numa sala com ela sai). Resolve true se saiu. */
+export async function sairDeTodos(): Promise<boolean> {
+  mudar({ ocupada: true, erro: '' });
+  const resposta = await enviar('POST', '/api/eu/sair-de-todos');
   if (!resposta.ok) return falhou(resposta.motivo);
   mudar({ ocupada: false, conta: null });
   return true;

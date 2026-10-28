@@ -91,6 +91,29 @@ class SinalizacaoTest extends ComBanco {
     }
 
     @Test
+    void cadaEnderecoAbreUmNumeroLimitadoDeConexoes() throws Exception {
+        List<ClienteDaSala> abertas = new java.util.ArrayList<>();
+        try {
+            for (int i = 0; i < SinalizacaoHandler.CONEXOES_POR_ENDERECO; i++) {
+                abertas.add(ClienteDaSala.conectar(porta, null, "198.51.100.20"));
+            }
+            ClienteDaSala demais = ClienteDaSala.conectar(porta, null, "198.51.100.20");
+            ClienteDaSala deOutro = ClienteDaSala.conectar(porta, null, "198.51.100.21");
+            abertas.add(deOutro);
+            long limite = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (!demais.fechou && System.nanoTime() < limite) {
+                Thread.sleep(50);
+            }
+            assertThat(demais.fechou).isTrue();
+            assertThat(abertas).noneMatch(c -> c.fechou);
+        } finally {
+            for (ClienteDaSala c : abertas) {
+                c.sessao.close();
+            }
+        }
+    }
+
+    @Test
     void oChatChegaATodosDaSalaComQuemMandouCarimbadoESoNela() throws Exception {
         Cliente ana = entrar(sala, "Ana");
         Cliente beto = entrar(sala, "Beto");

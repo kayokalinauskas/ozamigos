@@ -8,7 +8,10 @@ import java.util.UUID;
 
 import javax.sql.DataSource;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Component;
@@ -33,6 +36,15 @@ public class Contas {
 
     public enum Desligamento { DESLIGADA, NAO_TINHA, ULTIMA }
 
+    /** Contas novas demais na última hora, no servidor todo (contasNovasPorHora): esta não é criada. */
+    public static final class NovasDemais extends RuntimeException {
+        NovasDemais() {
+            super("contas novas demais", null, false, false);
+        }
+    }
+
+    private static final Logger log = LoggerFactory.getLogger(Contas.class);
+
     /**
      * O banco não respondeu: por esse tempo, todos entram como convidados sem nem tentar. Sem isso, cada entrada com
      * conta esperaria o prazo da conexão (Banco), e depois de um deploy, com todos voltando juntos, a fila de 5 conexões
@@ -44,8 +56,16 @@ public class Contas {
     private final JdbcClient banco;
     private final TransactionTemplate transacao;
     private volatile Instant foraAte = Instant.MIN;
+    /**
+     * O teto de contas novas por hora, no servidor todo: cada conta do Google ou do Discord vira uma conta, e quem
+     * criasse milhares (cada uma com foto e até 10 servidores com ícone) encheria o banco grátis (500 MB). Um grupo de
+     * amigos não chega perto. Quem já tem conta sempre entra.
+     */
+    volatile int contasNovasPorHora;
 
-    public Contas(ObjectProvider<VidaDoBanco> vida, ObjectProvider<DataSource> fonte) {
+    public Contas(ObjectProvider<VidaDoBanco> vida, ObjectProvider<DataSource> fonte,
+            @Value("${ozamigos.limite.contas-novas-por-hora:50}") int contasNovasPorHora) {
+        this.contasNovasPorHora = contasNovasPorHora;
         this.vida = vida.getIfAvailable();
         DataSource dados = fonte.getIfAvailable();
         this.banco = dados == null ? null : JdbcClient.create(dados);
@@ -84,6 +104,12 @@ public class Contas {
                     .optional();
             if (existente.isPresent()) {
                 return existente.get();
+            }
+            int naUltimaHora = banco.sql("select count(*) from usuarios where criado_em > now() - interval '1 hour'")
+                    .query(Integer.class).single();
+            if (naUltimaHora >= contasNovasPorHora) {
+                log.warn("Contas novas: o teto de {} por hora chegou; as próximas esperam", contasNovasPorHora);
+                throw new NovasDemais();
             }
             UUID id = UUID.randomUUID();
             banco.sql("insert into usuarios (id, nome) values (:id, :nome)")

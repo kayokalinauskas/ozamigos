@@ -8,6 +8,15 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ## [Não lançado]
 
+### Novo
+- **Sair de todos os aparelhos**, em Configurações → Conta: para quem perdeu um aparelho ou entrou no PC de outra pessoa.
+
+### Segurança
+- O servidor recusa pedidos grandes demais e pedidos em excesso de um mesmo endereço, antes de qualquer outra coisa: eles podiam derrubar o servidor ou deixar todos sem entrar nos servidores por alguns segundos.
+- Ligar outro provedor pelo app só vale depois que o próprio app confirma: um link de ligação mandado por outra pessoa não liga mais a conta de quem o abre à dela.
+- Freios por conta (criar e apagar servidores, convites, ícones, nome), um teto de contas novas por hora, e um limite de conexões abertas à sala por endereço.
+- A política de privacidade diz quanto tempo as cópias de segurança do banco guardam o que foi apagado (até 90 dias).
+
 ## [1.3.1] - 2026-10-28
 
 ### Novo
