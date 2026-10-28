@@ -2,16 +2,6 @@
 
 Pendências que ficaram para depois, com o que falta para fechar cada uma.
 
-## Conferir o backup do banco
-
-As contas estão no ar desde 27/10/2026 (o banco migrado, o login com o Google e o Discord no navegador e no app
-1.3.0). Falta: em *Actions → Backup do banco → Run workflow*, rodar uma vez e conferir que o artefato `banco-...`
-aparece; baixar, abrir com a `BACKUP_CHAVE` (`gpg -d`) e conferir com `pg_restore -l`.
-
-## Depois do deploy dos servidores (só servidores, com conta)
-
-- No Render, apagar a variável `OZAMIGOS_SENHA` (o servidor não a usa mais; deixá-la não quebra nada).
-
 ## Depois da revisão de segurança (PR #21)
 
 - Na próxima versão do app: tirar do `loginPeloNavegador` (`desktop/main.js`) a volta `ligou`, que o servidor não manda
