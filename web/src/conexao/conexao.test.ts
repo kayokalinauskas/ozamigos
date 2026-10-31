@@ -2,7 +2,7 @@ import { aceitaHevc } from '../qualidade';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ESPERAS_PARA_RECONECTAR, Sinalizacao } from './sinalizacao';
-import { opusDeVoz, opusEstereo, preferirCodecs } from './webrtc';
+import { PRAZO_SEM_QUADROS, VigiaDoCodificador, opusDeVoz, opusEstereo, preferirCodecs } from './webrtc';
 
 /** Um WebSocket de mentira: o teste decide quando abre, fecha e o que chega. */
 class WebSocketFalso {
@@ -120,6 +120,33 @@ describe('codec da transmissão', () => {
     expect(escolhidos[2][0]).toBe('video/VP8');
     expect(escolhidos[2]).not.toContain('video/H264');
     vi.unstubAllGlobals();
+  });
+
+  it('troca de codec só com a conexão conectada pelo prazo, a captura andando e nenhum quadro codificado', () => {
+    const h264 = (conectada: boolean, codificados: number, capturados?: number) => ({ conectada, codec: 'video/H264', codificados, capturados });
+    const vigia = new VigiaDoCodificador();
+    expect(vigia.ler(h264(false, 0, 0), 0)).toBe('esperar'); // conectando: o prazo nem começou
+    expect(vigia.ler(h264(true, 0, 30), 2_000)).toBe('esperar');
+    expect(vigia.ler(h264(true, 0, 150), 2_000 + PRAZO_SEM_QUADROS - 1)).toBe('esperar');
+    expect(vigia.ler(h264(true, 0, 180), 2_000 + PRAZO_SEM_QUADROS)).toBe('trocar');
+
+    const parada = new VigiaDoCodificador(); // a captura sem quadros novos: o codificador não tem culpa
+    parada.ler(h264(true, 0, 40), 0);
+    expect(parada.ler(h264(true, 0, 45), PRAZO_SEM_QUADROS * 2)).toBe('esperar');
+
+    const caiu = new VigiaDoCodificador(); // a conexão que cai recomeça o prazo
+    caiu.ler(h264(true, 0, 0), 0);
+    caiu.ler(h264(false, 0, 100), 4_000);
+    caiu.ler(h264(true, 0, 120), 5_000);
+    expect(caiu.ler(h264(true, 0, 300), 5_000 + PRAZO_SEM_QUADROS - 1)).toBe('esperar');
+
+    const semContagem = new VigiaDoCodificador(); // o navegador não diz os quadros da captura: vale o prazo
+    semContagem.ler(h264(true, 0), 0);
+    expect(semContagem.ler(h264(true, 0), PRAZO_SEM_QUADROS)).toBe('trocar');
+
+    expect(new VigiaDoCodificador().ler(h264(true, 1, 30), 0)).toBe('funciona');
+    expect(new VigiaDoCodificador().ler({ conectada: true, codec: '', codificados: 0 }, 0)).toBe('esperar');
+    expect(new VigiaDoCodificador().ler({ conectada: true, codec: 'video/VP8', codificados: 0 }, 0)).toBe('sem-saida');
   });
 
   it('em 1080p, nunca H.265 (o codificador da placa falhava e derrubava a página); até 720p, sim', () => {

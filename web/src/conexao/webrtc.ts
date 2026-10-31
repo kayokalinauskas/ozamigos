@@ -127,9 +127,10 @@ export function aquecerWebRtc() {
  * codificação por quadro. O AV1 e o VP9 deste Chromium codificam no processador (o dobro do tempo): ficam de fora.
  * O Chromium só oferece o H.265 com a placa de vídeo codificando (quem transmite) e decodificando (quem assiste): sem isso,
  * a negociação cai sozinha no H.264. recusados: os codecs que ficam de fora, porque o codificador da placa não soltou
- * quadros neles (conferirCodificador, em cliente.ts) ou, o H.265, em 1080p (aceitaHevc). Com o H.265 e o H.264 recusados,
- * vai o VP8, que codifica no processador: no PC de 31/10/2026 (RX 7900 XT, tela 4K), a captura entregava a imagem e o
- * codificador da placa não soltava nada nos dois, nem com o HDR desligado, e a tela de quem assistia ficava preta.
+ * quadros neles (VigiaDoCodificador) ou, o H.265, em 1080p (aceitaHevc). Com o H.265 e o H.264 recusados, vai o VP8, que
+ * codifica no processador: no PC de 31/10/2026 (RX 7900 XT, Windows 26300), a captura entregava a imagem e o codificador
+ * da placa não soltava nada nos dois, nem sem HDR, nem em 1080p a 100%, e a tela de quem assistia ficava preta. A gravação
+ * do Adrenalin, que usa a placa sem passar pelo Media Foundation do Windows (o caminho do Chromium), funcionava.
  */
 export function preferirCodecs(transceptor: RTCRtpTransceiver, recusados: ReadonlySet<string> = new Set()) {
   if (!transceptor.setCodecPreferences) return;
@@ -139,4 +140,72 @@ export function preferirCodecs(transceptor: RTCRtpTransceiver, recusados: Readon
   if (preferidos.length === 0) return;
   const resto = codecs.filter((c) => !ordem.includes(c.mimeType) && !recusados.has(c.mimeType));
   transceptor.setCodecPreferences([...preferidos, ...resto]);
+}
+
+/** O próximo codec quando o codificador de um deles não solta quadros: do H.265 ao H.264 da placa, e dele ao VP8 do processador. */
+export const CODEC_SEGUINTE: Readonly<Record<string, string>> = { 'video/H265': 'video/H264', 'video/H264': 'video/VP8' };
+
+/** Conectada há tanto tempo, com a captura entregando, e nenhum quadro codificado: o codificador da placa não funciona. */
+export const PRAZO_SEM_QUADROS = 5_000;
+// A captura precisa ter entregado ao menos tantos quadros nesse prazo para a culpa ser do codificador. Com a imagem
+// parada, a do app repete o último a cada 100 ms e a do Chromium tem o piso de 10 fps (FPS_MINIMO_DA_CAPTURA): dá 50.
+const CAPTURADOS_NO_PRAZO = 10;
+
+/** Uma leitura do getStats de uma conexão de envio (lerCodificador). capturados: os quadros da captura até agora, quando o navegador diz. */
+export type LeituraDoCodificador = { conectada: boolean; codec: string; codificados: number; capturados?: number };
+
+/**
+ * Vigia uma conexão de envio desde a oferta, uma leitura por segundo, até o primeiro quadro codificado.
+ * esperar: leia de novo; trocar: refaça a conexão no CODEC_SEGUINTE; funciona e sem-saida (já no VP8): pare.
+ * O prazo só conta com a conexão conectada: antes disso, nenhum codificador solta quadros.
+ */
+export class VigiaDoCodificador {
+  private conectadaDesde: number | null = null;
+  private capturadosAoConectar = 0;
+
+  ler(leitura: LeituraDoCodificador, agora: number): 'esperar' | 'trocar' | 'funciona' | 'sem-saida' {
+    if (leitura.codificados > 0) return 'funciona';
+    if (!leitura.codec) return 'esperar'; // ainda sem codec negociado
+    if (!(leitura.codec in CODEC_SEGUINTE)) return 'sem-saida';
+    if (!leitura.conectada) {
+      this.conectadaDesde = null;
+      return 'esperar';
+    }
+    if (this.conectadaDesde === null) {
+      this.conectadaDesde = agora;
+      this.capturadosAoConectar = leitura.capturados ?? 0;
+      return 'esperar';
+    }
+    if (agora - this.conectadaDesde < PRAZO_SEM_QUADROS) return 'esperar';
+    // Sem a contagem da captura, vale só o prazo; com ela, tela sem quadros novos não é culpa do codificador.
+    if (leitura.capturados !== undefined && leitura.capturados - this.capturadosAoConectar < CAPTURADOS_NO_PRAZO) return 'esperar';
+    return 'trocar';
+  }
+}
+
+/** Codec, quadros codificados e capturados do vídeo de uma conexão de envio; null sem o vídeo nas estatísticas ainda. */
+export async function lerCodificador(pc: RTCPeerConnection): Promise<LeituraDoCodificador | null> {
+  const relatorio = await pc.getStats().catch(() => null);
+  if (!relatorio) return null;
+  let leitura: LeituraDoCodificador | null = null;
+  relatorio.forEach((r) => {
+    if (r.type !== 'outbound-rtp' || r.kind !== 'video') return;
+    leitura = {
+      conectada: pc.connectionState === 'connected',
+      codec: relatorio.get(r.codecId)?.mimeType ?? '',
+      codificados: r.framesEncoded ?? 0,
+      capturados: relatorio.get(r.mediaSourceId)?.frames,
+    };
+  });
+  if (!leitura) return null;
+  const lida: LeituraDoCodificador = leitura;
+  // Sem o codec nas estatísticas (nenhum pacote saiu ainda, em algumas versões), vale o primeiro negociado, o que o envio usa.
+  if (!lida.codec) {
+    try {
+      lida.codec = pc.getSenders().find((s) => s.track?.kind === 'video')?.getParameters().codecs?.[0]?.mimeType ?? '';
+    } catch {
+      // sem os parâmetros, espera a próxima leitura
+    }
+  }
+  return lida;
 }

@@ -14,6 +14,8 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 
 ### Corrigido
 - Num PC em que a placa de vídeo não codificava a transmissão, quem assistia via a tela preta para sempre. Agora a transmissão passa sozinha para o processador. E quando o H.265 falhava, só o primeiro espectador passava para o H.264; os outros continuavam sem imagem.
+- A troca de codificador agora acontece uns 5 segundos depois de quem assiste conectar, e não mais 10 segundos depois do pedido. Uma conexão que ainda não tinha conectado aos 10 segundos nunca era conferida e ficava preta.
+- Nos relatórios da gravação da sala, a placa que não codifica tem um diagnóstico próprio. Antes, aparecia como "codificador saturado".
 - No celular, um nome de servidor longo e sem espaços alargava a sala e as configurações do servidor além da tela.
 - As iniciais de um nome com emoji mostravam um caractere inválido.
 

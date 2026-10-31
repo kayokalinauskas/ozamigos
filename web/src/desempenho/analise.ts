@@ -4,7 +4,7 @@
 
 import { FOLGA } from '../folga';
 import { QUALIDADES, type Qualidade } from '../qualidade';
-import { FAIXAS, type AmostraRecepcao, type Gravacao, type Trecho } from './tipos';
+import { FAIXAS, SEGUNDOS_DESCARTADOS, type AmostraRecepcao, type Gravacao, type Trecho } from './tipos';
 
 export type Resultado = 'otimo' | 'bom' | 'atencao' | 'ruim';
 
@@ -337,6 +337,52 @@ export function classificar(r: ResumoDoTrecho): Resultado {
 
 // ===== Diagnósticos =====
 
+/** Seguidas, tantas leituras sem quadro codificado, com a captura entregando, já são a placa que não codifica. */
+const LEITURAS_SEM_QUADROS = 3;
+const CODECS_DA_PLACA = ['H264', 'H265'];
+
+export type SemQuadros = { espectador: string; codec: string; codificador: string | null; inicio: number; fim: number; depois: string | null };
+
+/**
+ * Os pedaços em que o codificador da placa não soltou nenhum quadro com a captura entregando (um driver quebrado; o
+ * VigiaDoCodificador troca de codec em ~5 s). Lê todas as amostras, também as dos segundos descartados dos trechos:
+ * a troca acontece justamente no começo. depois: o codec e o codificador que vieram em seguida, já soltando quadros.
+ */
+export function placaSemQuadros(g: Gravacao): SemQuadros[] {
+  const capturaEm = new Map(g.captura.map((c) => [c.t, c.fps]));
+  const achados: SemQuadros[] = [];
+  for (const espectador of new Set(g.envio.map((e) => e.espectador))) {
+    const dele = g.envio.filter((e) => e.espectador === espectador).sort((a, b) => a.t - b.t);
+    let aberto: SemQuadros | null = null;
+    let leituras = 0;
+    for (const e of dele) {
+      const semQuadros = e.fpsCodificados === 0 && CODECS_DA_PLACA.includes(e.codec ?? '');
+      if (semQuadros && (aberto === null || aberto.codec === e.codec)) {
+        if (!((capturaEm.get(e.t) ?? 0) > 0)) continue; // sem saber da captura (ou ela parada), a leitura não conta
+        aberto ??= { espectador, codec: e.codec!, codificador: e.codificador, inicio: e.t, fim: e.t, depois: null };
+        aberto.fim = e.t;
+        leituras++;
+        continue;
+      }
+      if (aberto && leituras >= LEITURAS_SEM_QUADROS) {
+        if (e.fpsCodificados > 0) aberto.depois = `${e.codec ?? '?'} (${e.codificador ?? '?'})`;
+        achados.push(aberto);
+      }
+      aberto = null;
+      leituras = 0;
+      if (semQuadros) {
+        // outro codec da placa, também sem quadros (o H.265 que passou para o H.264): começa um pedaço novo
+        if ((capturaEm.get(e.t) ?? 0) > 0) {
+          aberto = { espectador, codec: e.codec!, codificador: e.codificador, inicio: e.t, fim: e.t, depois: null };
+          leituras = 1;
+        }
+      }
+    }
+    if (aberto && leituras >= LEITURAS_SEM_QUADROS) achados.push(aberto);
+  }
+  return achados;
+}
+
 const CODIGO = {
   qualidades: 'web/src/qualidade.ts (QUALIDADES: bitrate, fps, altura e degradationPreference de cada opção)',
   captura: 'desktop/captura (o auxiliar da captura do app: Wgc.cs, Conversor.cs, Programa.cs), web/src/videoDoApp.ts, web/src/conexao/captura.ts (tamanhoDaCaptura, FPS_MINIMO_DA_CAPTURA), web/src/cliente.ts (capturar, usarTela) e desktop/main.js (ligarCapturaDeVideo, desktopCapturer, setDisplayMediaRequestHandler)',
@@ -345,6 +391,7 @@ const CODIGO = {
   rede: 'web/src/conexao/webrtc.ts (SERVIDORES_ICE e a retransmissão TURN, que só entra quando o caminho direto falha) e web/src/cliente.ts (refazerVideo)',
   interface: 'web/src/conexao/medidor.ts e web/src/cliente.ts (medir(): getStats de todas as conexões a cada 1 s e mudar() que re-renderiza o React) e web/src/componentes/',
   malha: 'web/src/cliente.ts (enviarOferta: uma RTCPeerConnection e uma codificação por espectador)',
+  escolhaDoCodec: 'web/src/conexao/webrtc.ts (preferirCodecs, VigiaDoCodificador, CODEC_SEGUINTE, lerCodificador) e web/src/cliente.ts (vigiarCodificador)',
 };
 
 export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostico[] {
@@ -426,7 +473,37 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
   }
 
   // Codificador
-  const software = validos.find((t) => t.envio.codificadorDaPlaca === false || /openh264|libvpx|libaom/i.test(t.envio.codificador ?? ''));
+  const semQuadros = placaSemQuadros(g);
+  if (semQuadros.length) {
+    const voltou = semQuadros.every((s) => s.depois !== null);
+    lista.push({
+      gravidade: voltou ? 'media' : 'alta',
+      codigo: 'placa-sem-quadros',
+      titulo: voltou
+        ? 'O codificador da placa de vídeo não soltou nenhum quadro, e a transmissão passou para outro codec'
+        : 'O codificador da placa de vídeo não soltou nenhum quadro: quem assistia via a tela preta',
+      detalhe:
+        `A captura entregava a imagem, a conexão estava de pé e o codificador da placa ficou em 0 quadros por ${LEITURAS_SEM_QUADROS} leituras seguidas ou mais. ` +
+        'Não é falta de força (o motor de vídeo da placa costuma ficar em 0%): o codificador abre e não devolve nada, e o Chromium não troca sozinho porque ele não dá erro. ' +
+        'Visto em 31/10/2026 numa RX 7900 XT no Windows 26300, com o mesmo driver de uma RX 7800 XT que funcionava, e com a gravação do Adrenalin (que não passa pelo Media Foundation) funcionando. ' +
+        'O Ozamigos refaz a conexão no codec seguinte (H.265 → H.264 → VP8 no processador) depois de 5 s conectada sem quadros.',
+      evidencias: semQuadros.map(
+        (s) => `${s.espectador}: ${s.codec} (${s.codificador ?? '?'}) sem quadros de ${s.inicio} s a ${s.fim} s; depois: ${s.depois ?? 'nada (continuou sem quadros)'}`,
+      ),
+      paraVoce: voltou
+        ? 'A transmissão funciona pelo processador, com menos nitidez. Para voltar à placa: feche programas que gravam a tela (o Instant Replay do Adrenalin, por exemplo) e reinstale o driver da placa do zero.'
+        : 'Feche programas que gravam a tela (o Instant Replay do Adrenalin, por exemplo) e reinstale o driver da placa do zero.',
+      paraOApp: voltou
+        ? 'Nada a fazer na escolha: o VigiaDoCodificador já trocou. Conferir se o tempo até a troca ficou perto de 5 s.'
+        : 'Conferir por que o VigiaDoCodificador não trocou de codec (a conexão conectou? a captura andava?).',
+      ondeNoCodigo: [CODIGO.escolhaDoCodec],
+    });
+  }
+  // O processador codificando porque a placa falhou já está dito acima, com a causa.
+  const porFalhaDaPlaca = semQuadros.some((s) => s.depois !== null);
+  const software = porFalhaDaPlaca
+    ? undefined
+    : validos.find((t) => t.envio.codificadorDaPlaca === false || /openh264|libvpx|libaom/i.test(t.envio.codificador ?? ''));
   if (software) {
     lista.push({
       gravidade: 'alta',
@@ -439,7 +516,10 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
       ondeNoCodigo: [CODIGO.codificador],
     });
   }
+  // Um codificador parado não está saturado (é o placa-sem-quadros), nem o que acabou de nascer depois da troca de codec.
+  const fimDaFalha = Math.max(-Infinity, ...semQuadros.map((s) => s.fim));
   const saturados = validos.filter((t) => {
+    if (semQuadros.length && (t.envio.fpsCodificados === 0 || t.trecho.descartarAte < fimDaFalha + SEGUNDOS_DESCARTADOS)) return false;
     const orcamento = 1000 / t.conteudoFps;
     const cpuLimitado = (t.envio.limites.cpu ?? 0) > 20;
     return cpuLimitado || (t.envio.msCodificacao ?? 0) > orcamento * 0.8 || (t.envio.fpsCodificados ?? t.conteudoFps) < t.conteudoFps * 0.9;
@@ -461,7 +541,7 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
         'Opções: codificar uma vez só e repassar para todos (exige um servidor SFU, foge do P2P), simulcast/SVC, ou baixar a qualidade sozinho conforme o número de espectadores.',
       ondeNoCodigo: [CODIGO.malha, CODIGO.qualidades],
     });
-  } else {
+  } else if (!semQuadros.some((s) => s.depois === null)) {
     lista.push({
       gravidade: 'ok',
       codigo: 'codificador-ok',
@@ -691,7 +771,8 @@ export function diagnosticar(g: Gravacao, trechos: ResumoDoTrecho[]): Diagnostic
   }
 
   // Nitidez
-  const borrado = validos.filter((t) => (t.envio.qp ?? 0) > 32);
+  // A escala do QP é a do H.264 e do H.265 (0 a 51); a do VP8 e do AV1 vai até 127 e passaria do limite sempre.
+  const borrado = validos.filter((t) => (t.envio.qp ?? 0) > 32 && !/libvpx|libaom/i.test(t.envio.codificador ?? ''));
   if (borrado.length) {
     lista.push({
       gravidade: 'baixa',
@@ -831,6 +912,7 @@ export const NOMES_DOS_GARGALOS: Record<string, string> = {
   'captura-lenta': 'Captura do jogo',
   'codificador-software': 'Codificador por software',
   'codificador-saturado': 'Codificador',
+  'placa-sem-quadros': 'Codificador da placa parado',
   banda: 'Banda',
   'perda-de-pacotes': 'Perda de pacotes',
   'rede-lenta': 'Rede',

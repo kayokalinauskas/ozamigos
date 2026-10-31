@@ -350,6 +350,7 @@ function protocolo(p: Empurrar, g: Gravacao, titulo: string) {
     '- **Resultado do trecho:** ruim se fluidez < 90% ou fps na tela < 80% do conteúdo ou mais de 2 congelamentos; atenção se fluidez < 97%, fps < 93%, algum limite do codificador > 20% do tempo ou algum congelamento; bom se fluidez < 99% ou fps < 97%; senão ótimo.',
     '- **Uso da placa de vídeo:** contadores "GPU Engine" do Windows (os do Gerenciador de Tarefas). "Motor de vídeo" é o motor de codificação/decodificação mais ocupado (na AMD aparece como "Video Codec Engine", na NVIDIA como "VideoEncode"/"VideoDecode"). "Do jogo/outros" = processos que não são do Ozamigos.',
     '- **CPU app:** soma dos processos do Ozamigos em % do processador inteiro (todos os núcleos = 100%).',
+    '- **Codificador da placa parado (`placa-sem-quadros`):** 3 leituras seguidas ou mais (de todos os segundos, também os descartados) em H.264 ou H.265 com 0 quadros codificados e a captura acima de 0 fps. Média se depois veio outro codec soltando quadros (o app troca sozinho depois de 5 s conectada sem quadros: H.265 → H.264 → VP8 no processador), alta se não. Com ele, os trechos parados ou de até 8 s depois da troca não contam como codificador saturado, e o VP8 da troca não conta como codificador por software.',
     '',
   );
 }
@@ -366,7 +367,7 @@ function glossario(p: Empurrar, titulo: string) {
         ['fps_codif', 'quadros codificados por segundo', 'outbound-rtp framesEncoded', '= fps da qualidade'],
         ['mbps / alvo_mbps', 'bitrate enviado / pedido pelo controle de banda', 'bytesSent, targetBitrate', 'ver QUALIDADES'],
         ['ms_codif', 'tempo médio do codificador por quadro', 'totalEncodeTime / framesEncoded', '< 50% do intervalo entre quadros (8 ms a 60 fps)'],
-        ['qp', 'quantização média (H.264)', 'qpSum / framesEncoded', '~18–28 nítido; > 32 borrado'],
+        ['qp', 'quantização média (H.264 e H.265; a do VP8 vai até 127 e fica fora da regra de nitidez)', 'qpSum / framesEncoded', '~18–28 nítido; > 32 borrado'],
         ['limite', 'o que está segurando o codificador', 'qualityLimitationReason', 'none'],
         ['ms_fila', 'espera média do pacote no pacer', 'totalPacketSendDelay / packetsSent', '< 5 ms'],
         ['plis / nacks', 'pedidos de quadro-chave / de reenvio de quem assiste', 'pliCount, nackCount', '~0 em rede boa'],

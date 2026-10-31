@@ -36,13 +36,16 @@ import type { Canal, LimiteDoVideo, MensagemDoServidor, MensagemParaOServidor, M
 import { Relatorio } from './conexao/relatorio';
 import { Sinalizacao } from './conexao/sinalizacao';
 import {
+  CODEC_SEGUINTE,
   SERVIDORES_ICE,
+  VigiaDoCodificador,
   adicionarCandidato,
   aquecerWebRtc,
   caminhoDaConexao,
   definirFolga,
   conexoesAbertas,
   definirRetransmissao,
+  lerCodificador,
   novaPeerConnection,
   opusEstereo,
 } from './conexao/webrtc';
@@ -150,10 +153,11 @@ const ESPERA_DESCONECTADO = 2_000;
 // enchia a fila de envio e a imagem congelava 3 ou 4 vezes nos primeiros segundos.
 const BITRATE_INICIAL = 0.5;
 const SUBIR_BITRATE_DEPOIS = 6_000;
-// Quanto depois da oferta conferir se o codificador da placa está soltando quadros (preferirCodecs, em webrtc.ts).
-const CONFERIR_CODIFICADOR_DEPOIS = 10_000;
-// O próximo codec quando o codificador de um deles não solta quadros: do H.265 ao H.264 da placa, e dele ao VP8 do processador.
-const CODEC_SEGUINTE: Record<string, string> = { 'video/H265': 'H.264', 'video/H264': 'o codificador do processador (VP8)' };
+// Cada conexão de envio lê o codificador a cada tanto desde a oferta, até o primeiro quadro (VigiaDoCodificador, em
+// webrtc.ts), e desiste depois do máximo: uma conexão que nem conecta é caso para o refazerVideo de quem assiste.
+const LER_CODIFICADOR_A_CADA = 1_000;
+const VIGIAR_CODIFICADOR_POR = 60_000;
+const NOME_DO_CODEC: Record<string, string> = { 'video/H265': 'H.265', 'video/H264': 'H.264', 'video/VP8': 'VP8, no processador' };
 
 // Chamar a atenção de alguém: até tantas vezes nessa janela, para cada pessoa (a mesma regra do servidor,
 // CHAMADAS_POR_JANELA e CHAMADAS_JANELA_MS).
@@ -211,7 +215,7 @@ class Cliente {
   private proximaMensagem = 1;
   private readonly imagensMinhas = new Map<string, ImagemComprimida>(); // para o "Tentar de novo"
   private envioDeImagens: number[] = []; // quando mandei as últimas imagens (o freio)
-  private codecsRecusados = new Set<string>(); // o codificador da placa falhou neles (conferirCodificador): de fora até recarregar
+  private codecsRecusados = new Set<string>(); // o codificador da placa falhou neles (vigiarCodificador): de fora até recarregar
   private ecos: (() => void)[] = []; // imagens esperando o texto que vai antes delas voltar do servidor
   private avisoDoChat: { de: string; aviso: number } | null = null; // o aviso da última mensagem, enquanto na tela
   private envioDoChat: number[] = []; // quando mandei as últimas mensagens (o freio)
@@ -1383,7 +1387,7 @@ class Cliente {
     const { pc } = this.novaConexao('envio', idEspectador);
     montarEnvio(tela, this.estado.qualidade, pc, BITRATE_INICIAL, this.codecsRecusados);
     setTimeout(() => void this.bitrateCheio(pc), SUBIR_BITRATE_DEPOIS);
-    setTimeout(() => void this.conferirCodificador(pc, idEspectador), CONFERIR_CODIFICADOR_DEPOIS);
+    this.vigiarCodificador(pc, idEspectador);
     const oferta = await pc.createOffer();
     const descricao: RTCSessionDescriptionInit = { type: 'offer', sdp: opusEstereo(oferta.sdp ?? '') };
     await pc.setLocalDescription(descricao);
@@ -1398,31 +1402,33 @@ class Cliente {
   }
 
   /**
-   * A conexão está de pé, a captura entrega quadros e o codificador da placa não soltou nenhum (um driver quebrado):
-   * esta conexão é refeita no codec seguinte (CODEC_SEGUINTE), e as próximas já saem nele, até a página recarregar.
-   * Cada conexão confere a sua: as que nasceram no codec recusado se refazem sozinhas no prazo delas.
+   * Conectada, com a captura entregando quadros, e o codificador da placa sem soltar nenhum (um driver quebrado): esta
+   * conexão é refeita no codec seguinte (CODEC_SEGUINTE), e as próximas já saem nele, até a página recarregar. Não fica
+   * guardado: num PC assim, a placa voltava a codificar em outro dia, e a conferência custa só os segundos do prazo.
+   * Cada conexão vigia a sua: as que nasceram num codec recusado depois se refazem sozinhas no prazo delas.
    */
-  private async conferirCodificador(pc: RTCPeerConnection, idEspectador: string) {
-    if (pc.connectionState !== 'connected') return;
-    const relatorio = await pc.getStats().catch(() => null);
-    if (!relatorio) return;
-    let codec = '';
-    let quadros = 0;
-    let capturados: number | undefined;
-    relatorio.forEach((r) => {
-      if (r.type === 'outbound-rtp' && r.kind === 'video') {
-        codec = relatorio.get(r.codecId)?.mimeType ?? '';
-        quadros = r.framesEncoded ?? 0;
-        capturados = relatorio.get(r.mediaSourceId)?.frames;
+  private vigiarCodificador(pc: RTCPeerConnection, idEspectador: string) {
+    const vigia = new VigiaDoCodificador();
+    const inicio = performance.now();
+    const minha = () => pc.connectionState !== 'closed' && this.conexoes.get(chave('envio', idEspectador))?.pc === pc;
+    const ler = async () => {
+      if (!minha() || performance.now() - inicio > VIGIAR_CODIFICADOR_POR) return;
+      const leitura = await lerCodificador(pc);
+      if (!minha()) return; // fechada ou refeita durante a leitura
+      const decisao = leitura ? vigia.ler(leitura, performance.now()) : 'esperar';
+      if (decisao === 'esperar') {
+        setTimeout(() => void ler(), LER_CODIFICADOR_A_CADA);
+        return;
       }
-    });
-    // Sem quadros da captura (quando o navegador diz), o codificador não tem culpa; e o VP8 é o último.
-    if (!(codec in CODEC_SEGUINTE) || quadros > 0 || capturados === 0) return;
-    if (!this.codecsRecusados.has(codec)) {
-      this.codecsRecusados.add(codec);
-      this.registrar(`o codificador ${codec.slice(6)} não soltou quadros: as transmissões passam para ${CODEC_SEGUINTE[codec]}`);
-    }
-    if (this.conexoes.get(chave('envio', idEspectador))?.pc === pc) void this.enviarOferta(idEspectador);
+      if (decisao !== 'trocar' || !leitura) return;
+      if (!this.codecsRecusados.has(leitura.codec)) {
+        this.codecsRecusados.add(leitura.codec);
+        const seguinte = CODEC_SEGUINTE[leitura.codec];
+        this.registrar(`o codificador ${NOME_DO_CODEC[leitura.codec]} não soltou quadros: as transmissões passam para ${NOME_DO_CODEC[seguinte] ?? seguinte}`);
+      }
+      void this.enviarOferta(idEspectador);
+    };
+    setTimeout(() => void ler(), LER_CODIFICADOR_A_CADA);
   }
 
   /** Passados os primeiros segundos de uma pessoa nova, o bitrate sobe para o da qualidade. */
