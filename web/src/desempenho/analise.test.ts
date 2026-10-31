@@ -50,6 +50,32 @@ describe('análise', () => {
     expect(a.principal.gargalo).toBe('codificador-saturado');
   });
 
+  it('o codificador da placa parado é a placa sem quadros, e não codificador saturado nem por software', () => {
+    // Como nas gravações de 31/10/2026: H.264 da placa sem quadros, e o VP8 depois da troca (ou nada, antes da correção).
+    const comFalha = (voltou: boolean) => {
+      const parte = trecho(0, 0, 1, 5, 33.3);
+      parte.envio = parte.envio.map((e) =>
+        e.t <= 11 || !voltou
+          ? { ...e, fpsCodificados: 0, fpsEnviados: 0, mbps: 0, msCodificacao: null, codec: 'H264', codificador: 'MediaFoundationVideoEncodeAccelerator (AMDh264Encoder)' }
+          : { ...e, codec: 'VP8', codificador: 'libvpx', codificadorDaPlaca: false, qp: 91 },
+      );
+      return analisar(gravacao(parte));
+    };
+    const codigos = (a: ReturnType<typeof analisar>) => a.diagnosticos.map((d) => d.codigo);
+
+    const trocou = comFalha(true);
+    expect(trocou.diagnosticos.find((d) => d.codigo === 'placa-sem-quadros')?.gravidade).toBe('media');
+    expect(codigos(trocou)).not.toContain('codificador-saturado');
+    expect(codigos(trocou)).not.toContain('codificador-software');
+    expect(codigos(trocou)).not.toContain('imagem-borrada'); // o QP do VP8 tem outra escala
+
+    const preta = comFalha(false);
+    expect(preta.diagnosticos[0]).toMatchObject({ codigo: 'placa-sem-quadros', gravidade: 'alta' });
+    expect(preta.principal.gargalo).toBe('placa-sem-quadros');
+    expect(codigos(preta)).not.toContain('codificador-saturado');
+    expect(codigos(preta)).not.toContain('codificador-ok');
+  });
+
   it('aponta a captura quando o Windows entrega menos quadros que a qualidade pede', () => {
     const a = analisar(gravacao(trecho(0, 0, 1, 4, 47.6, 21)));
     expect(a.diagnosticos.some((d) => d.codigo === 'captura-lenta')).toBe(true);
