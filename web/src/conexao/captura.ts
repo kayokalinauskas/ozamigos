@@ -94,16 +94,16 @@ export function descreverFonte(tela: MediaStream): string {
 
 /**
  * Vídeo e som da tela numa conexão de envio, com a qualidade de agora (e uma fração do bitrate, se pedida).
- * semHevc: o codificador H.265 desta placa falhou; a conexão vai em H.264. Em 1080p, vai sempre em H.264 (aceitaHevc).
+ * recusados: os codecs em que o codificador desta placa não soltou quadros (preferirCodecs). Em 1080p, nunca H.265 (aceitaHevc).
  */
-export function montarEnvio(tela: MediaStream, qualidade: Qualidade, pc: RTCPeerConnection, fracaoDoBitrate = 1, semHevc = false) {
+export function montarEnvio(tela: MediaStream, qualidade: Qualidade, pc: RTCPeerConnection, fracaoDoBitrate = 1, recusados: ReadonlySet<string> = new Set()) {
   const [video] = tela.getVideoTracks();
   const transceptor = pc.addTransceiver(video, {
     direction: 'sendonly',
     streams: [tela],
     sendEncodings: [codificacao(qualidade, fracaoDoBitrate)],
   });
-  preferirCodecs(transceptor, semHevc || !aceitaHevc(qualidade));
+  preferirCodecs(transceptor, aceitaHevc(qualidade) ? recusados : new Set([...recusados, 'video/H265']));
   // Sempre cria o canal de áudio, mesmo sem áudio agora: assim a troca de fonte não precisa renegociar.
   // O som vai sem MediaStream (outro que o do vídeo) de propósito: na mesma, quem assiste sincroniza os dois, e a imagem
   // esperava o som. No celular, com a saída de áudio lenta do Android, isso deixava a imagem ~0,6 s atrasada (relatório

@@ -13,6 +13,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 - **Ações no painel:** apagar qualquer servidor, banir e desbanir uma conta, com login recente obrigatório e registro de cada ação. Quem é banido sai das salas na hora e não entra mais com a mesma conta do Google ou do Discord.
 
 ### Corrigido
+- Num PC em que a placa de vídeo não codificava a transmissão, quem assistia via a tela preta para sempre. Agora a transmissão passa sozinha para o processador. E quando o H.265 falhava, só o primeiro espectador passava para o H.264; os outros continuavam sem imagem.
 - No celular, um nome de servidor longo e sem espaços alargava a sala e as configurações do servidor além da tela.
 - As iniciais de um nome com emoji mostravam um caractere inválido.
 

@@ -126,14 +126,17 @@ export function aquecerWebRtc() {
  * 31,0 dB passando do alvo (4,6 Mbps); o H.265 a 4 Mbps ficou melhor que o H.264 a 6,5 Mbps, por ~1 ms a mais de
  * codificação por quadro. O AV1 e o VP9 deste Chromium codificam no processador (o dobro do tempo): ficam de fora.
  * O Chromium só oferece o H.265 com a placa de vídeo codificando (quem transmite) e decodificando (quem assiste): sem isso,
- * a negociação cai sozinha no H.264. hevcRecusado: o codificador H.265 desta placa não soltou quadros (cliente.ts).
+ * a negociação cai sozinha no H.264. recusados: os codecs que ficam de fora, porque o codificador da placa não soltou
+ * quadros neles (conferirCodificador, em cliente.ts) ou, o H.265, em 1080p (aceitaHevc). Com o H.265 e o H.264 recusados,
+ * vai o VP8, que codifica no processador: no PC de 31/10/2026 (RX 7900 XT, tela 4K), a captura entregava a imagem e o
+ * codificador da placa não soltava nada nos dois, nem com o HDR desligado, e a tela de quem assistia ficava preta.
  */
-export function preferirCodecs(transceptor: RTCRtpTransceiver, hevcRecusado = false) {
+export function preferirCodecs(transceptor: RTCRtpTransceiver, recusados: ReadonlySet<string> = new Set()) {
   if (!transceptor.setCodecPreferences) return;
   const codecs = RTCRtpReceiver.getCapabilities('video')?.codecs ?? [];
-  const ordem = hevcRecusado ? ['video/H264'] : ['video/H265', 'video/H264'];
+  const ordem = ['video/H265', 'video/H264', 'video/VP8'].filter((tipo) => !recusados.has(tipo));
   const preferidos = ordem.flatMap((tipo) => codecs.filter((c) => c.mimeType === tipo));
   if (preferidos.length === 0) return;
-  const resto = codecs.filter((c) => !ordem.includes(c.mimeType) && !(hevcRecusado && c.mimeType === 'video/H265'));
+  const resto = codecs.filter((c) => !ordem.includes(c.mimeType) && !recusados.has(c.mimeType));
   transceptor.setCodecPreferences([...preferidos, ...resto]);
 }

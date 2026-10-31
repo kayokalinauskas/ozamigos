@@ -104,18 +104,21 @@ describe('Opus no SDP', () => {
 });
 
 describe('codec da transmissão', () => {
-  it('H.265 primeiro e H.264 de reserva; com o H.265 recusado, só H.264', () => {
+  it('H.265 primeiro, depois o H.264 e o VP8 do processador; um codec recusado sai da lista', () => {
     const codecs = ['video/VP8', 'video/H264', 'video/AV1', 'video/H265', 'video/rtx'].map((mimeType) => ({ mimeType, clockRate: 90000 }));
     vi.stubGlobal('RTCRtpReceiver', { getCapabilities: () => ({ codecs, headerExtensions: [] }) });
     const escolhidos: string[][] = [];
     const transceptor = { setCodecPreferences: (c: RTCRtpCodec[]) => escolhidos.push(c.map((x) => x.mimeType)) } as unknown as RTCRtpTransceiver;
 
     preferirCodecs(transceptor);
-    preferirCodecs(transceptor, true);
+    preferirCodecs(transceptor, new Set(['video/H265']));
+    preferirCodecs(transceptor, new Set(['video/H265', 'video/H264']));
 
-    expect(escolhidos[0].slice(0, 2)).toEqual(['video/H265', 'video/H264']);
+    expect(escolhidos[0].slice(0, 3)).toEqual(['video/H265', 'video/H264', 'video/VP8']);
     expect(escolhidos[1][0]).toBe('video/H264');
     expect(escolhidos[1]).not.toContain('video/H265');
+    expect(escolhidos[2][0]).toBe('video/VP8');
+    expect(escolhidos[2]).not.toContain('video/H264');
     vi.unstubAllGlobals();
   });
 
