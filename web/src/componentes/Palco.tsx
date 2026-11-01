@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, LayoutGrid, MonitorUp, RectangleHorizontal, Volume2, VolumeX } from 'lucide-react';
 import { cliente } from '../cliente';
 import { useCliente, useNumeroLembrado } from '../useCliente';
+import { arranjoDoDestaque, type Arranjo } from './arranjoDoDestaque';
 import { Avatar } from './Avatar';
 import { Transmissao } from './Transmissao';
 
@@ -44,6 +45,27 @@ function SeloDeGravacao() {
   );
 }
 
+/** Mede o espaço do destaque a cada mudança (janela, chat, estatísticas) e escolhe o arranjo. */
+function useArranjoDoDestaque(): [Arranjo | null, (elemento: HTMLDivElement | null) => void] {
+  const [arranjo, setArranjo] = useState<Arranjo | null>(null);
+  const observador = useRef<ResizeObserver | null>(null);
+  const medir = useCallback((elemento: HTMLDivElement | null) => {
+    observador.current?.disconnect();
+    observador.current = null;
+    if (!elemento) return;
+    const ler = () => {
+      const novo = arranjoDoDestaque(elemento.clientWidth, elemento.clientHeight);
+      setArranjo((antes) =>
+        antes && antes.onde === novo.onde && antes.principal === novo.principal && antes.lateral === novo.lateral ? antes : novo,
+      );
+    };
+    ler();
+    observador.current = new ResizeObserver(ler);
+    observador.current.observe(elemento);
+  }, []);
+  return [arranjo, medir];
+}
+
 export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
   const { transmitindo, assistindo, meuId } = useCliente();
   const [volumeGeral, setVolumeGeral] = useNumeroLembrado('ozamigos-volume-geral', 100);
@@ -56,6 +78,7 @@ export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
   const emFoco = noPalco.includes(foco ?? '') ? foco! : noPalco[0];
   const destaque = modo === 'destaque' && noPalco.length > 1;
   const volume = geralMudo ? 0 : volumeGeral;
+  const [arranjo, medirDestaque] = useArranjoDoDestaque();
 
   return (
     <section className="palco" aria-label="Transmissões">
@@ -100,14 +123,18 @@ export function Palco({ modo, aoMudarModo, foco, aoDestacar }: Props) {
       </header>
 
       {noPalco.length > 0 && destaque ? (
-        <div className="videos videos-destaque">
-          <div className="destaque-arranjo">
+        <div ref={medirDestaque} className="videos videos-destaque">
+          <div
+            className="destaque-arranjo"
+            data-arranjo={arranjo?.onde}
+            style={arranjo ? ({ '--principal': `${arranjo.principal}px`, '--lateral': `${arranjo.lateral}px` } as React.CSSProperties) : undefined}
+          >
             <Transmissao key={emFoco} id={emFoco} volumeGeral={volume} principal />
             <div className="coluna-lateral">
               {noPalco
                 .filter((id) => id !== emFoco)
                 .map((id) => (
-                  <Transmissao key={id} id={id} volumeGeral={volume} principal={false} aoDestacar={() => aoDestacar(id)} />
+                  <Transmissao key={id} id={id} volumeGeral={volume} principal={false} miniatura aoDestacar={() => aoDestacar(id)} />
                 ))}
             </div>
           </div>
