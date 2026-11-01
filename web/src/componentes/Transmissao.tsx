@@ -125,16 +125,12 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar, miniatura 
       ref={bloco}
       className={principal ? 'transmissao transmissao-principal' : miniatura ? 'transmissao transmissao-miniatura' : 'transmissao'}
       aria-label={`Transmissão de ${nome}`}
+      title={miniatura ? 'Destacar' : undefined}
+      // Na miniatura, um clique em qualquer ponto destaca (o nome e os controles cobrem parte do vídeo), menos nos
+      // botões e no volume. A tela cheia continua no botão; nas outras, dois cliques no vídeo põem em tela cheia.
+      onClick={miniatura ? (e) => !(e.target as Element).closest('button, input') && aoDestacar?.() : undefined}
     >
-      {/* Na miniatura, o clique destaca (a tela cheia continua no botão); nas outras, dois cliques põem em tela cheia. */}
-      <video
-        ref={video}
-        autoPlay
-        playsInline
-        title={miniatura ? 'Destacar' : undefined}
-        onClick={miniatura ? aoDestacar : undefined}
-        onDoubleClick={miniatura ? undefined : telaCheia}
-      />
+      <video ref={video} autoPlay playsInline onDoubleClick={miniatura ? undefined : telaCheia} />
 
       {!stream && (
         <div className="carregando">

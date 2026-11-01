@@ -998,7 +998,7 @@ input[type='range']::-moz-range-thumb {
   flex: none;
 }
 
-.transmissao-miniatura video {
+.transmissao-miniatura {
   cursor: pointer;
 }
 
