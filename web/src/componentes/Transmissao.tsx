@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, LoaderCircle, Maximize, Maximize2, Minimize, PictureInPicture2, Volume1, Volume2, VolumeX, X } from 'lucide-react';
+import { Camera, Focus, LoaderCircle, Maximize, Minimize, PictureInPicture2, Volume1, Volume2, VolumeX, X } from 'lucide-react';
 import { cliente } from '../cliente';
 import type { Metrica } from '../conexao/medidor';
 import { useCliente, useNumeroLembrado, useVoz } from '../useCliente';
@@ -14,6 +14,8 @@ type Props = {
   volumeGeral: number;
   principal: boolean;
   aoDestacar?: () => void;
+  /** Ao lado da principal, no modo destaque: um clique no vídeo a põe em destaque. */
+  miniatura?: boolean;
 };
 
 /**
@@ -28,7 +30,7 @@ function saude(metrica: Metrica | undefined): { nivel: 'bom' | 'medio' | 'ruim';
   return { nivel: 'bom', texto };
 }
 
-export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
+export function Transmissao({ id, volumeGeral, principal, aoDestacar, miniatura = false }: Props) {
   const { videos, metricas } = useCliente();
   const { surdo, ajustes } = useVoz();
   const nome = cliente.nomeDe(id);
@@ -119,8 +121,16 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
   };
 
   return (
-    <figure ref={bloco} className={principal ? 'transmissao transmissao-principal' : 'transmissao'} aria-label={`Transmissão de ${nome}`}>
-      <video ref={video} autoPlay playsInline onDoubleClick={telaCheia} />
+    <figure
+      ref={bloco}
+      className={principal ? 'transmissao transmissao-principal' : miniatura ? 'transmissao transmissao-miniatura' : 'transmissao'}
+      aria-label={`Transmissão de ${nome}`}
+      title={miniatura ? 'Destacar' : undefined}
+      // Na miniatura, um clique em qualquer ponto destaca (o nome e os controles cobrem parte do vídeo), menos nos
+      // botões e no volume. A tela cheia continua no botão; nas outras, dois cliques no vídeo põem em tela cheia.
+      onClick={miniatura ? (e) => !(e.target as Element).closest('button, input') && aoDestacar?.() : undefined}
+    >
+      <video ref={video} autoPlay playsInline onDoubleClick={miniatura ? undefined : telaCheia} />
 
       {!stream && (
         <div className="carregando">
@@ -176,7 +186,7 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar }: Props) {
         </button>
         {aoDestacar && !principal && (
           <button type="button" className="botao-icone" aria-label={`Destacar ${nome}`} title="Destacar" onClick={aoDestacar}>
-            <Maximize2 size={18} />
+            <Focus size={18} />
           </button>
         )}
         {document.pictureInPictureEnabled && (

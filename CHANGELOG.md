@@ -11,6 +11,10 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 ### Novo
 - **Painel do dono** (só no servidor e na interface, sem versão nova do app): as salas abertas com quem está nelas, o consumo da retransmissão, o banco, os servidores e as contas, em `/painel`. Só a conta do dono vê; para as outras, a página não existe.
 - **Ações no painel:** apagar qualquer servidor, banir e desbanir uma conta, com login recente obrigatório e registro de cada ação. Quem é banido sai das salas na hora e não entra mais com a mesma conta do Google ou do Discord.
+- No modo destaque, um clique numa miniatura a põe em destaque. O botão de destacar ganhou um ícone próprio, que antes era quase igual ao de tela cheia.
+
+### Melhorado
+- No modo destaque, a transmissão principal fica maior: as outras vão numa coluna à direita ou numa fileira embaixo, conforme o que deixar a principal maior no espaço da tela.
 
 ### Corrigido
 - Num PC em que a placa de vídeo não codificava a transmissão, quem assistia via a tela preta para sempre. Agora a transmissão passa sozinha para o processador. E quando o H.265 falhava, só o primeiro espectador passava para o H.264; os outros continuavam sem imagem.
