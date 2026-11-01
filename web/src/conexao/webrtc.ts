@@ -127,7 +127,8 @@ export function aquecerWebRtc() {
  * codificação por quadro. O AV1 e o VP9 deste Chromium codificam no processador (o dobro do tempo): ficam de fora.
  * O Chromium só oferece o H.265 com a placa de vídeo codificando (quem transmite) e decodificando (quem assiste): sem isso,
  * a negociação cai sozinha no H.264. recusados: os codecs que ficam de fora, porque o codificador da placa não soltou
- * quadros neles (VigiaDoCodificador) ou, o H.265, em 1080p (aceitaHevc). Com o H.265 e o H.264 recusados, vai o VP8, que
+ * quadros neles (VigiaDoCodificador), ou que travaram duas vezes no decodificador de quem assiste (VigiaDoDecodificador:
+ * aí, a resposta dele os tira), ou, o H.265, em 1080p (aceitaHevc). Com o H.265 e o H.264 recusados, vai o VP8, que
  * codifica no processador: no PC de 31/10/2026 (RX 7900 XT, Windows 26300), a captura entregava a imagem e o codificador
  * da placa não soltava nada nos dois, nem sem HDR, nem em 1080p a 100%, e a tela de quem assistia ficava preta. A gravação
  * do Adrenalin, que usa a placa sem passar pelo Media Foundation do Windows (o caminho do Chromium), funcionava.
@@ -180,6 +181,42 @@ export class VigiaDoCodificador {
     // Sem a contagem da captura, vale só o prazo; com ela, tela sem quadros novos não é culpa do codificador.
     if (leitura.capturados !== undefined && leitura.capturados - this.capturadosAoConectar < CAPTURADOS_NO_PRAZO) return 'esperar';
     return 'trocar';
+  }
+}
+
+/** Tanto tempo chegando quadros e nenhum decodificado: o decodificador travou (a imagem fica branca ou parada). */
+export const PRAZO_SEM_IMAGEM = 5_000;
+// Quantos quadros precisam ter chegado nesse prazo para a culpa ser do decodificador, e não de quem parou de mandar. Quem
+// transmite manda ao menos 10 por segundo, mesmo com a tela parada (FPS_MINIMO_DA_CAPTURA): dá 50.
+const RECEBIDOS_NO_PRAZO = 10;
+
+/** Uma leitura do inbound-rtp de vídeo de uma conexão de recebimento: framesReceived e framesDecoded. */
+export type LeituraDoDecodificador = { recebidos: number; decodificados: number };
+
+/**
+ * Vigia a imagem que chega durante toda a conexão de recebimento, uma leitura por segundo. refazer: os quadros chegam e
+ * nenhum vira imagem há PRAZO_SEM_IMAGEM. Visto em 01/11/2026: H.265 a 2,6 Mbps chegando, 0 fps, mais de mil quadros
+ * descartados e a tela branca, até a pessoa sair e entrar de novo (o que refaz a conexão, com decodificador e
+ * codificador novos).
+ */
+export class VigiaDoDecodificador {
+  private base: (LeituraDoDecodificador & { momento: number }) | null = null;
+
+  ler(leitura: LeituraDoDecodificador, agora: number): 'esperar' | 'refazer' {
+    const base = this.base;
+    // Decodificou algo (ou as contagens recomeçaram): o prazo recomeça daqui.
+    if (!base || leitura.decodificados !== base.decodificados || leitura.recebidos < base.recebidos) {
+      this.base = { ...leitura, momento: agora };
+      return 'esperar';
+    }
+    if (agora - base.momento < PRAZO_SEM_IMAGEM || leitura.recebidos - base.recebidos < RECEBIDOS_NO_PRAZO) return 'esperar';
+    this.base = { ...leitura, momento: agora };
+    return 'refazer';
+  }
+
+  /** Sem leitura que valha (a página escondida não decodifica vídeo): o prazo recomeça na próxima. */
+  esquecer() {
+    this.base = null;
   }
 }
 

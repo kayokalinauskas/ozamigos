@@ -2,7 +2,7 @@ import { aceitaHevc } from '../qualidade';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ESPERAS_PARA_RECONECTAR, Sinalizacao } from './sinalizacao';
-import { PRAZO_SEM_QUADROS, VigiaDoCodificador, opusDeVoz, opusEstereo, preferirCodecs } from './webrtc';
+import { PRAZO_SEM_IMAGEM, PRAZO_SEM_QUADROS, VigiaDoCodificador, VigiaDoDecodificador, opusDeVoz, opusEstereo, preferirCodecs } from './webrtc';
 
 /** Um WebSocket de mentira: o teste decide quando abre, fecha e o que chega. */
 class WebSocketFalso {
@@ -147,6 +147,29 @@ describe('codec da transmissão', () => {
     expect(new VigiaDoCodificador().ler(h264(true, 1, 30), 0)).toBe('funciona');
     expect(new VigiaDoCodificador().ler({ conectada: true, codec: '', codificados: 0 }, 0)).toBe('esperar');
     expect(new VigiaDoCodificador().ler({ conectada: true, codec: 'video/VP8', codificados: 0 }, 0)).toBe('sem-saida');
+  });
+
+  it('refaz a conexão de quem assiste quando os quadros chegam e nenhum vira imagem pelo prazo', () => {
+    const vigia = new VigiaDoDecodificador();
+    expect(vigia.ler({ recebidos: 100, decodificados: 100 }, 0)).toBe('esperar');
+    // O último quadro decodificado foi o do instante 0: o prazo conta dali.
+    expect(vigia.ler({ recebidos: 130, decodificados: 100 }, 1_000)).toBe('esperar');
+    expect(vigia.ler({ recebidos: 250, decodificados: 100 }, PRAZO_SEM_IMAGEM - 1)).toBe('esperar');
+    expect(vigia.ler({ recebidos: 260, decodificados: 100 }, PRAZO_SEM_IMAGEM)).toBe('refazer');
+    expect(vigia.ler({ recebidos: 290, decodificados: 100 }, PRAZO_SEM_IMAGEM + 1_000)).toBe('esperar'); // o prazo recomeça
+
+    const andando = new VigiaDoDecodificador(); // decodificando, mesmo devagar: nada a fazer
+    for (let s = 0; s <= 20; s++) expect(andando.ler({ recebidos: s * 30, decodificados: s }, s * 1_000)).toBe('esperar');
+
+    const semQuadros = new VigiaDoDecodificador(); // quem transmite parou de mandar: o decodificador não tem culpa
+    semQuadros.ler({ recebidos: 100, decodificados: 100 }, 0);
+    expect(semQuadros.ler({ recebidos: 105, decodificados: 100 }, PRAZO_SEM_IMAGEM * 2)).toBe('esperar');
+
+    const escondida = new VigiaDoDecodificador(); // a página escondida não decodifica: o prazo recomeça ao voltar
+    escondida.ler({ recebidos: 100, decodificados: 100 }, 0);
+    escondida.esquecer();
+    escondida.ler({ recebidos: 400, decodificados: 100 }, 10_000);
+    expect(escondida.ler({ recebidos: 430, decodificados: 100 }, 11_000)).toBe('esperar');
   });
 
   it('em 1080p, nunca H.265 (o codificador da placa falhava e derrubava a página); até 720p, sim', () => {
