@@ -24,8 +24,15 @@ export type Metrica = {
 
 export type ConexaoMedida = { pc: RTCPeerConnection; id: string; canal: Canal };
 
-/** O que se mede de quem eu assisto, para a folga de rede acompanhar (folga.ts). */
-export type AoMedirRecebimento = (id: string, pc: RTCPeerConnection, jitterEmSegundos: number | undefined, congelamentos: number) => void;
+/** O que se mede de quem eu assisto, para a folga de rede (folga.ts) e o vigia do decodificador (VigiaDoDecodificador). */
+export type MedidaDoRecebimento = {
+  jitterEmSegundos: number | undefined;
+  congelamentos: number;
+  recebidos: number | undefined; // framesReceived
+  decodificados: number | undefined; // framesDecoded
+  codec: string; // video/H265, video/H264...
+};
+export type AoMedirRecebimento = (id: string, pc: RTCPeerConnection, medida: MedidaDoRecebimento) => void;
 
 export class Medidor {
   private readonly anteriores = new Map<string, { bytes: number; momento: number }>();
@@ -62,7 +69,15 @@ export class Medidor {
         // O Firefox gera ids de relatório novos a cada consulta: o ssrc identifica o fluxo nos dois navegadores.
         const mbps = this.mbpsDesde(`${chaveDaConexao}:${r.type}:${r.ssrc}`, enviando ? r.bytesSent : r.bytesReceived, r.timestamp);
         const congelamentos = r.freezeCount ?? 0;
-        if (!enviando) this.aoMedirRecebimento(id, pc, r.jitter, congelamentos);
+        if (!enviando) {
+          this.aoMedirRecebimento(id, pc, {
+            jitterEmSegundos: r.jitter,
+            congelamentos,
+            recebidos: r.framesReceived,
+            decodificados: r.framesDecoded,
+            codec: relatorio.get(r.codecId)?.mimeType ?? '',
+          });
+        }
         metricas[chaveDaConexao] = {
           canal,
           id,

@@ -31,7 +31,7 @@ import {
   tamanhoDaCaptura,
   type Fonte,
 } from './conexao/captura';
-import { Medidor, type Metrica } from './conexao/medidor';
+import { Medidor, type MedidaDoRecebimento, type Metrica } from './conexao/medidor';
 import type { Canal, LimiteDoVideo, MensagemDoServidor, MensagemParaOServidor, MotivoDoErro, Pessoa } from './conexao/protocolo';
 import { Relatorio } from './conexao/relatorio';
 import { Sinalizacao } from './conexao/sinalizacao';
@@ -39,6 +39,7 @@ import {
   CODEC_SEGUINTE,
   SERVIDORES_ICE,
   VigiaDoCodificador,
+  VigiaDoDecodificador,
   adicionarCandidato,
   aquecerWebRtc,
   caminhoDaConexao,
@@ -48,6 +49,7 @@ import {
   lerCodificador,
   novaPeerConnection,
   opusEstereo,
+  preferirCodecs,
 } from './conexao/webrtc';
 
 export type Aviso = {
@@ -224,8 +226,14 @@ class Cliente {
   private readonly chamadas = new Map<string, number[]>();
   private readonly tentativasDeVideo = new Map<string, number>(); // id -> conexões de vídeo refeitas seguidas
   private readonly folgas = new Map<string, FolgaAdaptativa>(); // quem eu assisto -> folga de rede (folga.ts)
+  private readonly vigiasDaImagem = new WeakMap<RTCPeerConnection, VigiaDoDecodificador>(); // conexão de recebimento -> vigia
+  private readonly travasDaImagem = new Map<string, number>(); // codec -> vezes que a imagem travou aqui (vigiarImagem)
+  private readonly codecsQueTravamAqui = new Set<string>(); // travaram duas vezes: a resposta os tira, até recarregar
   private readonly relatorioDaSessao = new Relatorio();
-  private readonly medidor = new Medidor((id, pc, jitter, congelamentos) => this.ajustarFolga(id, pc, jitter, congelamentos));
+  private readonly medidor = new Medidor((id, pc, medida) => {
+    this.ajustarFolga(id, pc, medida);
+    this.vigiarImagem(id, pc, medida);
+  });
   private medindo = false;
   // Conexões de envio que não são de ninguém da sala: os espectadores simulados do teste de desempenho.
   private readonly enviosExtras = new Set<RTCPeerConnection>();
@@ -1528,6 +1536,11 @@ class Cliente {
     };
     await conexao.pc.setRemoteDescription(sdp);
     await this.aplicarCandidatosPendentes(conexao);
+    // Sem os codecs que travaram o decodificador daqui (vigiarImagem), a resposta faz quem transmite usar o seguinte.
+    if (this.codecsQueTravamAqui.size > 0) {
+      const transceptor = conexao.pc.getTransceivers().find((t) => t.receiver.track.kind === 'video');
+      if (transceptor) preferirCodecs(transceptor, this.codecsQueTravamAqui);
+    }
     const resposta = await conexao.pc.createAnswer();
     const descricao: RTCSessionDescriptionInit = { type: 'answer', sdp: opusEstereo(resposta.sdp ?? '') };
     await conexao.pc.setLocalDescription(descricao);
@@ -1553,14 +1566,41 @@ class Cliente {
   // ===== Estatísticas (conexao/medidor.ts) =====
 
   /** A folga de quem eu assisto acompanha a rede: sobe com jitter e congelamentos, desce com a rede calma. */
-  private ajustarFolga(id: string, pc: RTCPeerConnection, jitter: number | undefined, congelamentos: number) {
+  private ajustarFolga(id: string, pc: RTCPeerConnection, { jitterEmSegundos, congelamentos }: MedidaDoRecebimento) {
     const folga = this.folgas.get(id);
     if (!folga) return;
     const antes = folga.alvo;
-    const alvo = folga.medir(jitter != null ? jitter * 1000 : null, congelamentos);
+    const alvo = folga.medir(jitterEmSegundos != null ? jitterEmSegundos * 1000 : null, congelamentos);
     if (alvo === antes) return;
     for (const receptor of pc.getReceivers()) if (receptor.track.kind === 'video') definirFolga(receptor, alvo);
     if (Math.abs(alvo - antes) >= 25) this.registrar(`folga de rede vendo ${this.nomeDe(id)}: ${alvo} ms`);
+  }
+
+  /**
+   * Os quadros de quem eu assisto chegam e nenhum vira imagem (VigiaDoDecodificador): o decodificador travou, e a tela
+   * ficava branca até a pessoa sair e entrar de novo. Refaz só a conexão desse vídeo, como a saída e a volta faziam, e
+   * um codec que trava pela segunda vez sai das próximas respostas (receberOferta), até a página recarregar: quem
+   * transmite cai no H.264 ou no VP8, como no VigiaDoCodificador.
+   */
+  private vigiarImagem(id: string, pc: RTCPeerConnection, { recebidos, decodificados, codec }: MedidaDoRecebimento) {
+    if (this.conexoes.get(chave('recebimento', id))?.pc !== pc || recebidos === undefined || decodificados === undefined) return;
+    let vigia = this.vigiasDaImagem.get(pc);
+    if (!vigia) this.vigiasDaImagem.set(pc, (vigia = new VigiaDoDecodificador()));
+    // Escondida (minimizada, na bandeja), a página não decodifica vídeo: não é trava.
+    if (document.visibilityState !== 'visible' || pc.connectionState !== 'connected') {
+      vigia.esquecer();
+      return;
+    }
+    if (vigia.ler({ recebidos, decodificados }, performance.now()) !== 'refazer') return;
+    const vezes = (this.travasDaImagem.get(codec) ?? 0) + 1;
+    this.travasDaImagem.set(codec, vezes);
+    const nome = NOME_DO_CODEC[codec] ?? (codec || 'codec desconhecido');
+    if (vezes >= 2 && codec in CODEC_SEGUINTE && !this.codecsQueTravamAqui.has(codec)) {
+      this.codecsQueTravamAqui.add(codec);
+      this.registrar(`a imagem travou ${vezes} vezes no decodificador ${nome}: os vídeos que chegam passam para ${NOME_DO_CODEC[CODEC_SEGUINTE[codec]]}`);
+    }
+    this.registrar(`o vídeo de ${this.nomeDe(id)} chegava sem imagem (decodificador ${nome}): refazendo a conexão`);
+    this.pedirVideoDeNovo(id);
   }
 
   /** Uma medição por vez: com muitas conexões, o getStats de todas pode passar de 1 s e as medições se empilhariam. */
