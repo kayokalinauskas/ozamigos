@@ -6,9 +6,6 @@ import { useCliente, useNumeroLembrado, useVoz } from '../useCliente';
 import { Avatar } from './Avatar';
 import { adicionarImagens } from './PainelChat';
 
-// Silenciar vale enquanto a página estiver aberta, mesmo se a transmissão mudar de lugar no palco.
-const silenciados = new Set<string>();
-
 type Props = {
   id: string;
   volumeGeral: number;
@@ -39,13 +36,13 @@ export function Transmissao({ id, volumeGeral, principal, aoDestacar, miniatura 
   const bloco = useRef<HTMLElement>(null);
   // O volume de cada amigo fica guardado (pela conta, ou pelo nome de um convidado): na próxima vez, ele já vem do
   // jeito que você deixou.
-  const [volume, setVolume] = useNumeroLembrado(`ozamigos-volume:${cliente.chaveDe(id)}`, 100);
-  const [mudo, setMudoLocal] = useState(() => silenciados.has(id));
-  const setMudo = (valor: boolean) => {
-    if (valor) silenciados.add(id);
-    else silenciados.delete(id);
-    setMudoLocal(valor);
-  };
+  // O silenciado também: antes valia só com a página aberta, e pelo id, que muda quando a pessoa reconecta; quem deixava
+  // um amigo sempre mudo ouvia o som dele de novo a cada vez que ele voltava a transmitir (31/10/2026).
+  const chave = cliente.chaveDe(id);
+  const [volume, setVolume] = useNumeroLembrado(`ozamigos-volume:${chave}`, 100);
+  const [silenciado, setSilenciado] = useNumeroLembrado(`ozamigos-transmissao-silenciada:${chave}`, 0);
+  const mudo = silenciado === 1;
+  const setMudo = (valor: boolean) => setSilenciado(valor ? 1 : 0);
   const estado = saude(metricas[`recebimento:${id}`]);
 
   useEffect(() => {

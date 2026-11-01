@@ -17,6 +17,7 @@ O servidor e a versão web não têm número de versão: cada push na `main` vai
 - No modo destaque, a transmissão principal fica maior: as outras vão numa coluna à direita ou numa fileira embaixo, conforme o que deixar a principal maior no espaço da tela.
 
 ### Corrigido
+- Uma transmissão silenciada voltava com som quando a pessoa parava e transmitia de novo, ou reconectava. Agora o silenciado fica guardado como o volume, pela conta de quem transmite.
 - Num PC em que a placa de vídeo não codificava a transmissão, quem assistia via a tela preta para sempre. Agora a transmissão passa sozinha para o processador. E quando o H.265 falhava, só o primeiro espectador passava para o H.264; os outros continuavam sem imagem.
 - A troca de codificador agora acontece uns 5 segundos depois de quem assiste conectar, e não mais 10 segundos depois do pedido. Uma conexão que ainda não tinha conectado aos 10 segundos nunca era conferida e ficava preta.
 - Nos relatórios da gravação da sala, a placa que não codifica tem um diagnóstico próprio. Antes, aparecia como "codificador saturado".

@@ -198,7 +198,7 @@ java -jar target\ozamigos-share-0.0.1-SNAPSHOT.jar --spring.web.resources.static
   - O processador vem do `app.getAppMetrics` (`percentCPUUsage` **já é** % do processador inteiro). A placa vem do `OzamigosSom.exe --contadores` (contadores "GPU Engine" pelo nome em inglês, `PdhAddEnglishCounter`).
 - **Estatísticas:** `medir()` a cada 1 s. No Firefox, os Mbps são por `tipo:ssrc` (ids mudam a cada consulta).
 - **Versão na tela** (`Versao.tsx`): a do app e o commit da interface (`__COMMIT__`, do `RENDER_GIT_COMMIT` no Docker ou do `git rev-parse`). Para conferir um deploy, compare com a `main`.
-- Outros: tela acordada com mais alguém na sala (`telaAcordada.ts`); notificações por tipo, só com a janela fora de foco, guardando só as desligadas (`ozamigos-notificacoes-desligadas`); volume por nome (`ozamigos-volume:<nome>`); janela flutuante por `requestPictureInPicture()`.
+- Outros: tela acordada com mais alguém na sala (`telaAcordada.ts`); notificações por tipo, só com a janela fora de foco, guardando só as desligadas (`ozamigos-notificacoes-desligadas`); volume e silenciado de cada transmissão pela conta de quem transmite (`ozamigos-volume:<chave>`, `ozamigos-transmissao-silenciada:<chave>`, com a chave de `chaveDe`; `useNumeroLembrado` só grava quando a pessoa muda o valor); janela flutuante por `requestPictureInPicture()`.
 
 ## Site (`site/`)
 

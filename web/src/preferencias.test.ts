@@ -1,5 +1,8 @@
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { lembrado, lembradoNumero, lembrar } from './armazenamento';
+import { useNumeroLembrado } from './useCliente';
 import { QUALIDADE, QUALIDADES, capturaAbaixo } from './qualidade';
 import { escolherQualidade, qualidadeEscolhida } from './escolhaDeQualidade';
 
@@ -21,6 +24,30 @@ describe('preferências guardadas', () => {
     expect(lembradoNumero('ozamigos-volume', 1)).toBe(0.4);
     lembrar('ozamigos-volume', 'abc');
     expect(lembradoNumero('ozamigos-volume', 1)).toBe(1);
+  });
+
+  it('o volume e o silenciado de uma transmissão voltam como ficaram, e trocar a chave não grava por cima', async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    let atual: readonly [number, (novo: number) => void] = [0, () => undefined];
+    const Volume = ({ chave }: { chave: string }) => {
+      atual = useNumeroLembrado(chave, 100);
+      return null;
+    };
+    const raiz = createRoot(document.createElement('div'));
+    lembrar('ozamigos-volume:conta:2', '35');
+    await act(async () => raiz.render(createElement(Volume, { chave: 'ozamigos-volume:conta:1' })));
+    expect(atual[0]).toBe(100);
+    await act(async () => atual[1](0));
+    // Parou e voltou a transmitir: a transmissão nasce de novo e lê o 0.
+    await act(async () => raiz.render(null));
+    await act(async () => raiz.render(createElement(Volume, { chave: 'ozamigos-volume:conta:1' })));
+    expect(atual[0]).toBe(0);
+    // A mesma transmissão com outra chave lê a dela, sem levar o 0 junto.
+    await act(async () => raiz.render(createElement(Volume, { chave: 'ozamigos-volume:conta:2' })));
+    expect(atual[0]).toBe(35);
+    expect(lembrado('ozamigos-volume:conta:2')).toBe('35');
+    expect(lembrado('ozamigos-volume:conta:1')).toBe('0');
+    await act(async () => raiz.unmount());
   });
 
   it('sem armazenamento (aba anônima, bloqueio), segue sem quebrar', () => {
